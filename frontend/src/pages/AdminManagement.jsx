@@ -20,8 +20,7 @@ import {
   AlertCircle,
   Lock
 } from 'lucide-react'
-
-const API_URL = 'http://localhost:5001/api'
+import { API_URL } from '../config/api'
 
 const AdminManagement = () => {
   const [searchTerm, setSearchTerm] = useState('')

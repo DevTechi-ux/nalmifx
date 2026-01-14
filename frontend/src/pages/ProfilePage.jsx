@@ -6,8 +6,7 @@ import {
   ArrowLeft, Home, Upload, CheckCircle, Clock, XCircle, FileCheck, Sun, Moon
 } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
-
-const API_URL = 'http://localhost:5001/api'
+import { API_URL } from '../config/api'
 
 const ProfilePage = () => {
   const navigate = useNavigate()

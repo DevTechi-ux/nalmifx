@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { X, Mail, Check, AlertCircle } from 'lucide-react'
-
-const API_URL = 'http://localhost:5001/api'
+import { API_URL } from '../config/api'
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('')

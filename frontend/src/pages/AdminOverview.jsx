@@ -8,6 +8,7 @@ import {
   RefreshCw,
   Calendar
 } from 'lucide-react'
+import { API_URL } from '../config/api'
 
 const AdminOverview = () => {
   const [users, setUsers] = useState([])
@@ -31,14 +32,14 @@ const AdminOverview = () => {
     setLoading(true)
     try {
       // Fetch users
-      const usersResponse = await fetch('http://localhost:5001/api/admin/users')
+      const usersResponse = await fetch(`${API_URL}/admin/users`)
       if (usersResponse.ok) {
         const data = await usersResponse.json()
         setUsers(data.users || [])
       }
       
       // Fetch dashboard stats
-      const statsResponse = await fetch('http://localhost:5001/api/admin/dashboard-stats')
+      const statsResponse = await fetch(`${API_URL}/admin/dashboard-stats`)
       if (statsResponse.ok) {
         const data = await statsResponse.json()
         if (data.success) {

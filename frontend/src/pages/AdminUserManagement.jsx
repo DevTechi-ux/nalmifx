@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import AdminLayout from '../components/AdminLayout'
+import { API_URL } from '../config/api'
 import { 
   Search,
   Mail,
@@ -26,8 +27,6 @@ import {
   Minus,
   Key
 } from 'lucide-react'
-
-const API_URL = 'http://localhost:5001/api'
 
 const AdminUserManagement = () => {
   const [users, setUsers] = useState([])
