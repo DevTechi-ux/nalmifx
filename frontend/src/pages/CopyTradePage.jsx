@@ -780,8 +780,8 @@ const CopyTradePage = () => {
 
       {/* Follow Modal */}
       {showFollowModal && selectedMaster && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-dark-800 rounded-xl p-6 w-full max-w-md border border-gray-700">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-800 rounded-xl p-6 w-full max-w-md border border-gray-700 max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-semibold text-white mb-4">Follow {selectedMaster.displayName}</h2>
             
             <div className="space-y-4">
@@ -870,8 +870,8 @@ const CopyTradePage = () => {
 
       {/* Master Application Modal */}
       {showMasterModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-dark-800 rounded-xl p-6 w-full max-w-md border border-gray-700">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-800 rounded-xl p-6 w-full max-w-md border border-gray-700 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-yellow-500/20 rounded-full flex items-center justify-center">
                 <Crown size={20} className="text-yellow-500" />

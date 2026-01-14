@@ -59,6 +59,20 @@ const transactionSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  bankAccountId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'UserBankAccount'
+  },
+  bankAccountDetails: {
+    type: {
+      type: String,
+      enum: ['Bank', 'UPI']
+    },
+    bankName: String,
+    accountNumber: String,
+    ifscCode: String,
+    upiId: String
+  },
   status: {
     type: String,
     enum: ['Pending', 'Approved', 'Rejected', 'Completed'],

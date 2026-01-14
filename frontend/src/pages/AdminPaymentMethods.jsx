@@ -227,8 +227,8 @@ const AdminPaymentMethods = () => {
       </main>
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-dark-800 rounded-xl p-6 w-full max-w-md border border-gray-700">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-800 rounded-xl p-6 w-full max-w-md border border-gray-700 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-white font-semibold text-lg">{editingMethod ? 'Edit' : 'Add'} Payment Method</h3>
               <button onClick={() => { setShowModal(false); resetForm(); }} className="text-gray-400 hover:text-white"><X size={20} /></button>

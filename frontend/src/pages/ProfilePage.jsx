@@ -378,12 +378,21 @@ const ProfilePage = () => {
                   <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{profile.email}</p>
                   <div className={`flex ${isMobile ? 'justify-center flex-wrap' : ''} items-center gap-2 mt-2`}>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                      storedUser.kycApproved ? 'bg-green-500/20 text-green-500' : 'bg-yellow-500/20 text-yellow-500'
+                      kycStatus?.status === 'approved' 
+                        ? 'bg-green-500/20 text-green-500' 
+                        : kycStatus?.status === 'pending'
+                          ? 'bg-yellow-500/20 text-yellow-500'
+                          : kycStatus?.status === 'rejected'
+                            ? 'bg-red-500/20 text-red-500'
+                            : 'bg-gray-500/20 text-gray-500'
                     }`}>
-                      {storedUser.kycApproved ? 'Verified' : 'Pending'}
+                      {kycStatus?.status === 'approved' ? 'Verified' 
+                        : kycStatus?.status === 'pending' ? 'Under Review'
+                        : kycStatus?.status === 'rejected' ? 'Rejected'
+                        : 'Not Submitted'}
                     </span>
                     <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-500">
-                      Since {new Date(storedUser.createdAt).toLocaleDateString()}
+                      Since {storedUser.createdAt ? new Date(storedUser.createdAt).toLocaleDateString() : 'N/A'}
                     </span>
                   </div>
                 </div>
@@ -701,7 +710,7 @@ const ProfilePage = () => {
             {/* Bank Account Form Modal */}
             {showBankForm && (
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-dark-800 rounded-xl w-full max-w-md border border-gray-700">
+                <div className="bg-dark-800 rounded-xl w-full max-w-md border border-gray-700 max-h-[90vh] overflow-y-auto">
                   <div className="p-4 border-b border-gray-700 flex items-center justify-between">
                     <h3 className="text-white font-semibold">Add Withdrawal Account</h3>
                     <button onClick={() => setShowBankForm(false)} className="text-gray-400 hover:text-white">

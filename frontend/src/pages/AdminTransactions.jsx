@@ -186,8 +186,8 @@ const AdminTransactions = () => {
       </main>
 
       {showRemarkModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-dark-800 rounded-xl p-6 w-full max-w-md border border-gray-700">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-800 rounded-xl p-6 w-full max-w-md border border-gray-700 max-h-[90vh] overflow-y-auto">
             <h3 className="text-white font-semibold text-lg mb-4">{actionType === 'approve' ? 'Approve' : 'Reject'} Transaction</h3>
             <p className="text-gray-400 text-sm mb-4">Amount: <span className="text-white font-medium">${selectedTx?.amount}</span></p>
             <label className="block text-gray-400 text-sm mb-2">Admin Remarks (Optional)</label>

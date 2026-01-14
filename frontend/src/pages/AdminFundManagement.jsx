@@ -412,21 +412,45 @@ const AdminFundManagement = () => {
                 </div>
               </div>
 
-              {/* Bank Details (for withdrawals) */}
+              {/* Bank/UPI Details (for withdrawals) */}
               {selectedTxn.type?.toLowerCase() === 'withdrawal' && (
                 <div className="border-t border-gray-700 pt-4">
                   <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-                    <Building2 size={16} /> Bank Details
+                    {selectedTxn.bankAccountDetails?.type === 'UPI' ? (
+                      <><Smartphone size={16} /> UPI Details</>
+                    ) : (
+                      <><Building2 size={16} /> Bank Details</>
+                    )}
                   </h3>
-                  {userDetails?.bankDetails?.accountNumber ? (
+                  
+                  {/* Show bank details from transaction if available */}
+                  {selectedTxn.bankAccountDetails?.type === 'Bank' ? (
+                    <div className="bg-dark-700 rounded-lg p-4 space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Bank Name</span>
+                        <span className="text-white">{selectedTxn.bankAccountDetails.bankName || '-'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Account Number</span>
+                        <span className="text-white font-mono">{selectedTxn.bankAccountDetails.accountNumber || '-'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">IFSC Code</span>
+                        <span className="text-white font-mono">{selectedTxn.bankAccountDetails.ifscCode || '-'}</span>
+                      </div>
+                    </div>
+                  ) : selectedTxn.bankAccountDetails?.type === 'UPI' ? (
+                    <div className="bg-dark-700 rounded-lg p-4">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">UPI ID</span>
+                        <span className="text-purple-400 font-mono">{selectedTxn.bankAccountDetails.upiId}</span>
+                      </div>
+                    </div>
+                  ) : userDetails?.bankDetails?.accountNumber ? (
                     <div className="bg-dark-700 rounded-lg p-4 space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-gray-500">Bank Name</span>
                         <span className="text-white">{userDetails.bankDetails.bankName || '-'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Account Holder</span>
-                        <span className="text-white">{userDetails.bankDetails.accountHolderName || '-'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">Account Number</span>
@@ -436,22 +460,8 @@ const AdminFundManagement = () => {
                         <span className="text-gray-500">IFSC Code</span>
                         <span className="text-white font-mono">{userDetails.bankDetails.ifscCode || '-'}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Branch</span>
-                        <span className="text-white">{userDetails.bankDetails.branchName || '-'}</span>
-                      </div>
                     </div>
-                  ) : (
-                    <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
-                      <p className="text-red-400 text-sm">⚠️ User has not added bank details</p>
-                    </div>
-                  )}
-
-                  {/* UPI Details */}
-                  <h3 className="text-white font-semibold mt-4 mb-3 flex items-center gap-2">
-                    <Smartphone size={16} /> UPI Details
-                  </h3>
-                  {userDetails?.upiId ? (
+                  ) : userDetails?.upiId ? (
                     <div className="bg-dark-700 rounded-lg p-4">
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-500">UPI ID</span>
@@ -460,7 +470,7 @@ const AdminFundManagement = () => {
                     </div>
                   ) : (
                     <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
-                      <p className="text-yellow-400 text-sm">⚠️ User has not added UPI ID</p>
+                      <p className="text-yellow-400 text-sm">⚠️ No payment details available for this withdrawal</p>
                     </div>
                   )}
                 </div>

@@ -60,9 +60,9 @@ const WalletPage = () => {
   const [screenshot, setScreenshot] = useState(null)
   const [screenshotPreview, setScreenshotPreview] = useState(null)
   const [uploadingScreenshot, setUploadingScreenshot] = useState(false)
-  const fileInputRef = useRef(null)
   const [userBankAccounts, setUserBankAccounts] = useState([])
   const [selectedBankAccount, setSelectedBankAccount] = useState(null)
+  const fileInputRef = useRef(null)
 
   const user = JSON.parse(localStorage.getItem('user') || '{}')
 
@@ -132,6 +132,16 @@ const WalletPage = () => {
     fetchCurrencies()
   }, [user._id])
 
+  const fetchUserBankAccounts = async () => {
+    try {
+      const res = await fetch(`${API_URL}/payment-methods/user-banks/${user._id}/approved`)
+      const data = await res.json()
+      setUserBankAccounts(data.accounts || [])
+    } catch (error) {
+      console.error('Error fetching user bank accounts:', error)
+    }
+  }
+
   const fetchCurrencies = async () => {
     try {
       const res = await fetch(`${API_URL}/payment-methods/currencies/active`)
@@ -192,18 +202,6 @@ const WalletPage = () => {
       console.error('Error fetching transactions:', error)
     }
     setLoading(false)
-  }
-
-  const fetchUserBankAccounts = async () => {
-    try {
-      const res = await fetch(`${API_URL}/payment-methods/user/${user._id}/bank-accounts`)
-      const data = await res.json()
-      // Only show approved accounts
-      const approved = (data.accounts || []).filter(acc => acc.status === 'Approved')
-      setUserBankAccounts(approved)
-    } catch (error) {
-      console.error('Error fetching user bank accounts:', error)
-    }
   }
 
   const fetchPaymentMethods = async () => {
@@ -302,8 +300,8 @@ const WalletPage = () => {
       setError('Please enter a valid amount')
       return
     }
-    if (!selectedPaymentMethod) {
-      setError('Please select a payment method')
+    if (!selectedBankAccount) {
+      setError('Please select a withdrawal account')
       return
     }
     if (wallet && parseFloat(amount) > wallet.balance) {
@@ -318,7 +316,11 @@ const WalletPage = () => {
         body: JSON.stringify({
           userId: user._id,
           amount: parseFloat(amount),
-          paymentMethod: selectedPaymentMethod.type
+          paymentMethod: selectedBankAccount.type === 'UPI' ? 'UPI' : 'Bank Transfer',
+          bankAccountId: selectedBankAccount._id,
+          bankAccountDetails: selectedBankAccount.type === 'UPI' 
+            ? { type: 'UPI', upiId: selectedBankAccount.upiId }
+            : { type: 'Bank', bankName: selectedBankAccount.bankName, accountNumber: selectedBankAccount.accountNumber, ifscCode: selectedBankAccount.ifscCode }
         })
       })
       const data = await res.json()
@@ -327,7 +329,7 @@ const WalletPage = () => {
         setSuccess('Withdrawal request submitted successfully!')
         setShowWithdrawModal(false)
         setAmount('')
-        setSelectedPaymentMethod(null)
+        setSelectedBankAccount(null)
         fetchWallet()
         fetchTransactions()
         setTimeout(() => setSuccess(''), 3000)
@@ -825,7 +827,6 @@ const WalletPage = () => {
                 onClick={() => {
                   setShowWithdrawModal(false)
                   setAmount('')
-                  setSelectedPaymentMethod(null)
                   setSelectedBankAccount(null)
                   setError('')
                 }}
@@ -851,19 +852,19 @@ const WalletPage = () => {
               />
             </div>
 
-            <div className="mb-4">
+            <div className="mb-6">
               <label className="block text-gray-400 text-sm mb-2">Select Withdrawal Account</label>
               {userBankAccounts.length === 0 ? (
                 <div className="p-4 bg-dark-700 rounded-lg border border-gray-700 text-center">
-                  <p className="text-gray-400 text-sm mb-2">No approved withdrawal accounts</p>
+                  <p className="text-gray-400 mb-3">No approved bank accounts or UPI IDs found.</p>
                   <button
                     onClick={() => {
                       setShowWithdrawModal(false)
-                      navigate('/account')
+                      navigate('/profile')
                     }}
-                    className="text-accent-green text-sm hover:underline"
+                    className="bg-accent-green text-black px-4 py-2 rounded-lg font-medium hover:bg-accent-green/90 transition-colors"
                   >
-                    + Add Bank Account or UPI
+                    Add Withdrawal Account
                   </button>
                 </div>
               ) : (
@@ -871,33 +872,25 @@ const WalletPage = () => {
                   {userBankAccounts.map((account) => (
                     <button
                       key={account._id}
-                      onClick={() => {
-                        setSelectedBankAccount(account)
-                        setSelectedPaymentMethod({ type: account.type === 'UPI' ? 'UPI' : 'Bank Transfer' })
-                      }}
-                      className={`w-full p-3 rounded-lg border transition-colors text-left ${
+                      onClick={() => setSelectedBankAccount(account)}
+                      className={`w-full p-3 rounded-lg border transition-colors flex items-center gap-3 text-left ${
                         selectedBankAccount?._id === account._id
                           ? 'border-accent-green bg-accent-green/10'
                           : 'border-gray-700 bg-dark-700 hover:border-gray-600'
                       }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                          account.type === 'UPI' ? 'bg-purple-500/20' : 'bg-blue-500/20'
-                        }`}>
-                          {account.type === 'UPI' ? <Smartphone size={18} className="text-purple-500" /> : <Building size={18} className="text-blue-500" />}
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-white font-medium">{account.accountName || account.upiId}</p>
-                          <p className="text-gray-400 text-xs">
-                            {account.type === 'UPI' 
-                              ? account.upiId 
-                              : `A/C: ${account.accountNumber} | IFSC: ${account.ifscCode}`}
-                          </p>
-                        </div>
-                        {selectedBankAccount?._id === account._id && (
-                          <Check size={18} className="text-accent-green" />
-                        )}
+                      {account.type === 'UPI' ? (
+                        <Smartphone size={20} className="text-blue-400" />
+                      ) : (
+                        <Building size={20} className="text-purple-400" />
+                      )}
+                      <div className="flex-1">
+                        <p className="text-white font-medium">{account.bankName || 'UPI'}</p>
+                        <p className="text-gray-400 text-sm">
+                          {account.type === 'UPI' 
+                            ? account.upiId 
+                            : `A/C: ${account.accountNumber} | IFSC: ${account.ifscCode}`}
+                        </p>
                       </div>
                     </button>
                   ))}
@@ -912,7 +905,6 @@ const WalletPage = () => {
                 onClick={() => {
                   setShowWithdrawModal(false)
                   setAmount('')
-                  setSelectedPaymentMethod(null)
                   setSelectedBankAccount(null)
                   setError('')
                 }}

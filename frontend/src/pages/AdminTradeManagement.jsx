@@ -659,14 +659,14 @@ const AdminTradeManagement = () => {
       {/* Create Trade Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-dark-800 rounded-2xl w-full max-w-lg">
-            <div className="p-6 border-b border-gray-800 flex items-center justify-between">
+          <div className="bg-dark-800 rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-gray-800 flex items-center justify-between flex-shrink-0">
               <h2 className="text-xl font-bold text-white">Create Trade</h2>
               <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-white">
                 <X size={24} />
               </button>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-gray-400 text-sm mb-1">User</label>
                 <select
@@ -1003,7 +1003,7 @@ const AdminTradeManagement = () => {
       {/* Close Trade Modal */}
       {showCloseModal && selectedTrade && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-dark-800 rounded-2xl w-full max-w-md">
+          <div className="bg-dark-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-800 flex items-center justify-between">
               <h2 className="text-xl font-bold text-white">Close Trade</h2>
               <button onClick={() => setShowCloseModal(false)} className="text-gray-400 hover:text-white">
