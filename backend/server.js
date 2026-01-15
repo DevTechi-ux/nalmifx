@@ -57,8 +57,8 @@ const BINANCE_SYMBOLS = {
 }
 // Priority order - XAUUSD first as it's most traded
 const METAAPI_SYMBOLS = ['XAUUSD', 'EURUSD', 'GBPUSD', 'XAGUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD', 'EURGBP', 'EURJPY', 'GBPJPY']
-const META_API_TOKEN = process.env.META_API_TOKEN || 'eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiJiYmRlZGVjYWJjMDAzOTczNTQ3ODk2Y2NlYjgyNzY2NSIsImFjY2Vzc1J1bGVzIjpbeyJpZCI6InRyYWRpbmctYWNjb3VudC1tYW5hZ2VtZW50LWFwaSIsIm1ldGhvZHMiOlsidHJhZGluZy1hY2NvdW50LW1hbmFnZW1lbnQtYXBpOnJlc3Q6cHVibGljOio6KiJdLCJyb2xlcyI6WyJyZWFkZXIiXSwicmVzb3VyY2VzIjpbImFjY291bnQ6JFVTRVJfSUQkOjVmYTc1OGVjLWIyNDEtNGM5Ny04MWM0LTlkZTNhM2JjMWYwNCJdfV0sImlhdCI6MTc2ODIxODA3MSwiZXhwIjoxNzc1OTk0MDcxfQ.stub'
-const META_API_ACCOUNT_ID = process.env.META_API_ACCOUNT_ID || '5fa758ec-b241-4c97-81c4-9de3a3bc1f04'
+const META_API_TOKEN = process.env.META_API_TOKEN
+const META_API_ACCOUNT_ID = process.env.META_API_ACCOUNT_ID
 
 // Fetch MetaAPI price
 async function fetchMetaApiPrice(symbol) {

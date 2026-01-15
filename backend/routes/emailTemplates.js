@@ -42,6 +42,124 @@ const defaultTemplates = [
 </html>`
   },
   {
+    name: 'Challenge Completed',
+    slug: 'challenge_completed',
+    subject: '🎉 Congratulations! Challenge Completed Successfully',
+    description: 'Sent when a user successfully completes a trading challenge',
+    category: 'challenge',
+    variables: ['firstName', 'challengeName', 'fundSize', 'accountId', 'completionDate', 'platformName', 'loginUrl', 'supportEmail', 'year'],
+    htmlContent: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #0a0a0a; font-family: Arial, sans-serif;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px; padding: 40px; border: 1px solid #333;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #fff; margin: 0; font-size: 24px;">{{platformName}}</h1>
+      </div>
+      <h2 style="color: #22c55e; margin: 0 0 20px; font-size: 24px; text-align: center;">🎉 Challenge Completed!</h2>
+      <p style="color: #aaa; margin: 0 0 20px; line-height: 1.6;">Hi {{firstName}},</p>
+      <p style="color: #aaa; margin: 0 0 20px; line-height: 1.6;">Congratulations! You have successfully completed the {{challengeName}} challenge.</p>
+      
+      <div style="background: #0f0f23; border-radius: 12px; padding: 20px; margin-bottom: 30px;">
+        <h3 style="color: #fff; margin: 0 0 15px; font-size: 16px;">Challenge Details:</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+          <div>
+            <p style="color: #888; margin: 0 0 5px; font-size: 14px;">Challenge Name:</p>
+            <p style="color: #fff; margin: 0; font-weight: bold;">{{challengeName}}</p>
+          </div>
+          <div>
+            <p style="color: #888; margin: 0 0 5px; font-size: 14px;">Fund Size:</p>
+            <p style="color: #fff; margin: 0; font-weight: bold;">${{fundSize}}</p>
+          </div>
+          <div>
+            <p style="color: #888; margin: 0 0 5px; font-size: 14px;">Account ID:</p>
+            <p style="color: #fff; margin: 0; font-weight: bold;">{{accountId}}</p>
+          </div>
+          <div>
+            <p style="color: #888; margin: 0 0 5px; font-size: 14px;">Completion Date:</p>
+            <p style="color: #fff; margin: 0; font-weight: bold;">{{completionDate}}</p>
+          </div>
+        </div>
+      </div>
+      
+      <div style="text-align: center; margin-bottom: 30px;">
+        <a href="{{loginUrl}}" style="display: inline-block; background: #22c55e; color: #000; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-weight: bold;">View Results</a>
+      </div>
+      
+      <p style="color: #666; font-size: 12px; margin: 0;">Need help? Contact us at {{supportEmail}}</p>
+      <hr style="border: none; border-top: 1px solid #333; margin: 30px 0;">
+      <p style="color: #666; font-size: 12px; margin: 0; text-align: center;">© {{year}} {{platformName}}. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>`
+  },
+  {
+    name: 'Challenge Failed',
+    slug: 'challenge_failed',
+    subject: '⚠️ Challenge Failed - Try Again',
+    description: 'Sent when a user fails a trading challenge',
+    category: 'challenge',
+    variables: ['firstName', 'challengeName', 'fundSize', 'accountId', 'failureReason', 'failureDate', 'platformName', 'loginUrl', 'supportEmail', 'year'],
+    htmlContent: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #0a0a0a; font-family: Arial, sans-serif;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px; padding: 40px; border: 1px solid #333;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #fff; margin: 0; font-size: 24px;">{{platformName}}</h1>
+      </div>
+      <h2 style="color: #ef4444; margin: 0 0 20px; font-size: 24px; text-align: center;">⚠️ Challenge Failed</h2>
+      <p style="color: #aaa; margin: 0 0 20px; line-height: 1.6;">Hi {{firstName}},</p>
+      <p style="color: #aaa; margin: 0 0 20px; line-height: 1.6;">Unfortunately, you did not meet the requirements for the {{challengeName}} challenge.</p>
+      
+      <div style="background: #0f0f23; border-radius: 12px; padding: 20px; margin-bottom: 30px;">
+        <h3 style="color: #fff; margin: 0 0 15px; font-size: 16px;">Challenge Details:</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+          <div>
+            <p style="color: #888; margin: 0 0 5px; font-size: 14px;">Challenge Name:</p>
+            <p style="color: #fff; margin: 0; font-weight: bold;">{{challengeName}}</p>
+          </div>
+          <div>
+            <p style="color: #888; margin: 0 0 5px; font-size: 14px;">Fund Size:</p>
+            <p style="color: #fff; margin: 0; font-weight: bold;">${{fundSize}}</p>
+          </div>
+          <div>
+            <p style="color: #888; margin: 0 0 5px; font-size: 14px;">Account ID:</p>
+            <p style="color: #fff; margin: 0; font-weight: bold;">{{accountId}}</p>
+          </div>
+          <div>
+            <p style="color: #888; margin: 0 0 5px; font-size: 14px;">Failure Date:</p>
+            <p style="color: #fff; margin: 0; font-weight: bold;">{{failureDate}}</p>
+          </div>
+        </div>
+        <div style="margin-top: 15px;">
+          <p style="color: #888; margin: 0 0 5px; font-size: 14px;">Failure Reason:</p>
+          <p style="color: #ef4444; margin: 0; font-weight: bold;">{{failureReason}}</p>
+        </div>
+      </div>
+      
+      <div style="text-align: center; margin-bottom: 30px;">
+        <a href="{{loginUrl}}" style="display: inline-block; background: #ef4444; color: #fff; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-weight: bold;">Try Again</a>
+      </div>
+      
+      <p style="color: #666; font-size: 12px; margin: 0;">Need help? Contact us at {{supportEmail}}</p>
+      <hr style="border: none; border-top: 1px solid #333; margin: 30px 0;">
+      <p style="color: #666; font-size: 12px; margin: 0; text-align: center;">© {{year}} {{platformName}}. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>`
+  },
+  {
     name: 'Welcome Email',
     slug: 'welcome',
     subject: 'Welcome to {{platformName}}!',

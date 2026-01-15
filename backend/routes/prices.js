@@ -1,10 +1,12 @@
+import dotenv from 'dotenv'
+dotenv.config()
 import express from 'express'
 
 const router = express.Router()
 
-// MetaAPI credentials
-const META_API_TOKEN = 'eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiJiYmRlZGVjYWJjMDAzOTczNTQ3ODk2Y2NlYjgyNzY2NSIsImFjY2Vzc1J1bGVzIjpbeyJpZCI6InRyYWRpbmctYWNjb3VudC1tYW5hZ2VtZW50LWFwaSIsIm1ldGhvZHMiOlsidHJhZGluZy1hY2NvdW50LW1hbmFnZW1lbnQtYXBpOnJlc3Q6cHVibGljOio6KiJdLCJyb2xlcyI6WyJyZWFkZXIiXSwicmVzb3VyY2VzIjpbImFjY291bnQ6JFVTRVJfSUQkOjVmYTc1OGVjLWIyNDEtNGM5Ny04MWM0LTlkZTNhM2JjMWYwNCJdfSx7ImlkIjoibWV0YWFwaS1yZXN0LWFwaSIsIm1ldGhvZHMiOlsibWV0YWFwaS1hcGk6cmVzdDpwdWJsaWM6KjoqIl0sInJvbGVzIjpbInJlYWRlciIsIndyaXRlciJdLCJyZXNvdXJjZXMiOlsiYWNjb3VudDokVVNFUl9JRCQ6NWZhNzU4ZWMtYjI0MS00Yzk3LTgxYzQtOWRlM2EzYmMxZjA0Il19LHsiaWQiOiJtZXRhYXBpLXJwYy1hcGkiLCJtZXRob2RzIjpbIm1ldGFhcGktYXBpOndzOnB1YmxpYzoqOioiXSwicm9sZXMiOlsicmVhZGVyIiwid3JpdGVyIl0sInJlc291cmNlcyI6WyJhY2NvdW50OiRVU0VSX0lEJDo1ZmE3NThlYy1iMjQxLTRjOTctODFjNC05ZGUzYTNiYzFmMDQiXX0seyJpZCI6Im1ldGFhcGktcmVhbC10aW1lLXN0cmVhbWluZy1hcGkiLCJtZXRob2RzIjpbIm1ldGFhcGktYXBpOndzOnB1YmxpYzoqOioiXSwicm9sZXMiOlsicmVhZGVyIiwid3JpdGVyIl0sInJlc291cmNlcyI6WyJhY2NvdW50OiRVU0VSX0lEJDo1ZmE3NThlYy1iMjQxLTRjOTctODFjNC05ZGUzYTNiYzFmMDQiXX0seyJpZCI6Im1ldGFzdGF0cy1hcGkiLCJtZXRob2RzIjpbIm1ldGFzdGF0cy1hcGk6cmVzdDpwdWJsaWM6KjoqIl0sInJvbGVzIjpbInJlYWRlciJdLCJyZXNvdXJjZXMiOlsiYWNjb3VudDokVVNFUl9JRCQ6NWZhNzU4ZWMtYjI0MS00Yzk3LTgxYzQtOWRlM2EzYmMxZjA0Il19LHsiaWQiOiJyaXNrLW1hbmFnZW1lbnQtYXBpIiwibWV0aG9kcyI6WyJyaXNrLW1hbmFnZW1lbnQtYXBpOnJlc3Q6cHVibGljOio6KiJdLCJyb2xlcyI6WyJyZWFkZXIiXSwicmVzb3VyY2VzIjpbImFjY291bnQ6JFVTRVJfSUQkOjVmYTc1OGVjLWIyNDEtNGM5Ny04MWM0LTlkZTNhM2JjMWYwNCJdfV0sImlnbm9yZVJhdGVMaW1pdHMiOmZhbHNlLCJ0b2tlbklkIjoiMjAyMTAyMTMiLCJpbXBlcnNvbmF0ZWQiOmZhbHNlLCJyZWFsVXNlcklkIjoiYmJkZWRlY2FiYzAwMzk3MzU0Nzg5NmNjZWI4Mjc2NjUiLCJpYXQiOjE3NjgyMTgwNzEsImV4cCI6MTc3NTk5NDA3MX0.aVtRIUtO-0gl409_F32jCfGzrIgMmg8qktJhD-54dCVn_8sVzrILGL0_m4suMWbcaR2L4zTFvDTZUP8fthGm0zGCGCE8Ub7ITR_PE5xIF0g7ShaBwN5UeUBa5LWYRzidmUI76ebwP_lUoRFttEws1uh7LgyS_eCajuVW0rb7KxshyM6D2wK9Gh_Eov9TLe1KOZEwSlNK5IORrovmVEic1c6BAkLGwiloDUsvei1H27xj1ab-u80xBrkqckFzJ_09K7iRZVyH941ujySmFjsn-ptBBcjWw3vYBU-4GhBsmHEUImV-sUNInwOltsv3zjtFDa8_0FjpNbpgyPBCTRV6KsPLsAUYbELMnKy8cIgxSCnO1_7nzCWYdJ1dSa2fcpsGapzK4l04UEx7_qiaN6FJ0gi3GSSaFrZIbGuUGZTWeFCWiLQ8jayYqFsnqHz5vK32TqSgi4JpUhaWDDRcneUc4lzv_vVzLQ3wuPKC0TKnPLPVg0pgQS9tThPMhdkEQk8M3FZmiW-8VCCynGOmgM2Xquca3o3iGh6HXiJr3DHzq-1W050kf7Hl_2G7C-heOHFkOBKtB6h3q-ca8znHvq3LC5sRWf7cVjd8HaMMmG-iqxw4p4UkkZQFRC5sTWJSDEdPU_3WgsUDbJz1GdAsP1oOTtHwgQwEnxby9btczWjUBeA'
-const META_API_ACCOUNT_ID = '5fa758ec-b241-4c97-81c4-9de3a3bc1f04'
+// MetaAPI credentials - loaded from .env file
+const META_API_TOKEN = process.env.META_API_TOKEN
+const META_API_ACCOUNT_ID = process.env.META_API_ACCOUNT_ID
 
 // Binance symbol mapping for crypto
 const BINANCE_SYMBOLS = {
@@ -22,8 +24,16 @@ const BINANCE_SYMBOLS = {
   'LINKUSD': 'LINKUSDT'
 }
 
-// MetaAPI symbols (forex + metals)
-const METAAPI_SYMBOLS = ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD', 'EURGBP', 'EURJPY', 'GBPJPY', 'XAUUSD', 'XAGUSD']
+// MetaAPI symbols - LIMITED to essential pairs to avoid rate limiting (429 errors)
+// MetaAPI has strict rate limits, so we only fetch prices for major pairs
+const METAAPI_SYMBOLS = [
+  // Major Forex
+  'EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD',
+  // Cross pairs
+  'EURGBP', 'EURJPY', 'GBPJPY', 'EURCHF', 'EURAUD', 'EURCAD', 'GBPAUD', 'GBPCAD', 'AUDCAD', 'AUDJPY', 'CADJPY', 'CHFJPY', 'NZDJPY',
+  // Metals
+  'XAUUSD', 'XAGUSD'
+]
 
 // Fetch price from MetaAPI (forex/metals)
 async function getMetaApiPrice(symbol) {
@@ -133,6 +143,7 @@ function getDefaultInstruments() {
 router.get('/instruments', async (req, res) => {
   try {
     // Fetch all symbols from MetaAPI
+    console.log('Fetching instruments from MetaAPI account:', META_API_ACCOUNT_ID)
     const metaResponse = await fetch(
       `https://mt-client-api-v1.london.agiliumtrade.ai/users/current/accounts/${META_API_ACCOUNT_ID}/symbols`,
       {
@@ -146,19 +157,30 @@ router.get('/instruments', async (req, res) => {
     let metaApiInstruments = []
     if (metaResponse.ok) {
       const symbols = await metaResponse.json()
-      // Filter out items without valid symbol property
+      console.log('MetaAPI returned', symbols.length, 'symbols')
+      // Log first symbol to see structure
+      if (symbols.length > 0) {
+        console.log('Sample symbol structure:', JSON.stringify(symbols[0]))
+      }
+      // MetaAPI returns symbols as strings, not objects
       metaApiInstruments = symbols
-        .filter(s => s && s.symbol)
-        .map(s => ({
-          symbol: s.symbol,
-          name: s.description || s.symbol,
-          category: categorizeSymbol(s.symbol),
-          digits: s.digits || 5,
-          contractSize: s.contractSize || 100000,
-          minVolume: s.minVolume || 0.01,
-          maxVolume: s.maxVolume || 100,
-          volumeStep: s.volumeStep || 0.01
-        }))
+        .filter(s => s && (typeof s === 'string' || s.symbol))
+        .map(s => {
+          const symbolName = typeof s === 'string' ? s : s.symbol
+          return {
+            symbol: symbolName,
+            name: (typeof s === 'object' && s.description) || symbolName,
+            category: categorizeSymbol(symbolName),
+            digits: (typeof s === 'object' && s.digits) || 5,
+            contractSize: (typeof s === 'object' && s.contractSize) || 100000,
+            minVolume: (typeof s === 'object' && s.minVolume) || 0.01,
+            maxVolume: (typeof s === 'object' && s.maxVolume) || 100,
+            volumeStep: (typeof s === 'object' && s.volumeStep) || 0.01
+          }
+        })
+      console.log('Processed', metaApiInstruments.length, 'MetaAPI instruments')
+    } else {
+      console.error('MetaAPI symbols error:', metaResponse.status, await metaResponse.text())
     }
     
     // Add Binance crypto instruments

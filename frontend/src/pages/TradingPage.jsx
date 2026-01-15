@@ -103,9 +103,19 @@ const TradingPage = () => {
   const [killSwitchTimeLeft, setKillSwitchTimeLeft] = useState('')
   const [globalNotification, setGlobalNotification] = useState('')
 
-  const categories = ['All', 'Forex', 'Metals', 'Indices', 'Commodities', 'Crypto']
+  const categories = ['All', 'Starred', 'Forex', 'Metals', 'Indices', 'Commodities', 'Crypto']
 
   const user = JSON.parse(localStorage.getItem('user') || '{}')
+
+  // Toggle star/watchlist
+  const toggleStar = (symbol) => {
+    setStarredSymbols(prev => {
+      const next = prev.includes(symbol) ? prev.filter(s => s !== symbol) : [...prev, symbol]
+      // Update instruments state to reflect starred flag
+      setInstruments(insts => insts.map(inst => inst.symbol === symbol ? { ...inst, starred: next.includes(symbol) } : inst))
+      return next
+    })
+  }
 
   useEffect(() => {
     fetchAccount()
@@ -973,46 +983,91 @@ const TradingPage = () => {
   }
 
   const getSymbolForTradingView = (symbol) => {
+    if (!symbol) return 'OANDA:XAUUSD'
+    
+    // Specific mappings for known symbols
     const symbolMap = {
-      // Forex Major
-      'EURUSD': 'OANDA:EURUSD',
-      'GBPUSD': 'OANDA:GBPUSD',
-      'USDJPY': 'OANDA:USDJPY',
-      'USDCHF': 'OANDA:USDCHF',
-      'AUDUSD': 'OANDA:AUDUSD',
-      'NZDUSD': 'OANDA:NZDUSD',
-      'USDCAD': 'OANDA:USDCAD',
-      // Forex Cross
-      'EURGBP': 'OANDA:EURGBP',
-      'EURJPY': 'OANDA:EURJPY',
-      'GBPJPY': 'OANDA:GBPJPY',
-      'EURCHF': 'OANDA:EURCHF',
-      'EURAUD': 'OANDA:EURAUD',
-      'EURCAD': 'OANDA:EURCAD',
-      'GBPAUD': 'OANDA:GBPAUD',
-      'GBPCAD': 'OANDA:GBPCAD',
-      'AUDCAD': 'OANDA:AUDCAD',
-      'AUDJPY': 'OANDA:AUDJPY',
-      'CADJPY': 'OANDA:CADJPY',
-      'CHFJPY': 'OANDA:CHFJPY',
-      'NZDJPY': 'OANDA:NZDJPY',
-      // Metals
-      'XAUUSD': 'OANDA:XAUUSD',
-      'XAGUSD': 'OANDA:XAGUSD',
-      // Crypto
       'BTCUSD': 'COINBASE:BTCUSD',
       'ETHUSD': 'COINBASE:ETHUSD',
       'LTCUSD': 'COINBASE:LTCUSD',
       'XRPUSD': 'BITSTAMP:XRPUSD',
       'BCHUSD': 'COINBASE:BCHUSD',
+      'SOLUSD': 'COINBASE:SOLUSD',
+      'ADAUSD': 'COINBASE:ADAUSD',
+      'DOGEUSD': 'COINBASE:DOGEUSD',
+      'DOTUSD': 'KRAKEN:DOTUSD',
+      'AVAXUSD': 'COINBASE:AVAXUSD',
+      'LINKUSD': 'COINBASE:LINKUSD',
+      'BNBUSD': 'BINANCE:BNBUSDT',
+      'MATICUSD': 'COINBASE:MATICUSD',
+      '1INCHUSD': 'COINBASE:1INCHUSD',
+      'AAVEUSD': 'COINBASE:AAVEUSD',
     }
-    return symbolMap[symbol] || `OANDA:${symbol}`
+    
+    if (symbolMap[symbol]) return symbolMap[symbol]
+    
+    // Forex pairs (6 char with USD, EUR, GBP, JPY, CHF, AUD, NZD, CAD)
+    const forexCurrencies = ['USD', 'EUR', 'GBP', 'JPY', 'CHF', 'AUD', 'NZD', 'CAD', 'SGD', 'HKD', 'NOK', 'SEK', 'DKK', 'PLN', 'ZAR', 'MXN', 'TRY', 'CNH']
+    if (symbol.length === 6) {
+      const base = symbol.substring(0, 3)
+      const quote = symbol.substring(3, 6)
+      if (forexCurrencies.includes(base) && forexCurrencies.includes(quote)) {
+        return `OANDA:${symbol}`
+      }
+    }
+    
+    // Metals
+    if (symbol.startsWith('XAU') || symbol.startsWith('XAG') || symbol.startsWith('XPT') || symbol.startsWith('XPD')) {
+      return `OANDA:${symbol}`
+    }
+    
+    // Indices
+    if (symbol.includes('US30') || symbol.includes('SPX') || symbol.includes('US500')) return 'FOREXCOM:SPXUSD'
+    if (symbol.includes('NAS') || symbol.includes('NDX') || symbol.includes('US100')) return 'FOREXCOM:NSXUSD'
+    if (symbol.includes('DJI') || symbol.includes('DJ30')) return 'FOREXCOM:DJI'
+    if (symbol.includes('DAX') || symbol.includes('GER')) return 'PEPPERSTONE:GER40'
+    if (symbol.includes('UK100') || symbol.includes('FTSE')) return 'PEPPERSTONE:UK100'
+    
+    // Oil
+    if (symbol.includes('OIL') || symbol.includes('WTI') || symbol.includes('CRUDE')) return 'TVC:USOIL'
+    if (symbol.includes('BRENT')) return 'TVC:UKOIL'
+    
+    // US Stocks - try NASDAQ first
+    const usStocks = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'TSLA', 'NVDA', 'AMD', 'NFLX', 'ABBV', 'ABT', 'ADBE']
+    if (usStocks.includes(symbol) || (symbol.length <= 5 && /^[A-Z]+$/.test(symbol))) {
+      return `NASDAQ:${symbol}`
+    }
+    
+    // Default: try FX for currency-like, otherwise skip chart
+    if (symbol.endsWith('USD') && symbol.length > 6) {
+      // Crypto-like symbol
+      return `COINBASE:${symbol}`
+    }
+    
+    return `OANDA:${symbol}`
   }
 
+  // Instruments with live prices (limited due to MetaAPI rate limits)
+  const pricedSymbols = [
+    'EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD',
+    'EURGBP', 'EURJPY', 'GBPJPY', 'XAUUSD', 'XAGUSD',
+    'BTCUSD', 'ETHUSD', 'BNBUSD', 'SOLUSD', 'XRPUSD', 'ADAUSD', 'DOGEUSD', 'DOTUSD', 'LTCUSD'
+  ]
+  
   const filteredInstruments = instruments.filter(inst => {
     const matchesSearch = inst.symbol.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesCategory = activeCategory === 'All' || inst.category === activeCategory
-    return matchesSearch && matchesCategory
+    const matchesCategory = activeCategory === 'All' ||
+      (activeCategory === 'Starred' && inst.starred) ||
+      inst.category === activeCategory
+    
+    // If user is searching, show all matching instruments
+    // If not searching, only show instruments with live prices
+    const hasPrices = pricedSymbols.includes(inst.symbol)
+    
+    if (searchTerm.length > 0) {
+      return matchesSearch && matchesCategory
+    }
+    return matchesCategory && hasPrices
   })
 
   const handleInstrumentClick = (inst) => {

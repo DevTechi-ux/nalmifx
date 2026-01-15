@@ -467,13 +467,27 @@ const MobileTradingApp = () => {
     }
   }
 
+  // Instruments with live prices (limited due to MetaAPI rate limits)
+  const pricedSymbols = [
+    'EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD',
+    'EURGBP', 'EURJPY', 'GBPJPY', 'XAUUSD', 'XAGUSD',
+    'BTCUSD', 'ETHUSD', 'BNBUSD', 'SOLUSD', 'XRPUSD', 'ADAUSD', 'DOGEUSD', 'DOTUSD', 'LTCUSD'
+  ]
+  
   const filteredInstruments = instruments.filter(inst => {
     const matchesSearch = inst.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          inst.name.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesCategory = activeCategory === 'All' || 
                            (activeCategory === 'Starred' && inst.starred) ||
                            inst.category === activeCategory
-    return matchesSearch && matchesCategory
+    const hasPrices = pricedSymbols.includes(inst.symbol)
+    
+    // If user is searching, show all matching instruments
+    // If not searching, only show instruments with live prices
+    if (searchTerm.length > 0) {
+      return matchesSearch && matchesCategory
+    }
+    return matchesCategory && hasPrices
   })
 
   const moreMenuItems = [
