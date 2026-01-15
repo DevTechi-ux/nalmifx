@@ -104,7 +104,7 @@ const AdminFundManagement = () => {
   }
 
   const filteredTransactions = transactions.filter(txn => {
-    const matchesSearch = txn.transactionId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = (txn.transactionRef || txn._id)?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       txn.userId?.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       txn.userId?.email?.toLowerCase().includes(searchTerm.toLowerCase())
     return matchesSearch
@@ -226,7 +226,7 @@ const AdminFundManagement = () => {
                       </div>
                       <div>
                         <p className="text-white font-medium">{txn.userId?.firstName || txn.userId?.email}</p>
-                        <p className="text-gray-500 text-xs">{txn.transactionId}</p>
+                        <p className="text-gray-500 text-xs">{txn.transactionRef || txn._id?.slice(-8)}</p>
                       </div>
                     </div>
                     <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(txn.status)}`}>
@@ -277,7 +277,7 @@ const AdminFundManagement = () => {
                 <tbody>
                   {filteredTransactions.map((txn) => (
                     <tr key={txn._id} className="border-b border-gray-800 hover:bg-dark-700/50">
-                      <td className="py-4 px-4 text-white font-mono text-sm">{txn.transactionId}</td>
+                      <td className="py-4 px-4 text-white font-mono text-sm">{txn.transactionRef || txn._id?.slice(-8)}</td>
                       <td className="py-4 px-4 text-white">{txn.userId?.firstName || txn.userId?.email}</td>
                       <td className="py-4 px-4">
                         <span className={`flex items-center gap-1 ${txn.type?.toUpperCase() === 'DEPOSIT' ? 'text-green-500' : 'text-red-500'}`}>
@@ -349,7 +349,7 @@ const AdminFundManagement = () => {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="col-span-2">
                     <p className="text-gray-500">Transaction ID</p>
-                    <p className="text-white font-mono text-xs break-all">{selectedTxn.transactionId || selectedTxn._id}</p>
+                    <p className="text-white font-mono text-xs break-all">{selectedTxn.transactionRef || selectedTxn._id}</p>
                   </div>
                   <div>
                     <p className="text-gray-500">Amount</p>

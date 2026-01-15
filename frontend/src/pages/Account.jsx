@@ -31,6 +31,7 @@ import {
 } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import { API_URL } from '../config/api'
+import logoImage from '../assets/nalmifx.png'
 
 const Account = () => {
   const navigate = useNavigate()
@@ -572,7 +573,7 @@ const Account = () => {
           onMouseLeave={() => setSidebarExpanded(false)}
         >
           <div className="p-4 flex items-center justify-center shrink-0">
-            <img src="/src/assets/nalmifx.png" alt="NalmiFX" className="w-8 h-8 rounded object-cover" />
+            <img src={logoImage} alt="NalmiFX" className="h-8 w-auto object-contain" />
           </div>
 
           <nav className="flex-1 px-2 overflow-y-auto">

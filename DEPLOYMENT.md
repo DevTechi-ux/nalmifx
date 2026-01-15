@@ -1,26 +1,114 @@
-# NalmiFX VPS Deployment Guide
+# NalmiFX VPS Deployment Guide (Fresh OS Installation)
 
-## Prerequisites
-- Node.js 18+ installed on VPS
-- MongoDB installed on VPS or MongoDB Atlas connection
-- PM2 for process management: `npm install -g pm2`
+## Step 1: First Login to VPS
 
-## Step 1: Upload Project to VPS
-
-Upload the entire project folder to your VPS using SCP, SFTP, or Git.
-
+SSH into your VPS as root:
 ```bash
-# Using SCP (from local machine)
-scp -r ./nalmi user@YOUR_VPS_IP:/home/user/nalmi
-
-# Or clone from Git
-git clone YOUR_REPO_URL /home/user/nalmi
+ssh root@YOUR_VPS_IP
 ```
 
-## Step 2: Configure Backend
+## Step 2: Create a New User (Recommended for Security)
 
 ```bash
-cd /home/user/nalmi/backend
+# Create new user
+adduser nalmifx
+
+# Add user to sudo group
+usermod -aG sudo nalmifx
+
+# Switch to new user
+su - nalmifx
+```
+
+## Step 3: Update System
+
+```bash
+sudo apt update && sudo apt upgrade -y
+```
+
+## Step 4: Install Node.js 20 LTS
+
+```bash
+# Install curl if not present
+sudo apt install curl -y
+
+# Add NodeSource repository
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+
+# Install Node.js
+sudo apt install nodejs -y
+
+# Verify installation
+node --version
+npm --version
+```
+
+## Step 5: Install MongoDB
+
+### For Ubuntu 24.04 Noble (MongoDB 8.0)
+```bash
+# Import MongoDB public key
+curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-8.0.gpg --dearmor
+
+# Add MongoDB repository
+echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu noble/mongodb-org/8.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-8.0.list
+
+# Update and install
+sudo apt update
+sudo apt install mongodb-org -y
+
+# Start MongoDB
+sudo systemctl start mongod
+
+# Enable MongoDB to start on boot
+sudo systemctl enable mongod
+
+# Verify MongoDB is running
+sudo systemctl status mongod
+```
+
+### For Ubuntu 22.04 Jammy (MongoDB 7.0)
+```bash
+curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor
+echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+sudo apt update && sudo apt install mongodb-org -y
+sudo systemctl start mongod && sudo systemctl enable mongod
+```
+
+## Step 6: Install PM2 (Process Manager)
+
+```bash
+sudo npm install -g pm2
+```
+
+## Step 7: Install Git
+
+```bash
+sudo apt install git -y
+```
+
+## Step 8: Upload Project to VPS
+
+### Option A: Using Git (Recommended)
+```bash
+cd /home/nalmifx
+git clone YOUR_REPO_URL nalmi
+```
+
+### Option B: Using SCP (from your local machine)
+```bash
+# Run this on your LOCAL machine, not VPS
+scp -r ./nalmi nalmifx@YOUR_VPS_IP:/home/nalmifx/
+```
+
+### Option C: Using SFTP/FileZilla
+- Connect to VPS using FileZilla
+- Upload the `nalmi` folder to `/home/nalmifx/`
+
+## Step 9: Configure Backend
+
+```bash
+cd /home/nalmifx/nalmi/backend
 
 # Install dependencies
 npm install
@@ -39,10 +127,10 @@ JWT_SECRET=your_secure_random_string_here
 CORS_ORIGIN=http://YOUR_VPS_IP:5173
 ```
 
-## Step 3: Configure Frontend
+## Step 10: Configure Frontend
 
 ```bash
-cd /home/user/nalmi/frontend
+cd /home/nalmifx/nalmi/frontend
 
 # Install dependencies
 npm install
@@ -57,17 +145,17 @@ Edit `.env` with your VPS IP:
 VITE_API_URL=http://YOUR_VPS_IP:5001
 ```
 
-## Step 4: Build Frontend
+## Step 11: Build Frontend
 
 ```bash
-cd /home/user/nalmi/frontend
+cd /home/nalmifx/nalmi/frontend
 npm run build
 ```
 
-## Step 5: Start Backend with PM2
+## Step 12: Start Backend with PM2
 
 ```bash
-cd /home/user/nalmi/backend
+cd /home/nalmifx/nalmi/backend
 
 # Start with PM2
 pm2 start server.js --name nalmifx-backend
@@ -79,12 +167,12 @@ pm2 save
 pm2 startup
 ```
 
-## Step 6: Serve Frontend
+## Step 13: Serve Frontend
 
 ### Option A: Using serve (Simple)
 ```bash
 npm install -g serve
-cd /home/user/nalmi/frontend
+cd /home/nalmifx/nalmi/frontend
 pm2 start "serve -s dist -l 5173" --name nalmifx-frontend
 ```
 
@@ -104,7 +192,7 @@ server {
     
     # Frontend
     location / {
-        root /home/user/nalmi/frontend/dist;
+        root /home/nalmifx/nalmi/frontend/dist;
         try_files $uri $uri/ /index.html;
     }
     

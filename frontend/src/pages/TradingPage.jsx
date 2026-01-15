@@ -38,35 +38,35 @@ const TradingPage = () => {
   const [stopLoss, setStopLoss] = useState('')
   const [pendingOrderType, setPendingOrderType] = useState('BUY LIMIT')
   const [entryPrice, setEntryPrice] = useState('')
-  // Initialize with default instruments immediately - no loading state
-  const [instruments, setInstruments] = useState([
-    { symbol: 'EURUSD', bid: 0, ask: 0, spread: 0, change: 0, category: 'Forex', starred: true },
-    { symbol: 'GBPUSD', bid: 0, ask: 0, spread: 0, change: 0, category: 'Forex', starred: true },
-    { symbol: 'USDJPY', bid: 0, ask: 0, spread: 0, change: 0, category: 'Forex', starred: false },
-    { symbol: 'USDCHF', bid: 0, ask: 0, spread: 0, change: 0, category: 'Forex', starred: false },
-    { symbol: 'AUDUSD', bid: 0, ask: 0, spread: 0, change: 0, category: 'Forex', starred: false },
-    { symbol: 'NZDUSD', bid: 0, ask: 0, spread: 0, change: 0, category: 'Forex', starred: false },
-    { symbol: 'USDCAD', bid: 0, ask: 0, spread: 0, change: 0, category: 'Forex', starred: false },
-    { symbol: 'EURGBP', bid: 0, ask: 0, spread: 0, change: 0, category: 'Forex', starred: false },
-    { symbol: 'EURJPY', bid: 0, ask: 0, spread: 0, change: 0, category: 'Forex', starred: false },
-    { symbol: 'GBPJPY', bid: 0, ask: 0, spread: 0, change: 0, category: 'Forex', starred: false },
-    { symbol: 'XAUUSD', bid: 0, ask: 0, spread: 0, change: 0, category: 'Metals', starred: true },
-    { symbol: 'XAGUSD', bid: 0, ask: 0, spread: 0, change: 0, category: 'Metals', starred: false },
-    { symbol: 'BTCUSD', bid: 0, ask: 0, spread: 0, change: 0, category: 'Crypto', starred: true },
-    { symbol: 'ETHUSD', bid: 0, ask: 0, spread: 0, change: 0, category: 'Crypto', starred: false },
-    { symbol: 'BNBUSD', bid: 0, ask: 0, spread: 0, change: 0, category: 'Crypto', starred: false },
-    { symbol: 'SOLUSD', bid: 0, ask: 0, spread: 0, change: 0, category: 'Crypto', starred: false },
-    { symbol: 'XRPUSD', bid: 0, ask: 0, spread: 0, change: 0, category: 'Crypto', starred: false },
-    { symbol: 'ADAUSD', bid: 0, ask: 0, spread: 0, change: 0, category: 'Crypto', starred: false },
-    { symbol: 'DOGEUSD', bid: 0, ask: 0, spread: 0, change: 0, category: 'Crypto', starred: false },
-    { symbol: 'DOTUSD', bid: 0, ask: 0, spread: 0, change: 0, category: 'Crypto', starred: false },
-    { symbol: 'MATICUSD', bid: 0, ask: 0, spread: 0, change: 0, category: 'Crypto', starred: false },
-    { symbol: 'LTCUSD', bid: 0, ask: 0, spread: 0, change: 0, category: 'Crypto', starred: false },
-    { symbol: 'AVAXUSD', bid: 0, ask: 0, spread: 0, change: 0, category: 'Crypto', starred: false },
-    { symbol: 'LINKUSD', bid: 0, ask: 0, spread: 0, change: 0, category: 'Crypto', starred: false },
-  ])
-  const [loadingInstruments, setLoadingInstruments] = useState(true) // Start true until prices load
-  const [starredSymbols, setStarredSymbols] = useState(['XAUUSD', 'EURUSD', 'GBPUSD'])
+  // Initialize with empty instruments - will be fetched from API
+  const [instruments, setInstruments] = useState([])
+  const [loadingInstruments, setLoadingInstruments] = useState(true)
+  const [starredSymbols, setStarredSymbols] = useState(['XAUUSD', 'EURUSD', 'GBPUSD', 'BTCUSD'])
+  
+  // Fetch all instruments from API
+  const fetchInstruments = async () => {
+    try {
+      const res = await fetch(`${API_URL}/prices/instruments`)
+      const data = await res.json()
+      if (data.success && data.instruments) {
+        const instrumentsWithState = data.instruments.map(inst => ({
+          ...inst,
+          bid: 0,
+          ask: 0,
+          spread: 0,
+          change: 0,
+          starred: starredSymbols.includes(inst.symbol)
+        }))
+        setInstruments(instrumentsWithState)
+        setLoadingInstruments(false)
+      } else {
+        setLoadingInstruments(false)
+      }
+    } catch (err) {
+      console.error('Error fetching instruments:', err)
+      setLoadingInstruments(false)
+    }
+  }
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
   const [openTrades, setOpenTrades] = useState([])
   const [pendingOrders, setPendingOrders] = useState([])
@@ -103,12 +103,14 @@ const TradingPage = () => {
   const [killSwitchTimeLeft, setKillSwitchTimeLeft] = useState('')
   const [globalNotification, setGlobalNotification] = useState('')
 
-  const categories = ['All', 'Forex', 'Metals', 'Crypto']
+  const categories = ['All', 'Forex', 'Metals', 'Indices', 'Commodities', 'Crypto']
 
   const user = JSON.parse(localStorage.getItem('user') || '{}')
 
   useEffect(() => {
     fetchAccount()
+    // Fetch all instruments from API
+    fetchInstruments()
     // Fetch live prices in background - don't block UI
     fetchLivePrices()
     // Fetch admin-set spreads
@@ -1346,8 +1348,8 @@ const TradingPage = () => {
           {/* Chart - Always visible TradingView Advanced Chart with Side Toolbar */}
           <div className={`flex-1 min-h-0 relative ${isDarkMode ? 'bg-[#0d0d0d]' : 'bg-white'}`}>
             <iframe
-              key={`${selectedInstrument.symbol}-${isDarkMode}`}
-              src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_chart&symbol=${getSymbolForTradingView(selectedInstrument.symbol)}&interval=5&hidesidetoolbar=0&hidetoptoolbar=0&symboledit=1&saveimage=1&toolbarbg=${isDarkMode ? '0d0d0d' : 'ffffff'}&studies=[]&theme=${isDarkMode ? 'dark' : 'light'}&style=1&timezone=Etc%2FUTC&withdateranges=1&showpopupbutton=1&studies_overrides={}&overrides={}&enabled_features=["left_toolbar","header_widget"]&disabled_features=[]&locale=en&utm_source=localhost&utm_medium=widget_new&utm_campaign=chart&hide_side_toolbar=0`}
+              key={`${selectedInstrument.symbol}-${isDarkMode}-${isMobile}`}
+              src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_chart&symbol=${getSymbolForTradingView(selectedInstrument.symbol)}&interval=5&hidesidetoolbar=0&hidetoptoolbar=0&symboledit=1&saveimage=1&toolbarbg=${isDarkMode ? '0d0d0d' : 'ffffff'}&studies=[]&theme=${isDarkMode ? 'dark' : 'light'}&style=1&timezone=Etc%2FUTC&withdateranges=1&showpopupbutton=1&studies_overrides={}&overrides={}&enabled_features=["left_toolbar","header_widget","drawing_templates"]&disabled_features=["hide_left_toolbar_by_default"]&locale=en&utm_source=localhost&utm_medium=widget_new&utm_campaign=chart&hide_side_toolbar=0&allow_symbol_change=1&details=1&calendar=0&hotlist=0`}
               style={{ width: '100%', height: '100%', border: 'none' }}
               allowFullScreen
               title="TradingView Chart"

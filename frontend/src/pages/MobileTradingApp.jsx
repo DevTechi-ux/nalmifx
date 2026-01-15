@@ -55,35 +55,10 @@ const MobileTradingApp = () => {
   const [notifications, setNotifications] = useState([])
   const notificationIdRef = useRef(0)
 
-  const categories = ['All', 'Starred', 'Forex', 'Metals', 'Crypto']
+  const categories = ['All', 'Starred', 'Forex', 'Metals', 'Indices', 'Commodities', 'Crypto']
 
-  // Same instruments as TradingPage
-  const defaultInstruments = [
-    { symbol: 'EURUSD', name: 'EUR/USD', bid: 0, ask: 0, spread: 0, category: 'Forex', starred: true },
-    { symbol: 'GBPUSD', name: 'GBP/USD', bid: 0, ask: 0, spread: 0, category: 'Forex', starred: true },
-    { symbol: 'USDJPY', name: 'USD/JPY', bid: 0, ask: 0, spread: 0, category: 'Forex', starred: false },
-    { symbol: 'USDCHF', name: 'USD/CHF', bid: 0, ask: 0, spread: 0, category: 'Forex', starred: false },
-    { symbol: 'AUDUSD', name: 'AUD/USD', bid: 0, ask: 0, spread: 0, category: 'Forex', starred: false },
-    { symbol: 'NZDUSD', name: 'NZD/USD', bid: 0, ask: 0, spread: 0, category: 'Forex', starred: false },
-    { symbol: 'USDCAD', name: 'USD/CAD', bid: 0, ask: 0, spread: 0, category: 'Forex', starred: false },
-    { symbol: 'EURGBP', name: 'EUR/GBP', bid: 0, ask: 0, spread: 0, category: 'Forex', starred: false },
-    { symbol: 'EURJPY', name: 'EUR/JPY', bid: 0, ask: 0, spread: 0, category: 'Forex', starred: false },
-    { symbol: 'GBPJPY', name: 'GBP/JPY', bid: 0, ask: 0, spread: 0, category: 'Forex', starred: false },
-    { symbol: 'XAUUSD', name: 'Gold', bid: 0, ask: 0, spread: 0, category: 'Metals', starred: true },
-    { symbol: 'XAGUSD', name: 'Silver', bid: 0, ask: 0, spread: 0, category: 'Metals', starred: false },
-    { symbol: 'BTCUSD', name: 'Bitcoin', bid: 0, ask: 0, spread: 0, category: 'Crypto', starred: true },
-    { symbol: 'ETHUSD', name: 'Ethereum', bid: 0, ask: 0, spread: 0, category: 'Crypto', starred: false },
-    { symbol: 'BNBUSD', name: 'BNB', bid: 0, ask: 0, spread: 0, category: 'Crypto', starred: false },
-    { symbol: 'SOLUSD', name: 'Solana', bid: 0, ask: 0, spread: 0, category: 'Crypto', starred: false },
-    { symbol: 'XRPUSD', name: 'XRP', bid: 0, ask: 0, spread: 0, category: 'Crypto', starred: false },
-    { symbol: 'ADAUSD', name: 'Cardano', bid: 0, ask: 0, spread: 0, category: 'Crypto', starred: false },
-    { symbol: 'DOGEUSD', name: 'Dogecoin', bid: 0, ask: 0, spread: 0, category: 'Crypto', starred: false },
-    { symbol: 'DOTUSD', name: 'Polkadot', bid: 0, ask: 0, spread: 0, category: 'Crypto', starred: false },
-    { symbol: 'MATICUSD', name: 'Polygon', bid: 0, ask: 0, spread: 0, category: 'Crypto', starred: false },
-    { symbol: 'LTCUSD', name: 'Litecoin', bid: 0, ask: 0, spread: 0, category: 'Crypto', starred: false },
-    { symbol: 'AVAXUSD', name: 'Avalanche', bid: 0, ask: 0, spread: 0, category: 'Crypto', starred: false },
-    { symbol: 'LINKUSD', name: 'Chainlink', bid: 0, ask: 0, spread: 0, category: 'Crypto', starred: false },
-  ]
+  // Default starred symbols
+  const defaultStarred = ['XAUUSD', 'EURUSD', 'GBPUSD', 'BTCUSD']
 
   // Handle resize - redirect to dashboard if desktop
   useEffect(() => {
@@ -98,6 +73,26 @@ const MobileTradingApp = () => {
     return () => window.removeEventListener('resize', handleResize)
   }, [navigate])
 
+  // Fetch all instruments from API
+  const fetchInstruments = async () => {
+    try {
+      const res = await fetch(`${API_URL}/prices/instruments`)
+      const data = await res.json()
+      if (data.success && data.instruments) {
+        const instrumentsWithState = data.instruments.map(inst => ({
+          ...inst,
+          bid: 0,
+          ask: 0,
+          spread: 0,
+          starred: defaultStarred.includes(inst.symbol)
+        }))
+        setInstruments(instrumentsWithState)
+      }
+    } catch (err) {
+      console.error('Error fetching instruments:', err)
+    }
+  }
+
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user') || '{}')
     if (!userData._id) {
@@ -105,7 +100,7 @@ const MobileTradingApp = () => {
       return
     }
     setUser(userData)
-    setInstruments(defaultInstruments)
+    fetchInstruments() // Fetch instruments from API
     fetchAccounts(userData._id)
     
     // Initial price fetch
@@ -130,13 +125,10 @@ const MobileTradingApp = () => {
     }
   }, [selectedAccount])
 
-  // All symbols for price fetching
-  const allSymbols = [
-    'EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD',
-    'EURGBP', 'EURJPY', 'GBPJPY', 'XAUUSD', 'XAGUSD', 'BTCUSD', 'ETHUSD',
-    'BNBUSD', 'SOLUSD', 'XRPUSD', 'ADAUSD', 'DOGEUSD', 'DOTUSD', 'MATICUSD',
-    'LTCUSD', 'AVAXUSD', 'LINKUSD'
-  ]
+  // Get all symbols from loaded instruments for price fetching
+  const allSymbols = instruments.length > 0 
+    ? instruments.map(i => i.symbol)
+    : ['EURUSD', 'GBPUSD', 'XAUUSD', 'BTCUSD'] // Fallback
 
   // Real-time price updates via WebSocket for institutional-grade streaming
   useEffect(() => {
@@ -1139,7 +1131,7 @@ const MobileTradingApp = () => {
       <div className="flex-1 bg-[#0d0d0d] relative min-h-0" ref={chartContainerRef}>
         <iframe
           key={activeChartTab}
-          src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_mobile&symbol=${getSymbolForTradingView(activeChartTab)}&interval=5&hidesidetoolbar=1&hidetoptoolbar=0&symboledit=1&saveimage=0&toolbarbg=0d0d0d&studies=[]&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=0&showpopupbutton=0&studies_overrides={}&overrides={}&enabled_features=[]&disabled_features=["left_toolbar","header_fullscreen_button"]&locale=en&utm_source=localhost&utm_medium=widget_new&utm_campaign=chart`}
+          src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_mobile&symbol=${getSymbolForTradingView(activeChartTab)}&interval=5&hidesidetoolbar=0&hidetoptoolbar=0&symboledit=1&saveimage=1&toolbarbg=0d0d0d&studies=[]&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=1&showpopupbutton=1&studies_overrides={}&overrides={}&enabled_features=["left_toolbar","header_widget","drawing_templates"]&disabled_features=["hide_left_toolbar_by_default"]&locale=en&utm_source=localhost&utm_medium=widget_new&utm_campaign=chart&hide_side_toolbar=0`}
           style={{ width: '100%', height: '100%', border: 'none' }}
           allowFullScreen
           title="TradingView Chart"
@@ -1147,43 +1139,146 @@ const MobileTradingApp = () => {
       </div>
 
       {/* Compact Buy/Sell Bar - Fixed at bottom above nav */}
-      <div className="bg-dark-800 border-t border-gray-800 shrink-0" style={{ paddingBottom: '64px' }}>
-        <div className="flex items-center justify-between px-3 py-2">
+      <div 
+        className="bg-dark-800 border-t border-gray-800 shrink-0" 
+        style={{ paddingBottom: '64px' }}
+      >
+        {/* Swipe indicator - tap to open full panel */}
+        <div 
+          className="flex justify-center pt-2 pb-1 cursor-pointer"
+          onClick={() => {
+            const inst = instruments.find(i => i.symbol === activeChartTab) || { symbol: activeChartTab, category: 'Forex' }
+            setSelectedInstrument(inst)
+            setShowOrderPanel(true)
+          }}
+        >
+          <div className="w-10 h-1 bg-gray-600 rounded-full" />
+        </div>
+        
+        <div className="flex items-center justify-between px-3 py-1">
           <div className="text-center">
             <p className="text-gray-500 text-[10px]">Bid</p>
             <p className="text-red-500 font-semibold text-sm">{getPrice(activeChartTab).bid?.toFixed(decimals) || '-'}</p>
           </div>
-          <div className="text-center">
-            <p className="text-gray-500 text-[10px]">Spread</p>
-            <p className="text-white text-xs">
-              {((getPrice(activeChartTab).ask - getPrice(activeChartTab).bid) * spreadMultiplier).toFixed(1)}
-            </p>
+          
+          {/* Lot Size Selector */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setVolume(prev => Math.max(0.01, parseFloat(prev) - 0.01).toFixed(2))}
+              className="w-7 h-7 bg-dark-700 rounded-lg flex items-center justify-center"
+            >
+              <Minus size={14} className="text-white" />
+            </button>
+            <div className="text-center min-w-[60px]">
+              <p className="text-gray-500 text-[10px]">Lot Size</p>
+              <p className="text-white font-semibold text-sm">{volume}</p>
+            </div>
+            <button
+              onClick={() => setVolume(prev => (parseFloat(prev) + 0.01).toFixed(2))}
+              className="w-7 h-7 bg-dark-700 rounded-lg flex items-center justify-center"
+            >
+              <Plus size={14} className="text-white" />
+            </button>
           </div>
+          
           <div className="text-center">
             <p className="text-gray-500 text-[10px]">Ask</p>
             <p className="text-green-500 font-semibold text-sm">{getPrice(activeChartTab).ask?.toFixed(decimals) || '-'}</p>
           </div>
         </div>
+        
         <div className="flex gap-2 px-3 pb-2">
           <button
-            onClick={() => {
-              const inst = instruments.find(i => i.symbol === activeChartTab) || { symbol: activeChartTab, category: 'Forex' }
-              setSelectedInstrument(inst)
-              setOrderSide('SELL')
-              setShowOrderPanel(true)
+            onClick={async () => {
+              if (!selectedAccount || !user) {
+                showNotification('Please select an account first', 'error')
+                return
+              }
+              const price = getPrice(activeChartTab)
+              if (!price.bid || !price.ask) {
+                showNotification('No price data available', 'error')
+                return
+              }
+              setIsExecuting(true)
+              try {
+                const res = await fetch(`${API_URL}/trade/open`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    userId: user._id,
+                    tradingAccountId: selectedAccount._id,
+                    symbol: activeChartTab,
+                    segment: instruments.find(i => i.symbol === activeChartTab)?.category || 'Forex',
+                    side: 'SELL',
+                    orderType: 'MARKET',
+                    quantity: parseFloat(volume),
+                    bid: price.bid,
+                    ask: price.ask,
+                    leverage: selectedAccount.leverage || '1:100'
+                  })
+                })
+                const data = await res.json()
+                if (data.success) {
+                  fetchOpenTrades()
+                  fetchAccountSummary()
+                  showNotification('Sell order executed!', 'success')
+                } else {
+                  showNotification(data.message || 'Order failed', 'error')
+                }
+              } catch (err) {
+                showNotification('Order failed', 'error')
+              }
+              setIsExecuting(false)
             }}
-            className="flex-1 py-3 bg-red-500 text-white font-semibold rounded-xl"
+            disabled={isExecuting || !selectedAccount}
+            className="flex-1 py-3 bg-red-500 text-white font-semibold rounded-xl disabled:opacity-50"
           >
             SELL
           </button>
           <button
-            onClick={() => {
-              const inst = instruments.find(i => i.symbol === activeChartTab) || { symbol: activeChartTab, category: 'Forex' }
-              setSelectedInstrument(inst)
-              setOrderSide('BUY')
-              setShowOrderPanel(true)
+            onClick={async () => {
+              if (!selectedAccount || !user) {
+                showNotification('Please select an account first', 'error')
+                return
+              }
+              const price = getPrice(activeChartTab)
+              if (!price.bid || !price.ask) {
+                showNotification('No price data available', 'error')
+                return
+              }
+              setIsExecuting(true)
+              try {
+                const res = await fetch(`${API_URL}/trade/open`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    userId: user._id,
+                    tradingAccountId: selectedAccount._id,
+                    symbol: activeChartTab,
+                    segment: instruments.find(i => i.symbol === activeChartTab)?.category || 'Forex',
+                    side: 'BUY',
+                    orderType: 'MARKET',
+                    quantity: parseFloat(volume),
+                    bid: price.bid,
+                    ask: price.ask,
+                    leverage: selectedAccount.leverage || '1:100'
+                  })
+                })
+                const data = await res.json()
+                if (data.success) {
+                  fetchOpenTrades()
+                  fetchAccountSummary()
+                  showNotification('Buy order executed!', 'success')
+                } else {
+                  showNotification(data.message || 'Order failed', 'error')
+                }
+              } catch (err) {
+                showNotification('Order failed', 'error')
+              }
+              setIsExecuting(false)
             }}
-            className="flex-1 py-3 bg-blue-500 text-white font-semibold rounded-xl"
+            disabled={isExecuting || !selectedAccount}
+            className="flex-1 py-3 bg-blue-500 text-white font-semibold rounded-xl disabled:opacity-50"
           >
             BUY
           </button>

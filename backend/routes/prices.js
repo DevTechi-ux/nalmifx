@@ -71,6 +71,122 @@ async function getBinancePrice(symbol) {
   }
 }
 
+// Helper function to categorize symbols
+function categorizeSymbol(symbol) {
+  if (!symbol) return 'Forex'
+  const s = symbol.toUpperCase()
+  if (s.includes('XAU') || s.includes('XAG') || s.includes('XPT') || s.includes('XPD')) {
+    return 'Metals'
+  }
+  if (s.includes('US30') || s.includes('US500') || s.includes('NAS') || s.includes('UK100') || s.includes('GER') || s.includes('JPN') || s.includes('AUS200')) {
+    return 'Indices'
+  }
+  if (s.includes('OIL') || s.includes('BRENT') || s.includes('WTI') || s.includes('NATGAS')) {
+    return 'Commodities'
+  }
+  if (BINANCE_SYMBOLS[symbol]) {
+    return 'Crypto'
+  }
+  return 'Forex'
+}
+
+// Helper function to get crypto names
+function getCryptoName(symbol) {
+  const names = {
+    'BTCUSD': 'Bitcoin',
+    'ETHUSD': 'Ethereum',
+    'BNBUSD': 'BNB',
+    'SOLUSD': 'Solana',
+    'XRPUSD': 'XRP',
+    'ADAUSD': 'Cardano',
+    'DOGEUSD': 'Dogecoin',
+    'DOTUSD': 'Polkadot',
+    'MATICUSD': 'Polygon',
+    'LTCUSD': 'Litecoin',
+    'AVAXUSD': 'Avalanche',
+    'LINKUSD': 'Chainlink'
+  }
+  return names[symbol] || symbol
+}
+
+// Default instruments fallback
+function getDefaultInstruments() {
+  return [
+    { symbol: 'EURUSD', name: 'EUR/USD', category: 'Forex', digits: 5 },
+    { symbol: 'GBPUSD', name: 'GBP/USD', category: 'Forex', digits: 5 },
+    { symbol: 'USDJPY', name: 'USD/JPY', category: 'Forex', digits: 3 },
+    { symbol: 'USDCHF', name: 'USD/CHF', category: 'Forex', digits: 5 },
+    { symbol: 'AUDUSD', name: 'AUD/USD', category: 'Forex', digits: 5 },
+    { symbol: 'NZDUSD', name: 'NZD/USD', category: 'Forex', digits: 5 },
+    { symbol: 'USDCAD', name: 'USD/CAD', category: 'Forex', digits: 5 },
+    { symbol: 'EURGBP', name: 'EUR/GBP', category: 'Forex', digits: 5 },
+    { symbol: 'EURJPY', name: 'EUR/JPY', category: 'Forex', digits: 3 },
+    { symbol: 'GBPJPY', name: 'GBP/JPY', category: 'Forex', digits: 3 },
+    { symbol: 'XAUUSD', name: 'Gold', category: 'Metals', digits: 2 },
+    { symbol: 'XAGUSD', name: 'Silver', category: 'Metals', digits: 3 },
+    { symbol: 'BTCUSD', name: 'Bitcoin', category: 'Crypto', digits: 2 },
+    { symbol: 'ETHUSD', name: 'Ethereum', category: 'Crypto', digits: 2 },
+  ]
+}
+
+// GET /api/prices/instruments - Get all available instruments (MUST be before /:symbol)
+router.get('/instruments', async (req, res) => {
+  try {
+    // Fetch all symbols from MetaAPI
+    const metaResponse = await fetch(
+      `https://mt-client-api-v1.london.agiliumtrade.ai/users/current/accounts/${META_API_ACCOUNT_ID}/symbols`,
+      {
+        headers: {
+          'auth-token': META_API_TOKEN,
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+    
+    let metaApiInstruments = []
+    if (metaResponse.ok) {
+      const symbols = await metaResponse.json()
+      // Filter out items without valid symbol property
+      metaApiInstruments = symbols
+        .filter(s => s && s.symbol)
+        .map(s => ({
+          symbol: s.symbol,
+          name: s.description || s.symbol,
+          category: categorizeSymbol(s.symbol),
+          digits: s.digits || 5,
+          contractSize: s.contractSize || 100000,
+          minVolume: s.minVolume || 0.01,
+          maxVolume: s.maxVolume || 100,
+          volumeStep: s.volumeStep || 0.01
+        }))
+    }
+    
+    // Add Binance crypto instruments
+    const cryptoInstruments = Object.keys(BINANCE_SYMBOLS).map(symbol => ({
+      symbol,
+      name: getCryptoName(symbol),
+      category: 'Crypto',
+      digits: 2,
+      contractSize: 1,
+      minVolume: 0.01,
+      maxVolume: 100,
+      volumeStep: 0.01
+    }))
+    
+    // Combine and deduplicate
+    const allInstruments = [...metaApiInstruments, ...cryptoInstruments]
+    const uniqueInstruments = allInstruments.filter((inst, index, self) =>
+      index === self.findIndex(i => i.symbol === inst.symbol)
+    )
+    
+    res.json({ success: true, instruments: uniqueInstruments })
+  } catch (error) {
+    console.error('Error fetching instruments:', error)
+    // Return default instruments on error
+    res.json({ success: true, instruments: getDefaultInstruments() })
+  }
+})
+
 // GET /api/prices/:symbol - Get single symbol price
 router.get('/:symbol', async (req, res) => {
   try {
