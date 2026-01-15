@@ -73,7 +73,7 @@ const defaultTemplates = [
           </div>
           <div>
             <p style="color: #888; margin: 0 0 5px; font-size: 14px;">Fund Size:</p>
-            <p style="color: #fff; margin: 0; font-weight: bold;">${{fundSize}}</p>
+            <p style="color: #fff; margin: 0; font-weight: bold;">{{fundSize}}</p>
           </div>
           <div>
             <p style="color: #888; margin: 0 0 5px; font-size: 14px;">Account ID:</p>
@@ -130,7 +130,7 @@ const defaultTemplates = [
           </div>
           <div>
             <p style="color: #888; margin: 0 0 5px; font-size: 14px;">Fund Size:</p>
-            <p style="color: #fff; margin: 0; font-weight: bold;">${{fundSize}}</p>
+            <p style="color: #fff; margin: 0; font-weight: bold;">{{fundSize}}</p>
           </div>
           <div>
             <p style="color: #888; margin: 0 0 5px; font-size: 14px;">Account ID:</p>
@@ -152,6 +152,40 @@ const defaultTemplates = [
       </div>
       
       <p style="color: #666; font-size: 12px; margin: 0;">Need help? Contact us at {{supportEmail}}</p>
+      <hr style="border: none; border-top: 1px solid #333; margin: 30px 0;">
+      <p style="color: #666; font-size: 12px; margin: 0; text-align: center;">© {{year}} {{platformName}}. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>`
+  },
+  {
+    name: 'Password Reset',
+    slug: 'password_reset',
+    subject: 'Reset Your Password - {{otp}}',
+    description: 'Sent when user requests password reset via OTP',
+    category: 'security',
+    variables: ['firstName', 'email', 'otp', 'expiryMinutes', 'platformName', 'supportEmail', 'year'],
+    htmlContent: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #0a0a0a; font-family: Arial, sans-serif;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px; padding: 40px; border: 1px solid #333;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #fff; margin: 0; font-size: 24px;">{{platformName}}</h1>
+      </div>
+      <h2 style="color: #ef4444; margin: 0 0 20px; font-size: 20px;">Reset Your Password</h2>
+      <p style="color: #aaa; margin: 0 0 20px; line-height: 1.6;">Hi {{firstName}},</p>
+      <p style="color: #aaa; margin: 0 0 30px; line-height: 1.6;">We received a request to reset your password. Use the following OTP to proceed:</p>
+      <div style="background: #0f0f23; border-radius: 12px; padding: 30px; text-align: center; margin-bottom: 30px;">
+        <span style="font-size: 36px; font-weight: bold; color: #ef4444; letter-spacing: 8px;">{{otp}}</span>
+      </div>
+      <p style="color: #888; font-size: 14px; margin: 0 0 20px;">This OTP will expire in {{expiryMinutes}} minutes.</p>
+      <p style="color: #666; font-size: 12px; margin: 0;">If you didn't request this, please ignore this email.</p>
       <hr style="border: none; border-top: 1px solid #333; margin: 30px 0;">
       <p style="color: #666; font-size: 12px; margin: 0; text-align: center;">© {{year}} {{platformName}}. All rights reserved.</p>
     </div>
@@ -774,4 +808,6 @@ router.post('/sync', async (req, res) => {
 })
 
 export default router
+
+
 

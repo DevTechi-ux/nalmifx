@@ -2,6 +2,8 @@ import Challenge from '../models/Challenge.js'
 import ChallengeAccount from '../models/ChallengeAccount.js'
 import PropSettings from '../models/PropSettings.js'
 import Trade from '../models/Trade.js'
+import User from '../models/User.js'
+import { sendTemplateEmail } from '../services/emailService.js'
 
 class PropTradingEngine {
   constructor() {
@@ -471,6 +473,26 @@ class PropTradingEngine {
         account.passedAt = new Date()
         await account.save()
         
+        // Send completion email
+        try {
+          const user = await User.findById(account.userId)
+          if (user) {
+            await sendTemplateEmail('challenge_completed', user.email, {
+              firstName: user.firstName || user.email.split('@')[0],
+              challengeName: challenge.name,
+              fundSize: `$${challenge.fundSize.toLocaleString()}`,
+              accountId: account.accountId,
+              completionDate: account.passedAt.toLocaleDateString(),
+              platformName: 'NalmiFX',
+              loginUrl: 'http://localhost:5173/login',
+              supportEmail: 'support@nalmifx.com',
+              year: new Date().getFullYear().toString()
+            })
+          }
+        } catch (emailError) {
+          console.error('Failed to send challenge completion email:', emailError)
+        }
+        
         // Create funded account
         const fundedAccount = await this.createFundedAccount(account)
         
@@ -544,11 +566,34 @@ class PropTradingEngine {
     account.failedAt = new Date()
     account.failReason = reason || 'Admin force fail'
     account.violations.push({
-      rule: 'ADMIN_FORCE_FAIL',
-      description: `Forced fail by admin: ${reason}`,
-      severity: 'FAIL'
+      type: 'ADMIN_FAIL',
+      description: account.failReason,
+      severity: 'FAIL',
+      timestamp: new Date()
     })
     await account.save()
+    
+    // Send failure email
+    try {
+      const user = await User.findById(account.userId)
+      const challenge = await Challenge.findById(account.challengeId)
+      if (user && challenge) {
+        await sendTemplateEmail('challenge_failed', user.email, {
+          firstName: user.firstName || user.email.split('@')[0],
+          challengeName: challenge.name,
+          fundSize: `$${challenge.fundSize.toLocaleString()}`,
+          accountId: account.accountId,
+          failureReason: account.failReason,
+          failureDate: account.failedAt.toLocaleDateString(),
+          platformName: 'NalmiFX',
+          loginUrl: 'http://localhost:5173/login',
+          supportEmail: 'support@nalmifx.com',
+          year: new Date().getFullYear().toString()
+        })
+      }
+    } catch (emailError) {
+      console.error('Failed to send challenge failure email:', emailError)
+    }
     return account
   }
 
@@ -703,6 +748,28 @@ class PropTradingEngine {
       account.failReason = `Repeated rule violation: ${description}`
       await account.addViolation(ruleCode, `Account failed due to repeated violations (${sameTypeViolations.length} times)`, 'FAIL')
       await account.save()
+      
+      // Send failure email
+      try {
+        const user = await User.findById(account.userId)
+        const challenge = await Challenge.findById(account.challengeId)
+        if (user && challenge) {
+          await sendTemplateEmail('challenge_failed', user.email, {
+            firstName: user.firstName || user.email.split('@')[0],
+            challengeName: challenge.name,
+            fundSize: `$${challenge.fundSize.toLocaleString()}`,
+            accountId: account.accountId,
+            failureReason: account.failReason,
+            failureDate: account.failedAt.toLocaleDateString(),
+            platformName: 'NalmiFX',
+            loginUrl: 'http://localhost:5173/login',
+            supportEmail: 'support@nalmifx.com',
+            year: new Date().getFullYear().toString()
+          })
+        }
+      } catch (emailError) {
+        console.error('Failed to send challenge failure email:', emailError)
+      }
       
       return { 
         account, 

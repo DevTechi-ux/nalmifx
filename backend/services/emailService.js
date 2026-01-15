@@ -107,9 +107,8 @@ export const isOTPEnabled = async () => {
 }
 
 // Get OTP expiry in minutes
-export const getOTPExpiry = async () => {
-  const settings = await EmailSettings.findOne()
-  return settings?.otpExpiryMinutes ?? 10
+export const getOTPExpiry = () => {
+  return 10 // Default 10 minutes
 }
 
 // Test SMTP connection

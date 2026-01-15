@@ -401,10 +401,10 @@ router.get('/user/:userId', async (req, res) => {
   }
 })
 
-// POST /api/auth/forgot-password - Request password reset (admin will send new password)
+// POST /api/auth/forgot-password - Send OTP for password reset
 router.post('/forgot-password', async (req, res) => {
   try {
-    const { email, newEmail } = req.body
+    const { email } = req.body
 
     if (!email) {
       return res.status(400).json({ success: false, message: 'Email is required' })
@@ -416,39 +416,174 @@ router.post('/forgot-password', async (req, res) => {
       return res.status(404).json({ success: false, message: 'No account found with this email' })
     }
 
-    // Create password reset request
-    const PasswordResetRequest = (await import('../models/PasswordResetRequest.js')).default
-    
-    // Check if there's already a pending request
-    const existingRequest = await PasswordResetRequest.findOne({ 
-      userId: user._id, 
-      status: 'Pending' 
-    })
-    
-    if (existingRequest) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'You already have a pending password reset request. Please wait for admin to process it.' 
+    // Check if SMTP is enabled
+    const emailSettings = await EmailSettings.findOne()
+    const smtpEnabled = emailSettings?.smtpEnabled || false
+
+    if (smtpEnabled) {
+      // Send OTP for password reset
+      const otp = generateOTP()
+      const expiryMinutes = getOTPExpiry()
+
+      // Save OTP
+      const otpRecord = await OTP.create({
+        email,
+        otp,
+        purpose: 'password_reset',
+        expiresAt: new Date(Date.now() + expiryMinutes * 60 * 1000)
       })
+      console.log('OTP saved:', { email, otp, purpose: 'password_reset', expiresAt: otpRecord.expiresAt })
+
+      // Send email with OTP
+      try {
+        await sendTemplateEmail('password_reset', email, {
+          firstName: user.firstName || user.email.split('@')[0],
+          email: user.email,
+          otp,
+          expiryMinutes,
+          platformName: 'NalmiFX',
+          supportEmail: emailSettings?.fromEmail || 'support@nalmifx.com',
+          year: new Date().getFullYear().toString()
+        })
+
+        res.json({ 
+          success: true, 
+          message: 'Password reset OTP sent to your email',
+          requiresOTP: true
+        })
+      } catch (emailError) {
+        console.error('Failed to send password reset email:', emailError)
+        // Fallback to admin request if email fails
+        smtpEnabled = false
+      }
     }
 
-    // Create new request
-    await PasswordResetRequest.create({
-      userId: user._id,
-      email: user.email,
-      newEmail: newEmail || null,
-      status: 'Pending'
-    })
+    if (!smtpEnabled) {
+      // Create password reset request for admin
+      const PasswordResetRequest = (await import('../models/PasswordResetRequest.js')).default
+      
+      // Check if there's already a pending request
+      const existingRequest = await PasswordResetRequest.findOne({ 
+        userId: user._id, 
+        status: 'Pending' 
+      })
+      
+      if (existingRequest) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'You already have a pending password reset request. Please wait for admin to process it.' 
+        })
+      }
 
-    console.log(`[Password Reset Request] User: ${user.email}, New Email: ${newEmail || 'N/A'}`)
+      // Create new request
+      await PasswordResetRequest.create({
+        userId: user._id,
+        email: user.email,
+        status: 'Pending'
+      })
 
-    res.json({ 
-      success: true, 
-      message: 'Password reset request submitted. Admin will send a new password to your email.' 
-    })
+      console.log(`[Password Reset Request] User: ${user.email}`)
+
+      res.json({ 
+        success: true, 
+        message: 'Password reset request submitted. Admin will send a new password to your email.',
+        requiresOTP: false
+      })
+    }
   } catch (error) {
     console.error('Forgot password error:', error)
     res.status(500).json({ success: false, message: 'Error submitting request', error: error.message })
+  }
+})
+
+// POST /api/auth/verify-reset-otp - Verify OTP and allow password reset
+router.post('/verify-reset-otp', async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body
+
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Email, OTP, and new password are required' })
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters long' })
+    }
+
+    // Find valid OTP
+    console.log('Looking for OTP:', { email, otp, purpose: 'password_reset' })
+    const otpRecord = await OTP.findOne({
+      email,
+      otp,
+      purpose: 'password_reset',
+      expiresAt: { $gt: new Date() }
+    })
+
+    console.log('Found OTP record:', otpRecord)
+
+    if (!otpRecord) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired OTP' })
+    }
+
+    // Find user and update password
+    const user = await User.findOne({ email })
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' })
+    }
+
+    user.password = newPassword
+    user.passwordChangedAt = new Date()
+    await user.save()
+
+    // Delete used OTP
+    await OTP.deleteOne({ _id: otpRecord._id })
+
+    res.json({ 
+      success: true, 
+      message: 'Password reset successfully. You can now login with your new password.' 
+    })
+  } catch (error) {
+    console.error('Verify reset OTP error:', error)
+    res.status(500).json({ success: false, message: 'Error resetting password', error: error.message })
+  }
+})
+
+// POST /api/auth/change-password - Change password from profile
+router.post('/change-password', async (req, res) => {
+  try {
+    const { userId, currentPassword, newPassword } = req.body
+
+    if (!userId || !currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'All fields are required' })
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters long' })
+    }
+
+    // Find user
+    const user = await User.findById(userId)
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' })
+    }
+
+    // Verify current password
+    const isMatch = await user.comparePassword(currentPassword)
+    if (!isMatch) {
+      return res.status(400).json({ success: false, message: 'Current password is incorrect' })
+    }
+
+    // Update password
+    user.password = newPassword
+    user.passwordChangedAt = new Date()
+    await user.save()
+
+    res.json({ 
+      success: true, 
+      message: 'Password changed successfully' 
+    })
+  } catch (error) {
+    console.error('Change password error:', error)
+    res.status(500).json({ success: false, message: 'Error changing password', error: error.message })
   }
 })
 
