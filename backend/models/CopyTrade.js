@@ -112,10 +112,4 @@ const copyTradeSchema = new mongoose.Schema({
   }
 }, { timestamps: true })
 
-// Indexes
-copyTradeSchema.index({ masterTradeId: 1 })
-copyTradeSchema.index({ masterId: 1, tradingDay: 1 })
-copyTradeSchema.index({ followerId: 1, tradingDay: 1 })
-copyTradeSchema.index({ status: 1 })
-
 export default mongoose.model('CopyTrade', copyTradeSchema)

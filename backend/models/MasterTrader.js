@@ -111,8 +111,4 @@ const masterTraderSchema = new mongoose.Schema({
   }
 }, { timestamps: true })
 
-// Index for efficient queries
-masterTraderSchema.index({ status: 1, visibility: 1 })
-masterTraderSchema.index({ userId: 1 })
-
 export default mongoose.model('MasterTrader', masterTraderSchema)

@@ -80,9 +80,4 @@ const copyCommissionSchema = new mongoose.Schema({
   }
 }, { timestamps: true })
 
-// Compound index to prevent duplicate daily commissions
-copyCommissionSchema.index({ masterId: 1, followerId: 1, tradingDay: 1 }, { unique: true })
-copyCommissionSchema.index({ masterId: 1, status: 1 })
-copyCommissionSchema.index({ tradingDay: 1, status: 1 })
-
 export default mongoose.model('CopyCommission', copyCommissionSchema)

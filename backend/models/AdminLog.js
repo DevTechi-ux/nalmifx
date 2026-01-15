@@ -57,8 +57,4 @@ const adminLogSchema = new mongoose.Schema({
   }
 }, { timestamps: true })
 
-// Index for efficient querying
-adminLogSchema.index({ adminId: 1, createdAt: -1 })
-adminLogSchema.index({ targetType: 1, targetId: 1, createdAt: -1 })
-
 export default mongoose.model('AdminLog', adminLogSchema)

@@ -311,10 +311,4 @@ challengeAccountSchema.methods.addViolation = async function(rule, description, 
   return this
 }
 
-// Indexes
-challengeAccountSchema.index({ userId: 1 })
-challengeAccountSchema.index({ challengeId: 1 })
-challengeAccountSchema.index({ status: 1 })
-challengeAccountSchema.index({ accountId: 1 })
-
 export default mongoose.model('ChallengeAccount', challengeAccountSchema)

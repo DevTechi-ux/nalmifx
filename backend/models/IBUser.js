@@ -125,10 +125,4 @@ ibUserSchema.methods.getUplineChain = async function(maxLevels = 5) {
   return chain
 }
 
-// Indexes
-ibUserSchema.index({ userId: 1 })
-ibUserSchema.index({ referralCode: 1 })
-ibUserSchema.index({ parentIBId: 1 })
-ibUserSchema.index({ status: 1 })
-
 export default mongoose.model('IBUser', ibUserSchema)

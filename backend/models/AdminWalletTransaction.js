@@ -61,9 +61,4 @@ const adminWalletTransactionSchema = new mongoose.Schema({
   timestamps: true
 })
 
-adminWalletTransactionSchema.index({ fromAdminId: 1 })
-adminWalletTransactionSchema.index({ toAdminId: 1 })
-adminWalletTransactionSchema.index({ toUserId: 1 })
-adminWalletTransactionSchema.index({ type: 1 })
-
 export default mongoose.model('AdminWalletTransaction', adminWalletTransactionSchema)

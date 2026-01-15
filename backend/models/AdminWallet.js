@@ -41,6 +41,4 @@ const adminWalletSchema = new mongoose.Schema({
   timestamps: true
 })
 
-adminWalletSchema.index({ adminId: 1 })
-
 export default mongoose.model('AdminWallet', adminWalletSchema)

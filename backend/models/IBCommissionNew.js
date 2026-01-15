@@ -71,9 +71,4 @@ const ibCommissionSchema = new mongoose.Schema({
   }
 })
 
-// Index for fast queries
-ibCommissionSchema.index({ ibUserId: 1, createdAt: -1 })
-ibCommissionSchema.index({ tradeId: 1 })
-ibCommissionSchema.index({ traderUserId: 1 })
-
 export default mongoose.model('IBCommission', ibCommissionSchema)

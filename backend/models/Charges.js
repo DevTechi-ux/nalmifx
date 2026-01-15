@@ -91,11 +91,6 @@ const chargesSchema = new mongoose.Schema({
   }
 }, { timestamps: true })
 
-// Compound index for efficient lookups
-chargesSchema.index({ level: 1, userId: 1, instrumentSymbol: 1, segment: 1, accountTypeId: 1 })
-
-// Static method to get applicable charges for a trade
-// Priority: USER > INSTRUMENT > ACCOUNT_TYPE > SEGMENT > GLOBAL
 // Merges charges from multiple levels - most specific wins for each field
 chargesSchema.statics.getChargesForTrade = async function(userId, symbol, segment, accountTypeId) {
   console.log(`Getting charges for: userId=${userId}, symbol=${symbol}, segment=${segment}, accountTypeId=${accountTypeId}`)

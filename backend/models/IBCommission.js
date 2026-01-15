@@ -90,10 +90,4 @@ const ibCommissionSchema = new mongoose.Schema({
   }
 }, { timestamps: true })
 
-// Indexes
-ibCommissionSchema.index({ ibUserId: 1, tradingDay: 1 })
-ibCommissionSchema.index({ tradeId: 1 })
-ibCommissionSchema.index({ traderId: 1 })
-ibCommissionSchema.index({ status: 1 })
-
 export default mongoose.model('IBCommission', ibCommissionSchema)

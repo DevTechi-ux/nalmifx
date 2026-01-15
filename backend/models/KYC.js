@@ -48,10 +48,6 @@ const kycSchema = new mongoose.Schema({
   timestamps: true
 })
 
-// Index for faster queries
-kycSchema.index({ userId: 1 })
-kycSchema.index({ status: 1 })
-
 const KYC = mongoose.model('KYC', kycSchema)
 
 export default KYC
