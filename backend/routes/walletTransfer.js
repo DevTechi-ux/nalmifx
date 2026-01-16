@@ -2,6 +2,7 @@ import express from 'express'
 import User from '../models/User.js'
 import Wallet from '../models/Wallet.js'
 import TradingAccount from '../models/TradingAccount.js'
+import AccountType from '../models/AccountType.js'
 import Trade from '../models/Trade.js'
 import Transaction from '../models/Transaction.js'
 
@@ -44,8 +45,8 @@ router.post('/to-trading', async (req, res) => {
       })
     }
 
-    // Get trading account
-    const tradingAccount = await TradingAccount.findById(tradingAccountId)
+    // Get trading account with account type
+    const tradingAccount = await TradingAccount.findById(tradingAccountId).populate('accountTypeId')
     if (!tradingAccount) {
       return res.status(404).json({
         success: false,
@@ -67,6 +68,17 @@ router.post('/to-trading', async (req, res) => {
         success: false,
         message: `Cannot transfer to ${tradingAccount.status} account`
       })
+    }
+
+    // Check minimum deposit for first deposit to trading account
+    if (tradingAccount.balance === 0 && tradingAccount.accountTypeId?.minDeposit) {
+      const minDeposit = tradingAccount.accountTypeId.minDeposit
+      if (transferAmount < minDeposit) {
+        return res.status(400).json({
+          success: false,
+          message: `Minimum first deposit for ${tradingAccount.accountTypeId.name} account is $${minDeposit}`
+        })
+      }
     }
 
     // Perform transfer

@@ -204,8 +204,8 @@ router.post('/:id/transfer', async (req, res) => {
       return res.status(400).json({ message: 'Invalid amount' })
     }
 
-    // Get trading account
-    const account = await TradingAccount.findById(req.params.id)
+    // Get trading account with account type
+    const account = await TradingAccount.findById(req.params.id).populate('accountTypeId')
     if (!account) {
       return res.status(404).json({ message: 'Account not found' })
     }
@@ -237,6 +237,16 @@ router.post('/:id/transfer', async (req, res) => {
       // Transfer from Main Wallet to Account Wallet
       if (wallet.balance < amount) {
         return res.status(400).json({ message: 'Insufficient wallet balance' })
+      }
+
+      // Check minimum deposit for first deposit to trading account
+      if (account.balance === 0 && account.accountTypeId?.minDeposit) {
+        const minDeposit = account.accountTypeId.minDeposit
+        if (amount < minDeposit) {
+          return res.status(400).json({ 
+            message: `Minimum first deposit for ${account.accountTypeId.name} account is $${minDeposit}` 
+          })
+        }
       }
 
       wallet.balance -= amount
@@ -411,6 +421,7 @@ router.post('/account-transfer', async (req, res) => {
 // PUT /api/trading-accounts/:id/archive - Archive a trading account
 router.put('/:id/archive', async (req, res) => {
   try {
+    const { forceArchive } = req.body || {}
     const account = await TradingAccount.findById(req.params.id)
     
     if (!account) {
@@ -425,6 +436,16 @@ router.put('/:id/archive', async (req, res) => {
       return res.status(400).json({ 
         success: false, 
         message: `Cannot archive account with ${openTrades} open trade(s). Please close all trades first.` 
+      })
+    }
+
+    // Check if account has balance - require withdrawal first
+    if (account.balance > 0 && !forceArchive) {
+      return res.status(400).json({ 
+        success: false, 
+        requiresWithdrawal: true,
+        balance: account.balance,
+        message: `Please withdraw $${account.balance.toFixed(2)} from this account before archiving.` 
       })
     }
 

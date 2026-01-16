@@ -333,6 +333,15 @@ const Account = () => {
         setShowArchiveConfirm(null)
         fetchUserAccounts()
         setTimeout(() => setSuccess(''), 3000)
+      } else if (data.requiresWithdrawal) {
+        // Account has balance - prompt user to withdraw first
+        setShowArchiveConfirm(null)
+        const account = userAccounts.find(acc => acc._id === accountId)
+        if (account) {
+          setSelectedAccount(account)
+          setShowWithdrawModal(true)
+          setError(`Please withdraw $${data.balance.toFixed(2)} before archiving this account.`)
+        }
       } else {
         setError(data.message || 'Failed to archive account')
       }
