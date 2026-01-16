@@ -496,17 +496,43 @@ class TradeEngine {
     return { stopOutTriggered: false }
   }
 
-  // Check SL/TP for all open trades
+  // Check SL/TP for all open trades (non-challenge only)
   async checkSlTpForAllTrades(currentPrices) {
-    const openTrades = await Trade.find({ status: 'OPEN' })
+    // Only check non-challenge trades (challenge trades are handled by propTradingEngine)
+    const openTrades = await Trade.find({ status: 'OPEN', isChallengeAccount: { $ne: true } })
     const triggeredTrades = []
+
+    if (openTrades.length > 0) {
+      console.log(`[Regular SL/TP] Checking ${openTrades.length} open regular trades`)
+    }
 
     for (const trade of openTrades) {
       const prices = currentPrices[trade.symbol]
-      if (!prices) continue
+      if (!prices) {
+        console.log(`[Regular SL/TP] No price data for ${trade.symbol}`)
+        continue
+      }
 
-      const trigger = trade.checkSlTp(prices.bid, prices.ask)
+      const sl = trade.sl || trade.stopLoss
+      const tp = trade.tp || trade.takeProfit
+      const bid = prices.bid
+      const ask = prices.ask || prices.bid // Fallback to bid if ask not available
+
+      // Debug log for trades with SL/TP
+      if (sl || tp) {
+        console.log(`[Regular SL/TP] Trade ${trade.tradeId}: ${trade.side} ${trade.symbol} | bid=${bid} ask=${ask} | SL=${sl} TP=${tp}`)
+        
+        // Check if SL/TP would trigger
+        if (trade.side === 'SELL') {
+          console.log(`[Regular SL/TP] SELL check: ask(${ask}) >= sl(${sl}) = ${ask >= sl}, ask(${ask}) <= tp(${tp}) = ${ask <= tp}`)
+        } else {
+          console.log(`[Regular SL/TP] BUY check: bid(${bid}) <= sl(${sl}) = ${bid <= sl}, bid(${bid}) >= tp(${tp}) = ${bid >= tp}`)
+        }
+      }
+
+      const trigger = trade.checkSlTp(bid, ask)
       if (trigger) {
+        console.log(`[Regular SL/TP] TRIGGERED! Trade ${trade.tradeId}: ${trigger} at bid=${prices.bid}, ask=${prices.ask}`)
         const result = await this.closeTrade(trade._id, prices.bid, prices.ask, trigger)
         triggeredTrades.push({ trade: result.trade, trigger, pnl: result.realizedPnl })
       }

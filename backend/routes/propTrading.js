@@ -2,6 +2,8 @@ import express from 'express'
 import Challenge from '../models/Challenge.js'
 import ChallengeAccount from '../models/ChallengeAccount.js'
 import PropSettings from '../models/PropSettings.js'
+import Wallet from '../models/Wallet.js'
+import Transaction from '../models/Transaction.js'
 import propTradingEngine from '../services/propTradingEngine.js'
 
 const router = express.Router()
@@ -58,7 +60,7 @@ router.get('/challenge/:id', async (req, res) => {
 // POST /api/prop/buy - Buy a challenge
 router.post('/buy', async (req, res) => {
   try {
-    const { userId, challengeId, paymentId } = req.body
+    const { userId, challengeId } = req.body
 
     if (!userId || !challengeId) {
       return res.status(400).json({ success: false, message: 'User ID and Challenge ID required' })
@@ -73,7 +75,55 @@ router.post('/buy', async (req, res) => {
       })
     }
 
-    const account = await propTradingEngine.createChallengeAccount(userId, challengeId, paymentId)
+    // Get the challenge to check the fee
+    const challenge = await Challenge.findById(challengeId)
+    if (!challenge || !challenge.isActive) {
+      return res.status(404).json({ success: false, message: 'Challenge not found or inactive' })
+    }
+
+    const challengeFee = challenge.challengeFee || 0
+
+    // Get user's wallet
+    let wallet = await Wallet.findOne({ userId })
+    if (!wallet) {
+      wallet = new Wallet({ userId, balance: 0 })
+      await wallet.save()
+    }
+
+    // Check if user has enough balance
+    if (wallet.balance < challengeFee) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `Insufficient balance. Required: $${challengeFee}, Available: $${wallet.balance}`,
+        code: 'INSUFFICIENT_BALANCE'
+      })
+    }
+
+    // Deduct challenge fee from wallet
+    wallet.balance -= challengeFee
+    await wallet.save()
+
+    // Create transaction record for challenge purchase
+    const transaction = new Transaction({
+      userId,
+      walletId: wallet._id,
+      type: 'Challenge_Purchase',
+      amount: challengeFee,
+      status: 'Approved',
+      paymentMethod: 'Wallet',
+      description: `Challenge Purchase: ${challenge.name} ($${challenge.fundSize.toLocaleString()} Fund)`,
+      processedAt: new Date()
+    })
+    await transaction.save()
+
+    // Create the challenge account
+    const account = await propTradingEngine.createChallengeAccount(userId, challengeId, transaction._id)
+    
+    // Update transaction with challenge account reference
+    transaction.challengeAccountId = account._id
+    await transaction.save()
+
+    console.log(`Challenge purchased: ${challenge.name} for $${challengeFee} by user ${userId}`)
     
     res.json({
       success: true,
@@ -84,6 +134,11 @@ router.post('/buy', async (req, res) => {
         status: account.status,
         initialBalance: account.initialBalance,
         expiresAt: account.expiresAt
+      },
+      transaction: {
+        _id: transaction._id,
+        amount: challengeFee,
+        newBalance: wallet.balance
       }
     })
   } catch (error) {

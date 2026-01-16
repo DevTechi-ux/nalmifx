@@ -12,7 +12,7 @@ const transactionSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['Deposit', 'Withdrawal', 'Transfer_To_Account', 'Transfer_From_Account', 'Account_Transfer_Out', 'Account_Transfer_In', 'Demo_Credit', 'Demo_Reset'],
+    enum: ['Deposit', 'Withdrawal', 'Transfer_To_Account', 'Transfer_From_Account', 'Account_Transfer_Out', 'Account_Transfer_In', 'Demo_Credit', 'Demo_Reset', 'Challenge_Purchase'],
     required: true
   },
   amount: {
@@ -22,8 +22,16 @@ const transactionSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['Bank Transfer', 'UPI', 'QR Code', 'Internal', 'System'],
+    enum: ['Bank Transfer', 'UPI', 'QR Code', 'Internal', 'System', 'Wallet'],
     default: 'Internal'
+  },
+  description: {
+    type: String,
+    default: ''
+  },
+  challengeAccountId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ChallengeAccount'
   },
   // For internal transfers
   tradingAccountId: {

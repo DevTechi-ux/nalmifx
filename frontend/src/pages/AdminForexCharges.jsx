@@ -550,7 +550,7 @@ const AdminForexCharges = () => {
 
               {/* Step 2: Segment Filter */}
               <div>
-                <label className="block text-gray-400 text-xs mb-1">2. Segment <span className="text-gray-600">(filter instruments)</span></label>
+                <label className="block text-gray-400 text-xs mb-1">2. Segment <span className="text-gray-600">(optional)</span></label>
                 <select value={form.segment} onChange={(e) => setForm({ ...form, segment: e.target.value, instrumentSymbol: '' })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm">
                   <option value="">All Segments</option>
                   <option value="Forex">Forex</option>
@@ -701,7 +701,7 @@ const AdminForexCharges = () => {
 
               {/* Step 2: Segment Filter */}
               <div>
-                <label className="block text-gray-400 text-xs mb-1">2. Segment <span className="text-gray-600">(filter instruments)</span></label>
+                <label className="block text-gray-400 text-xs mb-1">2. Segment <span className="text-gray-600">(optional)</span></label>
                 <select value={form.segment} onChange={(e) => setForm({ ...form, segment: e.target.value, instrumentSymbol: '' })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm">
                   <option value="">All Segments</option>
                   <option value="Forex">Forex</option>

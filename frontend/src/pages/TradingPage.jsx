@@ -354,8 +354,14 @@ const TradingPage = () => {
   // Fetch live prices in background (non-blocking)
   const fetchLivePrices = async () => {
     try {
-      // Get all symbols and fetch in single batch call to backend
-      const allSymbols = instruments.map(i => i.symbol)
+      // Get symbols from instruments for price display
+      const instrumentSymbols = instruments.map(i => i.symbol)
+      
+      // Always include XAUUSD for SL/TP checking even if not in instruments
+      const defaultSymbols = ['XAUUSD', 'EURUSD', 'GBPUSD']
+      const allSymbols = [...new Set([...instrumentSymbols, ...defaultSymbols])]
+      
+      if (allSymbols.length === 0) return
       
       // Single batch call to backend (handles both MetaAPI and Binance)
       const allPrices = await metaApiService.getAllPrices(allSymbols)
@@ -433,13 +439,19 @@ const TradingPage = () => {
             }
             
             // Check SL/TP for all trades (auto-close when hit)
+            // Always call check-sltp - backend will query all open trades
             const slTpRes = await fetch(`${API_URL}/trade/check-sltp`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ prices: allPrices })
             })
+            if (!slTpRes.ok) {
+              console.error('SL/TP check failed:', slTpRes.status)
+              return
+            }
             const slTpData = await slTpRes.json()
             if (slTpData.success && slTpData.closedCount > 0) {
+              console.log('SL/TP triggered:', slTpData.closedTrades)
               // Refresh trades if any were closed by SL/TP
               fetchOpenTrades()
               fetchTradeHistory()
@@ -449,7 +461,7 @@ const TradingPage = () => {
               })
             }
           } catch (e) {
-            // Silent fail for SL/TP check
+            console.error('SL/TP check error:', e)
           }
         }
       }

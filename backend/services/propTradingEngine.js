@@ -399,35 +399,69 @@ class PropTradingEngine {
 
   // Check drawdown breach
   async checkDrawdownBreach(account, rules) {
+    let breachReason = null
+    let breachCode = null
+
     // Daily drawdown check
     if (rules.maxDailyDrawdownPercent) {
       if (account.currentDailyDrawdownPercent >= rules.maxDailyDrawdownPercent) {
+        breachReason = `Daily drawdown limit (${rules.maxDailyDrawdownPercent}%) exceeded`
+        breachCode = this.ERROR_CODES.DAILY_DRAWDOWN_BREACH
         await account.addViolation(
           'DAILY_DRAWDOWN_BREACH',
           `Daily drawdown of ${account.currentDailyDrawdownPercent.toFixed(2)}% exceeded limit of ${rules.maxDailyDrawdownPercent}%`,
           'FAIL'
         )
-        return { 
-          breached: true, 
-          reason: `Daily drawdown limit (${rules.maxDailyDrawdownPercent}%) exceeded`,
-          code: this.ERROR_CODES.DAILY_DRAWDOWN_BREACH
-        }
       }
     }
 
     // Overall drawdown check
-    if (rules.maxOverallDrawdownPercent) {
+    if (!breachReason && rules.maxOverallDrawdownPercent) {
       if (account.currentOverallDrawdownPercent >= rules.maxOverallDrawdownPercent) {
+        breachReason = `Overall drawdown limit (${rules.maxOverallDrawdownPercent}%) exceeded`
+        breachCode = this.ERROR_CODES.OVERALL_DRAWDOWN_BREACH
         await account.addViolation(
           'OVERALL_DRAWDOWN_BREACH',
           `Overall drawdown of ${account.currentOverallDrawdownPercent.toFixed(2)}% exceeded limit of ${rules.maxOverallDrawdownPercent}%`,
           'FAIL'
         )
-        return { 
-          breached: true, 
-          reason: `Overall drawdown limit (${rules.maxOverallDrawdownPercent}%) exceeded`,
-          code: this.ERROR_CODES.OVERALL_DRAWDOWN_BREACH
+      }
+    }
+
+    // If breached, fail the account and send email
+    if (breachReason) {
+      account.status = 'FAILED'
+      account.failedAt = new Date()
+      account.failReason = breachReason
+      await account.save()
+
+      // Send failure email
+      try {
+        const user = await User.findById(account.userId)
+        const challenge = await Challenge.findById(account.challengeId._id || account.challengeId)
+        if (user && challenge) {
+          await sendTemplateEmail('challenge_failed', user.email, {
+            firstName: user.firstName || user.email.split('@')[0],
+            challengeName: challenge.name,
+            fundSize: `$${challenge.fundSize.toLocaleString()}`,
+            accountId: account.accountId,
+            failureReason: breachReason,
+            failureDate: account.failedAt.toLocaleDateString(),
+            platformName: 'NalmiFX',
+            loginUrl: 'http://localhost:5173/login',
+            supportEmail: 'support@nalmifx.com',
+            year: new Date().getFullYear().toString()
+          })
+          console.log(`Challenge failure email sent to ${user.email} for drawdown breach`)
         }
+      } catch (emailError) {
+        console.error('Failed to send challenge failure email:', emailError)
+      }
+
+      return { 
+        breached: true, 
+        reason: breachReason,
+        code: breachCode
       }
     }
 
@@ -553,6 +587,28 @@ class PropTradingEngine {
     })
     await account.save()
 
+    // Send completion email
+    try {
+      const user = await User.findById(account.userId)
+      const challenge = await Challenge.findById(account.challengeId)
+      if (user && challenge) {
+        await sendTemplateEmail('challenge_completed', user.email, {
+          firstName: user.firstName || user.email.split('@')[0],
+          challengeName: challenge.name,
+          fundSize: `$${challenge.fundSize.toLocaleString()}`,
+          accountId: account.accountId,
+          completionDate: account.passedAt.toLocaleDateString(),
+          platformName: 'NalmiFX',
+          loginUrl: 'http://localhost:5173/login',
+          supportEmail: 'support@nalmifx.com',
+          year: new Date().getFullYear().toString()
+        })
+        console.log(`Challenge completion email sent to ${user.email} (admin force pass)`)
+      }
+    } catch (emailError) {
+      console.error('Failed to send challenge completion email:', emailError)
+    }
+
     // Create funded account
     const fundedAccount = await this.createFundedAccount(account)
     return { account, fundedAccount }
@@ -664,16 +720,35 @@ class PropTradingEngine {
       status: 'OPEN' 
     })
 
+    if (openTrades.length > 0) {
+      console.log(`[Challenge SL/TP] Checking ${openTrades.length} open challenge trades`)
+    }
+
     const closedTrades = []
 
     for (const trade of openTrades) {
       const priceData = prices[trade.symbol]
-      if (!priceData) continue
+      if (!priceData) {
+        console.log(`[Challenge SL/TP] No price data for ${trade.symbol}`)
+        continue
+      }
 
       const bid = priceData.bid
-      const ask = priceData.ask
+      const ask = priceData.ask || priceData.bid // Fallback to bid if ask not available
       const sl = trade.sl || trade.stopLoss
       const tp = trade.tp || trade.takeProfit
+
+      // Debug log for each trade with SL/TP
+      if (sl || tp) {
+        console.log(`[Challenge SL/TP] Trade ${trade.tradeId}: ${trade.side} ${trade.symbol} | bid=${bid} ask=${ask} | SL=${sl} TP=${tp}`)
+        
+        // Check if SL/TP would trigger
+        if (trade.side === 'SELL') {
+          console.log(`[Challenge SL/TP] SELL check: ask(${ask}) >= sl(${sl}) = ${ask >= sl}, ask(${ask}) <= tp(${tp}) = ${ask <= tp}`)
+        } else {
+          console.log(`[Challenge SL/TP] BUY check: bid(${bid}) <= sl(${sl}) = ${bid <= sl}, bid(${bid}) >= tp(${tp}) = ${bid >= tp}`)
+        }
+      }
 
       let shouldClose = false
       let closeReason = null
@@ -704,6 +779,8 @@ class PropTradingEngine {
       }
 
       if (shouldClose) {
+        console.log(`Challenge trade ${trade.tradeId} ${closeReason} triggered: ${trade.side} ${trade.symbol} at ${closePrice}`)
+        
         // Calculate PnL
         const pnl = trade.side === 'BUY'
           ? (closePrice - trade.openPrice) * trade.quantity * trade.contractSize
@@ -721,6 +798,7 @@ class PropTradingEngine {
         await this.onTradeClosed(trade.tradingAccountId, trade, pnl)
 
         closedTrades.push({ trade, reason: closeReason, pnl })
+        console.log(`Challenge trade closed with PnL: $${pnl.toFixed(2)}`)
       }
     }
 

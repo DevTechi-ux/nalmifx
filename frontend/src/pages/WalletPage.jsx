@@ -612,12 +612,14 @@ const WalletPage = () => {
                             {tx.type === 'Transfer_From_Account' && <Download size={18} className="text-purple-500" />}
                             {tx.type === 'Account_Transfer_Out' && <ArrowUpCircle size={18} className="text-orange-500" />}
                             {tx.type === 'Account_Transfer_In' && <ArrowDownCircle size={18} className="text-teal-500" />}
+                            {tx.type === 'Challenge_Purchase' && <ArrowUpCircle size={18} className="text-yellow-500" />}
                             <div>
                               <span className="text-white">
                                 {tx.type === 'Transfer_To_Account' ? 'To Trading Account' : 
                                  tx.type === 'Transfer_From_Account' ? 'From Trading Account' : 
                                  tx.type === 'Account_Transfer_Out' ? 'Account Transfer (Out)' :
                                  tx.type === 'Account_Transfer_In' ? 'Account Transfer (In)' :
+                                 tx.type === 'Challenge_Purchase' ? 'Challenge Purchase' :
                                  tx.type}
                               </span>
                               {tx.tradingAccountName && (
@@ -628,6 +630,9 @@ const WalletPage = () => {
                               )}
                               {tx.type === 'Account_Transfer_In' && tx.fromTradingAccountName && (
                                 <p className="text-gray-500 text-xs">← {tx.fromTradingAccountName}</p>
+                              )}
+                              {tx.type === 'Challenge_Purchase' && tx.description && (
+                                <p className="text-gray-500 text-xs">{tx.description}</p>
                               )}
                             </div>
                           </div>

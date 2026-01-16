@@ -8,6 +8,42 @@ import copyTradingEngine from '../services/copyTradingEngine.js'
 import ibEngine from '../services/ibEngineNew.js'
 import MasterTrader from '../models/MasterTrader.js'
 
+// MetaAPI config for fresh price fetching
+const META_API_TOKEN = process.env.META_API_TOKEN
+const META_API_ACCOUNT_ID = process.env.META_API_ACCOUNT_ID
+
+// Fetch fresh price from MetaAPI
+async function getFreshPrice(symbol) {
+  try {
+    if (!META_API_TOKEN || !META_API_ACCOUNT_ID) {
+      console.log(`[getFreshPrice] Missing MetaAPI credentials`)
+      return null
+    }
+    const response = await fetch(
+      `https://mt-client-api-v1.london.agiliumtrade.ai/users/current/accounts/${META_API_ACCOUNT_ID}/symbols/${symbol}/current-price`,
+      {
+        headers: {
+          'auth-token': META_API_TOKEN,
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+    if (!response.ok) {
+      console.log(`[getFreshPrice] MetaAPI error for ${symbol}: ${response.status}`)
+      return null
+    }
+    const data = await response.json()
+    if (data.bid) {
+      return { bid: data.bid, ask: data.ask || data.bid }
+    }
+    console.log(`[getFreshPrice] No bid in response for ${symbol}`)
+    return null
+  } catch (e) {
+    console.log(`[getFreshPrice] Error for ${symbol}:`, e.message)
+    return null
+  }
+}
+
 const router = express.Router()
 
 // POST /api/trade/open - Open a new trade
@@ -612,10 +648,36 @@ router.post('/cancel', async (req, res) => {
   }
 })
 
+// GET /api/trade/debug-open - Debug endpoint to see all open trades with SL/TP
+router.get('/debug-open', async (req, res) => {
+  try {
+    const openTrades = await Trade.find({ status: 'OPEN' })
+    res.json({
+      success: true,
+      count: openTrades.length,
+      trades: openTrades.map(t => ({
+        tradeId: t.tradeId,
+        symbol: t.symbol,
+        side: t.side,
+        openPrice: t.openPrice,
+        sl: t.sl,
+        stopLoss: t.stopLoss,
+        tp: t.tp,
+        takeProfit: t.takeProfit,
+        isChallengeAccount: t.isChallengeAccount,
+        status: t.status
+      }))
+    })
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
 // POST /api/trade/check-sltp - Check and trigger SL/TP for all trades
 router.post('/check-sltp', async (req, res) => {
   try {
     const { prices } = req.body
+    console.log(`[SL/TP Check] Endpoint called`)
 
     if (!prices || typeof prices !== 'object') {
       return res.status(400).json({ 
@@ -624,11 +686,41 @@ router.post('/check-sltp', async (req, res) => {
       })
     }
 
+    // Find all open trades with SL/TP to get their symbols
+    const tradesWithSlTp = await Trade.find({
+      status: 'OPEN',
+      $or: [
+        { sl: { $ne: null } },
+        { stopLoss: { $ne: null } },
+        { tp: { $ne: null } },
+        { takeProfit: { $ne: null } }
+      ]
+    }).select('symbol')
+    
+    // Get unique symbols that need fresh prices
+    const symbolsNeedingFreshPrices = [...new Set(tradesWithSlTp.map(t => t.symbol))]
+    
+    // Fetch fresh prices for symbols with SL/TP trades
+    const freshPrices = { ...prices }
+    for (const symbol of symbolsNeedingFreshPrices) {
+      const freshPrice = await getFreshPrice(symbol)
+      if (freshPrice) {
+        freshPrices[symbol] = freshPrice
+        console.log(`[SL/TP Check] Fresh price for ${symbol}: bid=${freshPrice.bid}, ask=${freshPrice.ask}`)
+      }
+    }
+
+    // Debug: Log prices
+    const xauPrice = freshPrices['XAUUSD']
+    if (xauPrice) {
+      console.log(`[SL/TP Check] XAUUSD bid=${xauPrice.bid}, ask=${xauPrice.ask}`)
+    }
+
     // Check SL/TP for all open challenge trades
-    const closedChallengeTrades = await propTradingEngine.checkSlTpForAllTrades(prices)
+    const closedChallengeTrades = await propTradingEngine.checkSlTpForAllTrades(freshPrices)
     
     // Check SL/TP for all regular trades
-    const closedRegularTrades = await tradeEngine.checkSlTpForAllTrades(prices)
+    const closedRegularTrades = await tradeEngine.checkSlTpForAllTrades(freshPrices)
 
     const allClosedTrades = [...closedChallengeTrades, ...closedRegularTrades]
 

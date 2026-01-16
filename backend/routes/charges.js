@@ -78,7 +78,10 @@ router.get('/', async (req, res) => {
     const { segment, level, instrumentSymbol, userId } = req.query
     
     let query = { isActive: true }
-    if (segment) query.segment = segment
+    // Include charges for specific segment OR null segment (applies to all)
+    if (segment) {
+      query.$or = [{ segment: segment }, { segment: null }]
+    }
     if (level) query.level = level
     if (instrumentSymbol) query.instrumentSymbol = instrumentSymbol
     if (userId) query.userId = userId
@@ -186,8 +189,8 @@ router.put('/:id', async (req, res) => {
 
     if (level !== undefined) charge.level = level
     if (userId !== undefined) charge.userId = userId || null
-    if (instrumentSymbol !== undefined) charge.instrumentSymbol = instrumentSymbol
-    if (segment !== undefined) charge.segment = segment
+    if (instrumentSymbol !== undefined) charge.instrumentSymbol = instrumentSymbol || null
+    if (segment !== undefined) charge.segment = segment || null
     if (accountTypeId !== undefined) charge.accountTypeId = accountTypeId || null
     if (spreadType !== undefined) charge.spreadType = spreadType
     if (spreadValue !== undefined) charge.spreadValue = spreadValue

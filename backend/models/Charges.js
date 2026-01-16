@@ -124,9 +124,9 @@ chargesSchema.statics.getChargesForTrade = async function(userId, symbol, segmen
       return true
     }
     
-    // SEGMENT level - must match segment
+    // SEGMENT level - must match segment OR be null (applies to all segments)
     if (charge.level === 'SEGMENT') {
-      if (charge.segment !== segment) return false
+      if (charge.segment && charge.segment !== segment) return false
       return true
     }
     
@@ -138,27 +138,38 @@ chargesSchema.statics.getChargesForTrade = async function(userId, symbol, segmen
     return false
   })
   
-  // Deduplicate charges at the same level - prefer ones with non-zero values
+  // Merge charges at the same level - combine non-zero values from multiple charges
   const chargesByLevel = {}
   for (const charge of applicableCharges) {
     const key = `${charge.level}-${charge.segment || ''}-${charge.instrumentSymbol || ''}-${charge.accountTypeId || ''}`
     const existing = chargesByLevel[key]
     
     if (!existing) {
-      chargesByLevel[key] = charge
+      // Clone the charge object to avoid modifying the original
+      chargesByLevel[key] = { ...charge.toObject ? charge.toObject() : charge }
     } else {
-      // Prefer charge with non-zero commission or spread
-      const existingScore = (existing.commissionValue || 0) + (existing.spreadValue || 0) + Math.abs(existing.swapLong || 0) + Math.abs(existing.swapShort || 0)
-      const newScore = (charge.commissionValue || 0) + (charge.spreadValue || 0) + Math.abs(charge.swapLong || 0) + Math.abs(charge.swapShort || 0)
-      
-      if (newScore > existingScore) {
-        chargesByLevel[key] = charge
+      // Merge non-zero values from this charge into existing
+      if (charge.commissionValue > 0 && !existing.commissionValue) {
+        existing.commissionValue = charge.commissionValue
+        existing.commissionType = charge.commissionType
+        existing.commissionOnBuy = charge.commissionOnBuy
+        existing.commissionOnSell = charge.commissionOnSell
+        existing.commissionOnClose = charge.commissionOnClose
+      }
+      if (charge.spreadValue > 0 && !existing.spreadValue) {
+        existing.spreadValue = charge.spreadValue
+        existing.spreadType = charge.spreadType
+      }
+      if ((charge.swapLong !== 0 || charge.swapShort !== 0) && !existing.swapLong && !existing.swapShort) {
+        existing.swapLong = charge.swapLong
+        existing.swapShort = charge.swapShort
+        existing.swapType = charge.swapType
       }
     }
   }
   
   applicableCharges = Object.values(chargesByLevel)
-  console.log(`Found ${applicableCharges.length} applicable charges after deduplication`)
+  console.log(`Found ${applicableCharges.length} applicable charges after merging`)
   
   // Priority order for merging
   const priorityOrder = { 'USER': 1, 'INSTRUMENT': 2, 'ACCOUNT_TYPE': 3, 'SEGMENT': 4, 'GLOBAL': 5 }

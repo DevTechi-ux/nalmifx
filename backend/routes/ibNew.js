@@ -4,6 +4,7 @@ import IBPlan from '../models/IBPlanNew.js'
 import IBCommission from '../models/IBCommissionNew.js'
 import IBWallet from '../models/IBWallet.js'
 import IBLevel from '../models/IBLevel.js'
+import IBSettings from '../models/IBSettings.js'
 import ibEngine from '../services/ibEngineNew.js'
 import mongoose from 'mongoose'
 
@@ -927,6 +928,49 @@ router.post('/admin/init-levels', async (req, res) => {
     res.json({ success: true, message: 'Default levels initialized', levels })
   } catch (error) {
     console.error('Error initializing levels:', error)
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
+// ==================== SETTINGS ROUTES ====================
+
+// GET /api/ib/admin/settings - Get IB settings
+router.get('/admin/settings', async (req, res) => {
+  try {
+    const settings = await IBSettings.getSettings()
+    res.json({ success: true, settings })
+  } catch (error) {
+    console.error('Error fetching IB settings:', error)
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
+// PUT /api/ib/admin/settings - Update IB settings
+router.put('/admin/settings', async (req, res) => {
+  try {
+    const settings = await IBSettings.getSettings()
+    const { 
+      ibRequirements, 
+      commissionSettings, 
+      isEnabled, 
+      allowNewApplications, 
+      autoApprove 
+    } = req.body
+
+    if (ibRequirements) {
+      settings.ibRequirements = { ...settings.ibRequirements, ...ibRequirements }
+    }
+    if (commissionSettings) {
+      settings.commissionSettings = { ...settings.commissionSettings, ...commissionSettings }
+    }
+    if (isEnabled !== undefined) settings.isEnabled = isEnabled
+    if (allowNewApplications !== undefined) settings.allowNewApplications = allowNewApplications
+    if (autoApprove !== undefined) settings.autoApprove = autoApprove
+
+    await settings.save()
+    res.json({ success: true, settings })
+  } catch (error) {
+    console.error('Error updating IB settings:', error)
     res.status(500).json({ success: false, message: error.message })
   }
 })

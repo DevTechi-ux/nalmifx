@@ -180,12 +180,16 @@ tradeSchema.methods.calculatePnl = function(currentBid, currentAsk) {
 tradeSchema.methods.checkSlTp = function(currentBid, currentAsk) {
   if (this.status !== 'OPEN') return null
   
+  // Check both sl and stopLoss fields
+  const sl = this.sl || this.stopLoss
+  const tp = this.tp || this.takeProfit
+  
   if (this.side === 'BUY') {
-    if (this.stopLoss && currentBid <= this.stopLoss) return 'SL'
-    if (this.takeProfit && currentBid >= this.takeProfit) return 'TP'
+    if (sl && currentBid <= sl) return 'SL'
+    if (tp && currentBid >= tp) return 'TP'
   } else {
-    if (this.stopLoss && currentAsk >= this.stopLoss) return 'SL'
-    if (this.takeProfit && currentAsk <= this.takeProfit) return 'TP'
+    if (sl && currentAsk >= sl) return 'SL'
+    if (tp && currentAsk <= tp) return 'TP'
   }
   
   return null
