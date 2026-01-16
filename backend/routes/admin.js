@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs'
 import User from '../models/User.js'
 import Transaction from '../models/Transaction.js'
 import Trade from '../models/Trade.js'
+import { sendTemplateEmail } from '../services/emailService.js'
+import EmailSettings from '../models/EmailSettings.js'
 
 const router = express.Router()
 
@@ -279,6 +281,26 @@ router.put('/users/:id/ban', async (req, res) => {
       user.isBlocked = true
     }
     await user.save()
+
+    // Send email notification
+    try {
+      if (user.email) {
+        const settings = await EmailSettings.findOne()
+        const templateSlug = banned ? 'account_banned' : 'account_unbanned'
+        await sendTemplateEmail(templateSlug, user.email, {
+          firstName: user.firstName || user.email.split('@')[0],
+          email: user.email,
+          reason: reason || 'Policy violation',
+          date: new Date().toLocaleString(),
+          platformName: settings?.platformName || 'NalmiFX',
+          loginUrl: settings?.loginUrl || 'https://nalmifx.com/login',
+          supportEmail: settings?.supportEmail || 'support@nalmifx.com',
+          year: new Date().getFullYear().toString()
+        })
+      }
+    } catch (emailError) {
+      console.error('Error sending ban/unban email:', emailError)
+    }
     
     res.json({ 
       success: true,

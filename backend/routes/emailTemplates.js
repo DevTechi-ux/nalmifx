@@ -485,6 +485,160 @@ const defaultTemplates = [
   </div>
 </body>
 </html>`
+  },
+  {
+    name: 'KYC Submitted',
+    slug: 'kyc_submitted',
+    subject: '📄 KYC Documents Submitted - Under Review',
+    description: 'Sent when a user submits their KYC documents for verification',
+    category: 'verification',
+    variables: ['firstName', 'email', 'documentType', 'submittedAt', 'platformName', 'supportEmail', 'year'],
+    htmlContent: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #0a0a0a; font-family: Arial, sans-serif;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px; padding: 40px; border: 1px solid #333;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #fff; margin: 0; font-size: 24px;">{{platformName}}</h1>
+      </div>
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span style="display: inline-block; background: #f59e0b; color: #000; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: bold;">📄 KYC Under Review</span>
+      </div>
+      <h2 style="color: #fff; margin: 0 0 20px; font-size: 20px; text-align: center;">Documents Submitted Successfully</h2>
+      <p style="color: #aaa; margin: 0 0 20px; line-height: 1.6;">Hi {{firstName}},</p>
+      <p style="color: #aaa; margin: 0 0 30px; line-height: 1.6;">Thank you for submitting your KYC documents. Our team is now reviewing your submission.</p>
+      
+      <div style="background: #0f0f23; border-radius: 12px; padding: 20px; margin-bottom: 30px;">
+        <h3 style="color: #fff; margin: 0 0 15px; font-size: 16px;">Submission Details:</h3>
+        <div style="margin-bottom: 10px;">
+          <p style="color: #888; margin: 0 0 5px; font-size: 14px;">Document Type:</p>
+          <p style="color: #fff; margin: 0; font-weight: bold;">{{documentType}}</p>
+        </div>
+        <div>
+          <p style="color: #888; margin: 0 0 5px; font-size: 14px;">Submitted At:</p>
+          <p style="color: #fff; margin: 0; font-weight: bold;">{{submittedAt}}</p>
+        </div>
+      </div>
+      
+      <div style="background: #1a1a0a; border: 1px solid #f59e0b; border-radius: 12px; padding: 15px; margin-bottom: 30px;">
+        <p style="color: #f59e0b; margin: 0; font-size: 14px;">⏳ Verification usually takes 24-48 hours. We'll notify you once your documents are reviewed.</p>
+      </div>
+      
+      <p style="color: #666; font-size: 12px; margin: 0;">Need help? Contact us at {{supportEmail}}</p>
+      <hr style="border: none; border-top: 1px solid #333; margin: 30px 0;">
+      <p style="color: #666; font-size: 12px; margin: 0; text-align: center;">© {{year}} {{platformName}}. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>`
+  },
+  {
+    name: 'KYC Approved',
+    slug: 'kyc_approved',
+    subject: '✅ KYC Verified - Account Fully Activated',
+    description: 'Sent when admin approves user KYC documents',
+    category: 'verification',
+    variables: ['firstName', 'email', 'documentType', 'approvedAt', 'platformName', 'loginUrl', 'supportEmail', 'year'],
+    htmlContent: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #0a0a0a; font-family: Arial, sans-serif;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px; padding: 40px; border: 1px solid #22c55e;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #fff; margin: 0; font-size: 24px;">{{platformName}}</h1>
+      </div>
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span style="display: inline-block; background: #22c55e; color: #000; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: bold;">✅ KYC Verified</span>
+      </div>
+      <h2 style="color: #22c55e; margin: 0 0 20px; font-size: 20px; text-align: center;">Identity Verified Successfully!</h2>
+      <p style="color: #aaa; margin: 0 0 20px; line-height: 1.6;">Hi {{firstName}},</p>
+      <p style="color: #aaa; margin: 0 0 30px; line-height: 1.6;">Congratulations! Your KYC documents have been verified and your account is now fully activated.</p>
+      
+      <div style="background: #0f0f23; border-radius: 12px; padding: 20px; margin-bottom: 30px;">
+        <h3 style="color: #fff; margin: 0 0 15px; font-size: 16px;">Verification Details:</h3>
+        <div style="margin-bottom: 10px;">
+          <p style="color: #888; margin: 0 0 5px; font-size: 14px;">Document Type:</p>
+          <p style="color: #fff; margin: 0; font-weight: bold;">{{documentType}}</p>
+        </div>
+        <div>
+          <p style="color: #888; margin: 0 0 5px; font-size: 14px;">Approved At:</p>
+          <p style="color: #fff; margin: 0; font-weight: bold;">{{approvedAt}}</p>
+        </div>
+      </div>
+      
+      <div style="text-align: center; margin-bottom: 30px;">
+        <a href="{{loginUrl}}" style="display: inline-block; background: #22c55e; color: #000; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-weight: bold;">Start Trading</a>
+      </div>
+      
+      <p style="color: #666; font-size: 12px; margin: 0;">Need help? Contact us at {{supportEmail}}</p>
+      <hr style="border: none; border-top: 1px solid #333; margin: 30px 0;">
+      <p style="color: #666; font-size: 12px; margin: 0; text-align: center;">© {{year}} {{platformName}}. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>`
+  },
+  {
+    name: 'KYC Rejected',
+    slug: 'kyc_rejected',
+    subject: '❌ KYC Verification Failed - Action Required',
+    description: 'Sent when admin rejects user KYC documents',
+    category: 'verification',
+    variables: ['firstName', 'email', 'documentType', 'rejectionReason', 'rejectedAt', 'platformName', 'loginUrl', 'supportEmail', 'year'],
+    htmlContent: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #0a0a0a; font-family: Arial, sans-serif;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px; padding: 40px; border: 1px solid #ef4444;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #fff; margin: 0; font-size: 24px;">{{platformName}}</h1>
+      </div>
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span style="display: inline-block; background: #ef4444; color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: bold;">❌ KYC Rejected</span>
+      </div>
+      <h2 style="color: #ef4444; margin: 0 0 20px; font-size: 20px; text-align: center;">Verification Failed</h2>
+      <p style="color: #aaa; margin: 0 0 20px; line-height: 1.6;">Hi {{firstName}},</p>
+      <p style="color: #aaa; margin: 0 0 30px; line-height: 1.6;">Unfortunately, we were unable to verify your KYC documents. Please review the reason below and resubmit.</p>
+      
+      <div style="background: #0f0f23; border-radius: 12px; padding: 20px; margin-bottom: 30px;">
+        <h3 style="color: #fff; margin: 0 0 15px; font-size: 16px;">Rejection Details:</h3>
+        <div style="margin-bottom: 10px;">
+          <p style="color: #888; margin: 0 0 5px; font-size: 14px;">Document Type:</p>
+          <p style="color: #fff; margin: 0; font-weight: bold;">{{documentType}}</p>
+        </div>
+        <div style="margin-bottom: 10px;">
+          <p style="color: #888; margin: 0 0 5px; font-size: 14px;">Rejection Reason:</p>
+          <p style="color: #ef4444; margin: 0; font-weight: bold;">{{rejectionReason}}</p>
+        </div>
+        <div>
+          <p style="color: #888; margin: 0 0 5px; font-size: 14px;">Rejected At:</p>
+          <p style="color: #fff; margin: 0; font-weight: bold;">{{rejectedAt}}</p>
+        </div>
+      </div>
+      
+      <div style="text-align: center; margin-bottom: 30px;">
+        <a href="{{loginUrl}}" style="display: inline-block; background: #ef4444; color: #fff; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-weight: bold;">Resubmit Documents</a>
+      </div>
+      
+      <p style="color: #666; font-size: 12px; margin: 0;">Need help? Contact us at {{supportEmail}}</p>
+      <hr style="border: none; border-top: 1px solid #333; margin: 30px 0;">
+      <p style="color: #666; font-size: 12px; margin: 0; text-align: center;">© {{year}} {{platformName}}. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>`
   }
 ]
 

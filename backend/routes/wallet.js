@@ -7,6 +7,8 @@ import AdminWallet from '../models/AdminWallet.js'
 import AdminWalletTransaction from '../models/AdminWalletTransaction.js'
 import Bonus from '../models/Bonus.js'
 import UserBonus from '../models/UserBonus.js'
+import { sendTemplateEmail } from '../services/emailService.js'
+import EmailSettings from '../models/EmailSettings.js'
 
 const router = express.Router()
 
@@ -111,6 +113,26 @@ router.post('/deposit', async (req, res) => {
     wallet.pendingDeposits += amount
     await wallet.save()
 
+    // Send deposit pending email
+    try {
+      const user = await User.findById(userId)
+      if (user && user.email) {
+        const settings = await EmailSettings.findOne()
+        await sendTemplateEmail('deposit_pending', user.email, {
+          firstName: user.firstName || user.email.split('@')[0],
+          amount: amount.toFixed(2),
+          transactionId: transaction._id.toString(),
+          paymentMethod: paymentMethod || 'Bank Transfer',
+          date: new Date().toLocaleString(),
+          platformName: settings?.platformName || 'NalmiFX',
+          supportEmail: settings?.supportEmail || 'support@nalmifx.com',
+          year: new Date().getFullYear().toString()
+        })
+      }
+    } catch (emailError) {
+      console.error('Error sending deposit pending email:', emailError)
+    }
+
     res.status(201).json({ 
       message: 'Deposit request submitted', 
       transaction,
@@ -162,6 +184,26 @@ router.post('/withdraw', async (req, res) => {
     wallet.balance -= amount
     wallet.pendingWithdrawals += amount
     await wallet.save()
+
+    // Send withdrawal pending email
+    try {
+      const user = await User.findById(userId)
+      if (user && user.email) {
+        const settings = await EmailSettings.findOne()
+        await sendTemplateEmail('withdrawal_pending', user.email, {
+          firstName: user.firstName || user.email.split('@')[0],
+          amount: amount.toFixed(2),
+          transactionId: transaction._id.toString(),
+          paymentMethod: paymentMethod || 'Bank Transfer',
+          date: new Date().toLocaleString(),
+          platformName: settings?.platformName || 'NalmiFX',
+          supportEmail: settings?.supportEmail || 'support@nalmifx.com',
+          year: new Date().getFullYear().toString()
+        })
+      }
+    } catch (emailError) {
+      console.error('Error sending withdrawal pending email:', emailError)
+    }
 
     res.status(201).json({ message: 'Withdrawal request submitted', transaction })
   } catch (error) {
@@ -351,6 +393,28 @@ router.put('/admin/approve/:id', async (req, res) => {
       }
     }
 
+    // Send email notification
+    try {
+      const user = await User.findById(transaction.userId)
+      if (user && user.email) {
+        const settings = await EmailSettings.findOne()
+        const templateSlug = transaction.type === 'Deposit' ? 'deposit_success' : 'withdrawal_success'
+        await sendTemplateEmail(templateSlug, user.email, {
+          firstName: user.firstName || user.email.split('@')[0],
+          amount: transaction.amount.toFixed(2),
+          transactionId: transaction._id.toString(),
+          paymentMethod: transaction.paymentMethod || 'Wallet',
+          date: new Date().toLocaleString(),
+          newBalance: wallet.balance.toFixed(2),
+          platformName: settings?.platformName || 'NalmiFX',
+          supportEmail: settings?.supportEmail || 'support@nalmifx.com',
+          year: new Date().getFullYear().toString()
+        })
+      }
+    } catch (emailError) {
+      console.error('Error sending transaction email:', emailError)
+    }
+
     res.json({ message: 'Transaction approved', transaction })
   } catch (error) {
     res.status(500).json({ message: 'Error approving transaction', error: error.message })
@@ -451,6 +515,28 @@ router.put('/transaction/:id/approve', async (req, res) => {
       } catch (bonusError) {
         console.error('Error activating bonus:', bonusError)
       }
+    }
+
+    // Send email notification
+    try {
+      const user = await User.findById(transaction.userId)
+      if (user && user.email) {
+        const settings = await EmailSettings.findOne()
+        const templateSlug = transaction.type === 'Deposit' ? 'deposit_success' : 'withdrawal_success'
+        await sendTemplateEmail(templateSlug, user.email, {
+          firstName: user.firstName || user.email.split('@')[0],
+          amount: transaction.amount.toFixed(2),
+          transactionId: transaction._id.toString(),
+          paymentMethod: transaction.paymentMethod || 'Wallet',
+          date: new Date().toLocaleString(),
+          newBalance: wallet.balance.toFixed(2),
+          platformName: settings?.platformName || 'NalmiFX',
+          supportEmail: settings?.supportEmail || 'support@nalmifx.com',
+          year: new Date().getFullYear().toString()
+        })
+      }
+    } catch (emailError) {
+      console.error('Error sending transaction email:', emailError)
     }
 
     res.json({ message: 'Transaction approved', transaction })

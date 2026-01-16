@@ -1,6 +1,8 @@
 import express from 'express'
 import KYC from '../models/KYC.js'
 import User from '../models/User.js'
+import { sendTemplateEmail } from '../services/emailService.js'
+import EmailSettings from '../models/EmailSettings.js'
 
 const router = express.Router()
 
@@ -47,6 +49,25 @@ router.post('/submit', async (req, res) => {
     })
 
     await kyc.save()
+
+    // Send KYC submitted email
+    try {
+      const user = await User.findById(userId)
+      if (user && user.email) {
+        const settings = await EmailSettings.findOne()
+        await sendTemplateEmail('kyc_submitted', user.email, {
+          firstName: user.firstName || user.email.split('@')[0],
+          email: user.email,
+          documentType: documentType,
+          submittedAt: new Date().toLocaleString(),
+          platformName: settings?.platformName || 'NalmiFX',
+          supportEmail: settings?.supportEmail || 'support@nalmifx.com',
+          year: new Date().getFullYear().toString()
+        })
+      }
+    } catch (emailError) {
+      console.error('Error sending KYC submission email:', emailError)
+    }
 
     res.json({
       success: true,
@@ -184,7 +205,26 @@ router.put('/approve/:kycId', async (req, res) => {
     await kyc.save()
 
     // Update user's kycApproved status
-    await User.findByIdAndUpdate(kyc.userId, { kycApproved: true })
+    const user = await User.findByIdAndUpdate(kyc.userId, { kycApproved: true }, { new: true })
+
+    // Send KYC approved email
+    try {
+      if (user && user.email) {
+        const settings = await EmailSettings.findOne()
+        await sendTemplateEmail('kyc_approved', user.email, {
+          firstName: user.firstName || user.email.split('@')[0],
+          email: user.email,
+          documentType: kyc.documentType,
+          approvedAt: new Date().toLocaleString(),
+          platformName: settings?.platformName || 'NalmiFX',
+          loginUrl: settings?.loginUrl || 'https://nalmifx.com/login',
+          supportEmail: settings?.supportEmail || 'support@nalmifx.com',
+          year: new Date().getFullYear().toString()
+        })
+      }
+    } catch (emailError) {
+      console.error('Error sending KYC approval email:', emailError)
+    }
 
     res.json({
       success: true,
@@ -225,6 +265,27 @@ router.put('/reject/:kycId', async (req, res) => {
     kyc.rejectionReason = reason || 'Documents not acceptable'
     kyc.reviewedAt = new Date()
     await kyc.save()
+
+    // Send KYC rejected email
+    try {
+      const user = await User.findById(kyc.userId)
+      if (user && user.email) {
+        const settings = await EmailSettings.findOne()
+        await sendTemplateEmail('kyc_rejected', user.email, {
+          firstName: user.firstName || user.email.split('@')[0],
+          email: user.email,
+          documentType: kyc.documentType,
+          rejectionReason: kyc.rejectionReason,
+          rejectedAt: new Date().toLocaleString(),
+          platformName: settings?.platformName || 'NalmiFX',
+          loginUrl: settings?.loginUrl || 'https://nalmifx.com/login',
+          supportEmail: settings?.supportEmail || 'support@nalmifx.com',
+          year: new Date().getFullYear().toString()
+        })
+      }
+    } catch (emailError) {
+      console.error('Error sending KYC rejection email:', emailError)
+    }
 
     res.json({
       success: true,
