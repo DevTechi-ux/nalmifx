@@ -210,8 +210,9 @@ router.put('/approve/:kycId', async (req, res) => {
     // Send KYC approved email
     try {
       if (user && user.email) {
+        console.log('Sending KYC approved email to:', user.email)
         const settings = await EmailSettings.findOne()
-        await sendTemplateEmail('kyc_approved', user.email, {
+        const emailResult = await sendTemplateEmail('kyc_approved', user.email, {
           firstName: user.firstName || user.email.split('@')[0],
           email: user.email,
           documentType: kyc.documentType,
@@ -221,6 +222,9 @@ router.put('/approve/:kycId', async (req, res) => {
           supportEmail: settings?.supportEmail || 'support@nalmifx.com',
           year: new Date().getFullYear().toString()
         })
+        console.log('KYC approved email result:', emailResult)
+      } else {
+        console.log('User not found or no email for KYC approval notification')
       }
     } catch (emailError) {
       console.error('Error sending KYC approval email:', emailError)
