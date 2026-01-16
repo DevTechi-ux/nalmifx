@@ -31,3 +31,6 @@ coverage/
 # Temporary files
 tmp/
 temp/
+
+# user payment proof
+uploads/

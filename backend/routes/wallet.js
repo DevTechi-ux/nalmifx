@@ -51,6 +51,7 @@ router.post('/deposit', async (req, res) => {
     try {
       // Get all bonuses (simplified query like in bonus routes)
       const bonuses = await Bonus.find({}).sort({ createdAt: -1 })
+      console.log('Deposit bonus calculation - found', bonuses.length, 'bonuses, isFirstDeposit:', isFirstDeposit)
 
       // Find the best applicable bonus
       for (const bonus of bonuses) {
@@ -79,6 +80,7 @@ router.post('/deposit', async (req, res) => {
           if (calculatedBonus > bonusAmount) {
             bonusAmount = calculatedBonus
             applicableBonus = bonus
+            console.log('Found applicable bonus:', bonus.name, 'bonusAmount:', calculatedBonus)
           }
         }
       }
@@ -86,6 +88,8 @@ router.post('/deposit', async (req, res) => {
       console.error('Bonus calculation error:', bonusError)
       // Continue without bonus if calculation fails
     }
+
+    console.log('Final deposit bonus:', { bonusAmount, applicableBonus: applicableBonus?.name, totalAmount: amount + bonusAmount })
 
     // Create transaction
     const transaction = new Transaction({
@@ -293,7 +297,7 @@ router.put('/admin/approve/:id', async (req, res) => {
       return res.status(404).json({ message: 'Transaction not found' })
     }
 
-    if (transaction.status !== 'PENDING') {
+    if (transaction.status !== 'Pending') {
       return res.status(400).json({ message: 'Transaction already processed' })
     }
 
@@ -302,6 +306,7 @@ router.put('/admin/approve/:id', async (req, res) => {
     if (transaction.type === 'Deposit') {
       // Add deposit amount + bonus to wallet balance
       const totalToAdd = transaction.amount + (transaction.bonusAmount || 0)
+      console.log('Approving deposit - amount:', transaction.amount, 'bonus:', transaction.bonusAmount, 'totalToAdd:', totalToAdd)
       wallet.balance += totalToAdd
       if (wallet.pendingDeposits) wallet.pendingDeposits -= transaction.amount
     } else {
@@ -361,13 +366,13 @@ router.put('/admin/reject/:id', async (req, res) => {
       return res.status(404).json({ message: 'Transaction not found' })
     }
 
-    if (transaction.status !== 'PENDING') {
+    if (transaction.status !== 'Pending') {
       return res.status(400).json({ message: 'Transaction already processed' })
     }
 
     const wallet = await Wallet.findById(transaction.walletId)
 
-    if (transaction.type === 'DEPOSIT') {
+    if (transaction.type === 'Deposit') {
       if (wallet.pendingDeposits) wallet.pendingDeposits -= transaction.amount
     } else {
       // Refund withdrawal amount
@@ -375,7 +380,7 @@ router.put('/admin/reject/:id', async (req, res) => {
       if (wallet.pendingWithdrawals) wallet.pendingWithdrawals -= transaction.amount
     }
 
-    transaction.status = 'REJECTED'
+    transaction.status = 'Rejected'
     transaction.processedAt = new Date()
 
     await wallet.save()
@@ -404,7 +409,10 @@ router.put('/transaction/:id/approve', async (req, res) => {
     const wallet = await Wallet.findById(transaction.walletId)
 
     if (transaction.type === 'Deposit') {
-      wallet.balance += transaction.amount
+      // Add deposit amount + bonus to wallet balance
+      const totalToAdd = transaction.amount + (transaction.bonusAmount || 0)
+      console.log('Approving deposit - amount:', transaction.amount, 'bonus:', transaction.bonusAmount, 'totalToAdd:', totalToAdd)
+      wallet.balance += totalToAdd
       wallet.pendingDeposits -= transaction.amount
     } else {
       wallet.pendingWithdrawals -= transaction.amount
@@ -416,6 +424,34 @@ router.put('/transaction/:id/approve', async (req, res) => {
 
     await wallet.save()
     await transaction.save()
+
+    // Activate bonus if this is a deposit with bonus
+    if (transaction.type === 'Deposit' && transaction.bonusAmount > 0 && transaction.bonusId) {
+      try {
+        const bonus = await Bonus.findById(transaction.bonusId)
+        const wagerMultiplier = bonus?.wagerRequirement || 30
+        const durationDays = bonus?.duration || 30
+
+        const userBonus = new UserBonus({
+          userId: transaction.userId,
+          bonusId: transaction.bonusId,
+          depositId: transaction._id,
+          bonusAmount: transaction.bonusAmount,
+          wagerRequirement: wagerMultiplier * transaction.bonusAmount,
+          remainingWager: wagerMultiplier * transaction.bonusAmount,
+          status: 'ACTIVE',
+          activatedAt: new Date(),
+          expiresAt: new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000),
+          maxWithdrawal: bonus?.maxWithdrawal || null
+        })
+        await userBonus.save()
+
+        await Bonus.findByIdAndUpdate(transaction.bonusId, { $inc: { usedCount: 1 } })
+        console.log(`Bonus activated: $${transaction.bonusAmount} for user ${transaction.userId}`)
+      } catch (bonusError) {
+        console.error('Error activating bonus:', bonusError)
+      }
+    }
 
     res.json({ message: 'Transaction approved', transaction })
   } catch (error) {

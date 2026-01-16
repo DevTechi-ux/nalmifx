@@ -594,6 +594,8 @@ const WalletPage = () => {
                     <tr className="border-b border-gray-700">
                       <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Type</th>
                       <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Amount</th>
+                      <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Bonus</th>
+                      <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Total</th>
                       <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Method</th>
                       <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Status</th>
                       <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Date</th>
@@ -634,6 +636,26 @@ const WalletPage = () => {
                           tx.type === 'Deposit' || tx.type === 'Transfer_From_Account' || tx.type === 'Account_Transfer_In' ? 'text-green-500' : 'text-red-500'
                         }`}>
                           {tx.type === 'Deposit' || tx.type === 'Transfer_From_Account' || tx.type === 'Account_Transfer_In' ? '+' : '-'}${tx.amount.toLocaleString()}
+                        </td>
+                        <td className="py-4 px-4">
+                          {tx.type === 'Deposit' ? (
+                            tx.bonusAmount && tx.bonusAmount > 0 ? (
+                              <span className="text-green-500 font-medium">+${tx.bonusAmount.toLocaleString()}</span>
+                            ) : (
+                              <span className="text-gray-500">$0</span>
+                            )
+                          ) : (
+                            <span className="text-gray-500">-</span>
+                          )}
+                        </td>
+                        <td className="py-4 px-4">
+                          {tx.type === 'Deposit' ? (
+                            <span className="text-white font-medium">
+                              ${(tx.totalAmount || (tx.amount + (tx.bonusAmount || 0))).toLocaleString()}
+                            </span>
+                          ) : (
+                            <span className="text-gray-500">-</span>
+                          )}
                         </td>
                         <td className="py-4 px-4 text-gray-400">
                           {tx.type === 'Transfer_To_Account' || tx.type === 'Transfer_From_Account' || tx.type === 'Account_Transfer_Out' || tx.type === 'Account_Transfer_In' ? 'Internal' : tx.paymentMethod}
