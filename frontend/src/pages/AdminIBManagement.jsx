@@ -23,7 +23,6 @@ import {
   Crown,
   Target
 } from 'lucide-react'
-import { API_URL } from '../config/api'
 
 const AdminIBManagement = () => {
   const [searchTerm, setSearchTerm] = useState('')
