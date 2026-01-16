@@ -40,12 +40,13 @@ import BrandedLogin from './pages/BrandedLogin'
 import BrandedSignup from './pages/BrandedSignup'
 import AdminEmailTemplates from './pages/AdminEmailTemplates'
 import AdminBonusManagement from './pages/AdminBonusManagement'
+import LandingPage from './pages/LandingPage'
 
 function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<Signup />} />
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Navigate to="/user/login" replace />} />
         <Route path="/signup" element={<Navigate to="/user/signup" replace />} />
         <Route path="/user/signup" element={<Signup />} />
