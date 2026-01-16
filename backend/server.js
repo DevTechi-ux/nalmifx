@@ -204,6 +204,11 @@ function connectAllTickWebSocket() {
     try {
       const msg = JSON.parse(data.toString())
       
+      // Log subscription response
+      if (msg.cmd_id === 22002) {
+        console.log('AllTick subscription response:', msg.ret === 200 ? 'SUCCESS' : `FAILED (${msg.msg || msg.ret})`)
+      }
+      
       // Handle price push (cmd_id 22999)
       if (msg.cmd_id === 22999 && msg.data) {
         const code = msg.data.code
@@ -237,6 +242,40 @@ function connectAllTickWebSocket() {
     if (allTickReconnectTimer) clearTimeout(allTickReconnectTimer)
     allTickReconnectTimer = setTimeout(connectAllTickWebSocket, 5000)
   })
+}
+
+// Forex symbols to fetch via HTTP fallback if WebSocket doesn't provide them
+const FOREX_MAJOR_SYMBOLS = ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD', 'EURGBP', 'EURJPY', 'GBPJPY', 'XAUUSD', 'XAGUSD']
+
+// Fetch forex prices via AllTick HTTP API as fallback
+async function fetchForexPricesHTTP() {
+  try {
+    const symbolList = FOREX_MAJOR_SYMBOLS.map(s => ({ code: ALLTICK_SYMBOL_MAP[s] || s }))
+    const query = {
+      trace: `forex-${Date.now()}`,
+      data: { symbol_list: symbolList }
+    }
+    const encodedQuery = encodeURIComponent(JSON.stringify(query))
+    const url = `https://quote.alltick.co/quote-b-api/depth-tick?token=${ALLTICK_API_TOKEN}&query=${encodedQuery}`
+    
+    const response = await fetch(url)
+    if (response.ok) {
+      const data = await response.json()
+      if (data.ret === 200 && data.data?.tick_list) {
+        const now = Date.now()
+        for (const tick of data.data.tick_list) {
+          const internalSymbol = ALLTICK_REVERSE_MAP[tick.code] || tick.code
+          const bid = tick.bids?.[0]?.price ? parseFloat(tick.bids[0].price) : null
+          const ask = tick.asks?.[0]?.price ? parseFloat(tick.asks[0].price) : null
+          if (bid && ask) {
+            priceCache.set(internalSymbol, { bid, ask, time: now })
+          }
+        }
+      }
+    }
+  } catch (e) {
+    // Silently fail HTTP fallback
+  }
 }
 
 // Background price streaming - Binance polling + AllTick WebSocket
@@ -273,6 +312,9 @@ async function streamPrices() {
     timestamp: now
   })
 }
+
+// Forex HTTP fallback - poll every 2 seconds for major forex pairs
+setInterval(fetchForexPricesHTTP, 2000)
 
 // Start price streaming interval (500ms for Binance crypto)
 setInterval(streamPrices, 500)
