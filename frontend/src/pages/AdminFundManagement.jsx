@@ -241,6 +241,20 @@ const AdminFundManagement = () => {
                       </p>
                     </div>
                     <div>
+                      <p className="text-gray-500">Bonus</p>
+                      <p className="text-green-500 font-medium">
+                        {txn.type?.toUpperCase() === 'DEPOSIT' ? (
+                          txn.bonusAmount && txn.bonusAmount > 0 ? `+$${txn.bonusAmount.toLocaleString()}` : '$0'
+                        ) : '-'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Total</p>
+                      <p className="text-white font-medium">
+                        {txn.type?.toUpperCase() === 'DEPOSIT' ? `$${(txn.totalAmount || (txn.amount + (txn.bonusAmount || 0))).toLocaleString()}` : '-'}
+                      </p>
+                    </div>
+                    <div>
                       <p className="text-gray-500">Method</p>
                       <p className="text-white">{txn.paymentMethod || '-'}</p>
                     </div>
@@ -268,6 +282,8 @@ const AdminFundManagement = () => {
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">User</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Type</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Amount</th>
+                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Bonus</th>
+                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Total</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Method</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Status</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Date</th>
@@ -287,6 +303,26 @@ const AdminFundManagement = () => {
                       </td>
                       <td className={`py-4 px-4 font-medium ${txn.type?.toUpperCase() === 'DEPOSIT' ? 'text-green-500' : 'text-red-500'}`}>
                         {txn.type?.toUpperCase() === 'DEPOSIT' ? '+' : '-'}${(txn.amount || 0).toLocaleString()}
+                      </td>
+                      <td className="py-4 px-4">
+                        {txn.type?.toUpperCase() === 'DEPOSIT' ? (
+                          txn.bonusAmount && txn.bonusAmount > 0 ? (
+                            <span className="text-green-500 font-medium">+${txn.bonusAmount.toLocaleString()}</span>
+                          ) : (
+                            <span className="text-gray-500">$0</span>
+                          )
+                        ) : (
+                          <span className="text-gray-500">-</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-4">
+                        {txn.type?.toUpperCase() === 'DEPOSIT' ? (
+                          <span className="text-white font-medium">
+                            ${(txn.totalAmount || (txn.amount + (txn.bonusAmount || 0))).toLocaleString()}
+                          </span>
+                        ) : (
+                          <span className="text-gray-500">-</span>
+                        )}
                       </td>
                       <td className="py-4 px-4 text-gray-400">{txn.paymentMethod || '-'}</td>
                       <td className="py-4 px-4">
@@ -357,6 +393,24 @@ const AdminFundManagement = () => {
                       ${selectedTxn.amount?.toLocaleString()}
                     </p>
                   </div>
+                  {selectedTxn.type?.toLowerCase() === 'deposit' && (
+                    <div>
+                      <p className="text-gray-500">Bonus</p>
+                      <p className="text-green-500 font-bold">
+                        {selectedTxn.bonusAmount && selectedTxn.bonusAmount > 0 
+                          ? `+$${selectedTxn.bonusAmount.toLocaleString()}` 
+                          : '$0'}
+                      </p>
+                    </div>
+                  )}
+                  {selectedTxn.type?.toLowerCase() === 'deposit' && (
+                    <div>
+                      <p className="text-gray-500">Total</p>
+                      <p className="text-white font-bold">
+                        ${(selectedTxn.totalAmount || (selectedTxn.amount + (selectedTxn.bonusAmount || 0))).toLocaleString()}
+                      </p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-gray-500">Status</p>
                     <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(selectedTxn.status)}`}>

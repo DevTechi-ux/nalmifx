@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+// import BonusManagement from './admin/BonusManagement.jsx'
+
+// Temporarily remove import to test
+
+// Test import
+// console.log('BonusManagement component imported:', BonusManagement)
 import { 
   LayoutDashboard, 
   Users,
@@ -14,16 +20,26 @@ import {
   RefreshCw,
   CreditCard,
   Settings,
-  Wallet
+  Wallet,
+  Gift,
+  Plus,
+  FileText
 } from 'lucide-react'
+
+// Test icon import
+console.log('Gift icon imported:', Gift)
 
 const AdminDashboard = () => {
   const navigate = useNavigate()
   const [activeMenu, setActiveMenu] = useState('Dashboard')
-  const [sidebarExpanded, setSidebarExpanded] = useState(false)
+  const [sidebarExpanded, setSidebarExpanded] = useState(true) // Start expanded
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+
+  // Debug sidebar state
+  console.log('Sidebar expanded:', sidebarExpanded)
+  console.log('Active menu:', activeMenu)
 
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/admin/dashboard' },
@@ -32,7 +48,13 @@ const AdminDashboard = () => {
     { name: 'Account Types', icon: Wallet, path: '/admin/account-types' },
     { name: 'Transactions', icon: Settings, path: '/admin/transactions' },
     { name: 'Payment Methods', icon: Settings, path: '/admin/payment-methods' },
+    { name: 'Email Templates', icon: FileText, path: '/admin/dashboard' },
+    { name: 'Bonus Management', icon: Gift, path: '/admin/dashboard' },
+    { name: 'TEST ITEM', icon: Users, path: '/admin/dashboard' },
   ]
+
+// Test menu items
+console.log('Menu items:', menuItems)
 
   // Check admin auth
   useEffect(() => {
@@ -98,10 +120,27 @@ const AdminDashboard = () => {
 
         {/* Menu */}
         <nav className="flex-1 px-2">
-          {menuItems.map((item) => (
+          <div className="mb-4 p-2 bg-red-500/20 border border-red-500/50 rounded">
+            <p className="text-red-500 text-xs">DEBUG: Menu items count: {menuItems.length}</p>
+          </div>
+          {menuItems.map((item, index) => (
             <button
               key={item.name}
-              onClick={() => navigate(item.path)}
+              onClick={() => {
+                console.log('Menu clicked:', item.name, 'Index:', index)
+                if (item.name === 'Email Templates') {
+                  console.log('Setting active menu to Email Templates')
+                  setActiveMenu('Email Templates')
+                } else if (item.name === 'Bonus Management') {
+                  console.log('Setting active menu to Bonus Management')
+                  setActiveMenu('Bonus Management')
+                } else if (item.name === 'TEST ITEM') {
+                  console.log('Setting active menu to TEST ITEM')
+                  setActiveMenu('TEST ITEM')
+                } else {
+                  navigate(item.path)
+                }
+              }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 transition-colors ${
                 activeMenu === item.name 
                   ? 'bg-red-500 text-white' 
@@ -111,9 +150,22 @@ const AdminDashboard = () => {
             >
               <item.icon size={18} className="flex-shrink-0" />
               {sidebarExpanded && <span className="text-sm font-medium whitespace-nowrap">{item.name}</span>}
+              {!sidebarExpanded && <span className="text-xs text-gray-500">{index}</span>}
             </button>
           ))}
         </nav>
+
+        {/* Toggle Sidebar */}
+        <div className="p-2 border-t border-gray-800">
+          <button 
+            onClick={() => setSidebarExpanded(!sidebarExpanded)}
+            className="w-full flex items-center gap-3 px-3 py-2.5 text-gray-400 hover:text-white transition-colors rounded-lg mb-2"
+            title={!sidebarExpanded ? 'Expand Sidebar' : 'Collapse Sidebar'}
+          >
+            <LayoutDashboard size={18} className="flex-shrink-0" />
+            {sidebarExpanded && <span className="text-sm font-medium whitespace-nowrap">Toggle Sidebar</span>}
+          </button>
+        </div>
 
         {/* Logout */}
         <div className="p-2 border-t border-gray-800">
@@ -331,6 +383,209 @@ const AdminDashboard = () => {
               </div>
             </div>
           )}
+
+          {activeMenu === 'Email Templates' && (
+          <div className="p-6">
+            <h1 className="text-2xl font-bold text-white mb-6">Email Templates</h1>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="bg-dark-800 rounded-xl p-6 border border-gray-700">
+                <h3 className="text-white font-semibold mb-4">Welcome Email</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Subject:</span>
+                    <span className="text-white">Welcome to NalmiFX</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Category:</span>
+                    <span className="text-blue-500">User</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Status:</span>
+                    <span className="text-green-500">Active</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Variables:</span>
+                    <span className="text-white">5</span>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <button className="flex-1 bg-blue-500 text-white px-3 py-2 rounded-lg text-sm">Edit</button>
+                  <button className="flex-1 bg-green-500 text-white px-3 py-2 rounded-lg text-sm">Preview</button>
+                </div>
+              </div>
+
+              <div className="bg-dark-800 rounded-xl p-6 border border-gray-700">
+                <h3 className="text-white font-semibold mb-4">Password Reset</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Subject:</span>
+                    <span className="text-white">Reset Your Password</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Category:</span>
+                    <span className="text-orange-500">Security</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Status:</span>
+                    <span className="text-green-500">Active</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Variables:</span>
+                    <span className="text-white">7</span>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <button className="flex-1 bg-blue-500 text-white px-3 py-2 rounded-lg text-sm">Edit</button>
+                  <button className="flex-1 bg-green-500 text-white px-3 py-2 rounded-lg text-sm">Preview</button>
+                </div>
+              </div>
+
+              <div className="bg-dark-800 rounded-xl p-6 border border-gray-700">
+                <h3 className="text-white font-semibold mb-4">Challenge Completed</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Subject:</span>
+                    <span className="text-white">Challenge Passed!</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Category:</span>
+                    <span className="text-purple-500">Trading</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Status:</span>
+                    <span className="text-green-500">Active</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Variables:</span>
+                    <span className="text-white">8</span>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <button className="flex-1 bg-blue-500 text-white px-3 py-2 rounded-lg text-sm">Edit</button>
+                  <button className="flex-1 bg-green-500 text-white px-3 py-2 rounded-lg text-sm">Preview</button>
+                </div>
+              </div>
+
+              <div className="bg-dark-800 rounded-xl p-6 border border-gray-700">
+                <h3 className="text-white font-semibold mb-4">KYC Approved</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Subject:</span>
+                    <span className="text-white">KYC Verification Complete</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Category:</span>
+                    <span className="text-teal-500">Verification</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Status:</span>
+                    <span className="text-green-500">Active</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Variables:</span>
+                    <span className="text-white">6</span>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <button className="flex-1 bg-blue-500 text-white px-3 py-2 rounded-lg text-sm">Edit</button>
+                  <button className="flex-1 bg-green-500 text-white px-3 py-2 rounded-lg text-sm">Preview</button>
+                </div>
+              </div>
+
+              <div className="bg-dark-800 rounded-xl p-6 border border-gray-700">
+                <h3 className="text-white font-semibold mb-4">Create New Template</h3>
+                <button className="w-full bg-accent-green text-black px-4 py-2 rounded-lg font-medium hover:bg-accent-green/90 flex items-center justify-center gap-2">
+                  <Plus size={16} />
+                  Create New Template
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeMenu === 'Bonus Management' && (
+          <div className="p-6">
+            <h1 className="text-2xl font-bold text-white mb-6">Bonus Management</h1>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="bg-dark-800 rounded-xl p-6 border border-gray-700">
+                <h3 className="text-white font-semibold mb-4">First Deposit Bonus</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Bonus Type:</span>
+                    <span className="text-white">100%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Max Bonus:</span>
+                    <span className="text-white">$500</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Min Deposit:</span>
+                    <span className="text-white">$100</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Wagering:</span>
+                    <span className="text-white">30x</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Status:</span>
+                    <span className="text-green-500">Active</span>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <button className="flex-1 bg-blue-500 text-white px-3 py-2 rounded-lg text-sm">Edit</button>
+                  <button className="flex-1 bg-red-500 text-white px-3 py-2 rounded-lg text-sm">Delete</button>
+                </div>
+              </div>
+
+              <div className="bg-dark-800 rounded-xl p-6 border border-gray-700">
+                <h3 className="text-white font-semibold mb-4">Regular Deposit Bonus</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Bonus Type:</span>
+                    <span className="text-white">50%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Max Bonus:</span>
+                    <span className="text-white">$200</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Min Deposit:</span>
+                    <span className="text-white">$50</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Wagering:</span>
+                    <span className="text-white">25x</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Status:</span>
+                    <span className="text-green-500">Active</span>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <button className="flex-1 bg-blue-500 text-white px-3 py-2 rounded-lg text-sm">Edit</button>
+                  <button className="flex-1 bg-red-500 text-white px-3 py-2 rounded-lg text-sm">Delete</button>
+                </div>
+              </div>
+
+              <div className="bg-dark-800 rounded-xl p-6 border border-gray-700">
+                <h3 className="text-white font-semibold mb-4">Create New Bonus</h3>
+                <button className="w-full bg-accent-green text-black px-4 py-2 rounded-lg font-medium hover:bg-accent-green/90 flex items-center justify-center gap-2">
+                  <Plus size={16} />
+                  Create New Bonus
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeMenu === 'TEST ITEM' && (
+          <div className="p-6">
+            <h1 className="text-2xl font-bold text-white mb-6">Test Item</h1>
+            <div className="bg-dark-800 rounded-xl p-6 border border-gray-700">
+              <p className="text-white">Test item is working!</p>
+            </div>
+          </div>
+        )}
         </div>
       </main>
     </div>

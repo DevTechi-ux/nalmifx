@@ -21,7 +21,8 @@ import {
   ChevronDown,
   ChevronRight,
   Palette,
-  Mail
+  Mail,
+  Gift
 } from 'lucide-react'
 import logoImage from '../assets/nalmifx.png'
 
@@ -46,6 +47,7 @@ const AdminLayout = ({ children, title, subtitle }) => {
     { name: 'Account Types', icon: CreditCard, path: '/admin/account-types' },
     { name: 'Theme Settings', icon: Palette, path: '/admin/theme' },
     { name: 'Email Templates', icon: Mail, path: '/admin/email-templates' },
+    { name: 'Bonus Management', icon: Gift, path: '/admin/bonus-management' },
     { name: 'Admin Management', icon: Shield, path: '/admin/admin-management' },
     { name: 'KYC Verification', icon: FileCheck, path: '/admin/kyc' },
     { name: 'Support Tickets', icon: HeadphonesIcon, path: '/admin/support' },

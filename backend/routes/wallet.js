@@ -5,6 +5,8 @@ import TradingAccount from '../models/TradingAccount.js'
 import User from '../models/User.js'
 import AdminWallet from '../models/AdminWallet.js'
 import AdminWalletTransaction from '../models/AdminWalletTransaction.js'
+import Bonus from '../models/Bonus.js'
+import UserBonus from '../models/UserBonus.js'
 
 const router = express.Router()
 
@@ -38,6 +40,53 @@ router.post('/deposit', async (req, res) => {
       await wallet.save()
     }
 
+    // Check if this is user's first deposit
+    const userTransactions = await Transaction.find({ userId, type: 'Deposit', status: 'Approved' })
+    const isFirstDeposit = userTransactions.length === 0
+
+    // Calculate applicable bonus
+    let bonusAmount = 0
+    let applicableBonus = null
+
+    try {
+      // Get all bonuses (simplified query like in bonus routes)
+      const bonuses = await Bonus.find({}).sort({ createdAt: -1 })
+
+      // Find the best applicable bonus
+      for (const bonus of bonuses) {
+        // Check if bonus is active
+        if (bonus.status !== 'ACTIVE') continue
+        
+        // Check bonus type matches first deposit status
+        if (isFirstDeposit && bonus.type !== 'FIRST_DEPOSIT') continue
+        if (!isFirstDeposit && bonus.type === 'FIRST_DEPOSIT') continue
+        
+        if (amount >= bonus.minDeposit) {
+          if (bonus.usageLimit && bonus.usedCount >= bonus.usageLimit) {
+            continue // Skip if usage limit reached
+          }
+
+          let calculatedBonus = 0
+          if (bonus.bonusType === 'PERCENTAGE') {
+            calculatedBonus = amount * (bonus.bonusValue / 100)
+            if (bonus.maxBonus && calculatedBonus > bonus.maxBonus) {
+              calculatedBonus = bonus.maxBonus
+            }
+          } else {
+            calculatedBonus = bonus.bonusValue
+          }
+
+          if (calculatedBonus > bonusAmount) {
+            bonusAmount = calculatedBonus
+            applicableBonus = bonus
+          }
+        }
+      }
+    } catch (bonusError) {
+      console.error('Bonus calculation error:', bonusError)
+      // Continue without bonus if calculation fails
+    }
+
     // Create transaction
     const transaction = new Transaction({
       userId,
@@ -47,7 +96,10 @@ router.post('/deposit', async (req, res) => {
       paymentMethod,
       transactionRef,
       screenshot,
-      status: 'Pending'
+      status: 'Pending',
+      bonusAmount,
+      totalAmount: amount + bonusAmount,
+      bonusId: applicableBonus?._id || null
     })
     await transaction.save()
 
@@ -55,7 +107,15 @@ router.post('/deposit', async (req, res) => {
     wallet.pendingDeposits += amount
     await wallet.save()
 
-    res.status(201).json({ message: 'Deposit request submitted', transaction })
+    res.status(201).json({ 
+      message: 'Deposit request submitted', 
+      transaction,
+      bonusInfo: {
+        bonusAmount,
+        applicableBonus,
+        totalAmount: amount + bonusAmount
+      }
+    })
   } catch (error) {
     res.status(500).json({ message: 'Error creating deposit', error: error.message })
   }
@@ -239,18 +299,52 @@ router.put('/admin/approve/:id', async (req, res) => {
 
     const wallet = await Wallet.findById(transaction.walletId)
 
-    if (transaction.type === 'DEPOSIT') {
-      wallet.balance += transaction.amount
+    if (transaction.type === 'Deposit') {
+      // Add deposit amount + bonus to wallet balance
+      const totalToAdd = transaction.amount + (transaction.bonusAmount || 0)
+      wallet.balance += totalToAdd
       if (wallet.pendingDeposits) wallet.pendingDeposits -= transaction.amount
     } else {
       if (wallet.pendingWithdrawals) wallet.pendingWithdrawals -= transaction.amount
     }
 
-    transaction.status = 'APPROVED'
+    transaction.status = 'Approved'
     transaction.processedAt = new Date()
 
     await wallet.save()
     await transaction.save()
+
+    // Activate bonus if this is a deposit with bonus
+    if (transaction.type === 'Deposit' && transaction.bonusAmount > 0 && transaction.bonusId) {
+      try {
+        // Get the bonus to use its actual wager requirement and duration
+        const bonus = await Bonus.findById(transaction.bonusId)
+        const wagerMultiplier = bonus?.wagerRequirement || 30
+        const durationDays = bonus?.duration || 30
+
+        const userBonus = new UserBonus({
+          userId: transaction.userId,
+          bonusId: transaction.bonusId,
+          depositId: transaction._id,
+          bonusAmount: transaction.bonusAmount,
+          wagerRequirement: wagerMultiplier * transaction.bonusAmount,
+          remainingWager: wagerMultiplier * transaction.bonusAmount,
+          status: 'ACTIVE',
+          activatedAt: new Date(),
+          expiresAt: new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000),
+          maxWithdrawal: bonus?.maxWithdrawal || null
+        })
+        await userBonus.save()
+
+        // Update bonus usage count
+        await Bonus.findByIdAndUpdate(transaction.bonusId, { $inc: { usedCount: 1 } })
+
+        console.log(`Bonus activated: $${transaction.bonusAmount} (${wagerMultiplier}x wager) for user ${transaction.userId}`)
+      } catch (bonusError) {
+        console.error('Error activating bonus:', bonusError)
+        // Don't fail the transaction if bonus activation fails
+      }
+    }
 
     res.json({ message: 'Transaction approved', transaction })
   } catch (error) {

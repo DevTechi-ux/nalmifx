@@ -30,7 +30,8 @@ import {
   Image,
   BookOpen,
   Sun,
-  Moon
+  Moon,
+  Gift
 } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import { API_URL } from '../config/api'
@@ -62,6 +63,8 @@ const WalletPage = () => {
   const [uploadingScreenshot, setUploadingScreenshot] = useState(false)
   const [userBankAccounts, setUserBankAccounts] = useState([])
   const [selectedBankAccount, setSelectedBankAccount] = useState(null)
+  const [bonusInfo, setBonusInfo] = useState(null)
+  const [calculatingBonus, setCalculatingBonus] = useState(false)
   const fileInputRef = useRef(null)
 
   const user = JSON.parse(localStorage.getItem('user') || '{}')
@@ -179,6 +182,56 @@ const WalletPage = () => {
       }
     } catch (error) {
       console.error('Error fetching challenge status:', error)
+    }
+  }
+
+  const calculateBonus = async (amount) => {
+    if (!amount || parseFloat(amount) <= 0) {
+      setBonusInfo(null)
+      return
+    }
+
+    setCalculatingBonus(true)
+    try {
+      // Check if this is user's first deposit by looking at their transaction history
+      let isFirstDeposit = false
+      try {
+        const transactionsRes = await fetch(`${API_URL}/wallet/transactions/${user._id}`)
+        const transactionsData = await transactionsRes.json()
+        
+        if (transactionsData.success && transactionsData.transactions) {
+          // Check if user has any approved deposits
+          const approvedDeposits = transactionsData.transactions.filter(
+            tx => tx.type === 'Deposit' && tx.status === 'Approved'
+          )
+          isFirstDeposit = approvedDeposits.length === 0
+        }
+      } catch (error) {
+        console.error('Error checking deposit history:', error)
+        isFirstDeposit = false // Default to false if we can't check
+      }
+
+      const res = await fetch(`${API_URL}/bonus/calculate-bonus`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user._id,
+          depositAmount: parseFloat(amount),
+          isFirstDeposit
+        })
+      })
+
+      const data = await res.json()
+      if (data.success) {
+        setBonusInfo(data.data)
+      } else {
+        setBonusInfo(null)
+      }
+    } catch (error) {
+      console.error('Error calculating bonus:', error)
+      setBonusInfo(null)
+    } finally {
+      setCalculatingBonus(false)
     }
   }
 
@@ -670,7 +723,13 @@ const WalletPage = () => {
               <input
                 type="number"
                 value={localAmount}
-                onChange={(e) => setLocalAmount(e.target.value)}
+                onChange={(e) => {
+                  setLocalAmount(e.target.value)
+                  // Calculate bonus when amount changes (only for USD)
+                  if (!selectedCurrency || selectedCurrency.currency === 'USD') {
+                    calculateBonus(e.target.value)
+                  }
+                }}
                 placeholder={`Enter amount in ${selectedCurrency?.currency || 'USD'}`}
                 className="w-full bg-dark-700 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-accent-green"
               />
@@ -685,7 +744,49 @@ const WalletPage = () => {
                   </div>
                 </div>
               )}
-            </div>
+              
+              {/* Bonus Display */}
+              {(!selectedCurrency || selectedCurrency.currency === 'USD') && localAmount && parseFloat(localAmount) > 0 && (
+                <div className="mt-2">
+                  {calculatingBonus ? (
+                    <div className="p-3 bg-blue-500/10 rounded-lg border border-blue-500/30">
+                      <div className="text-center">
+                        <p className="text-blue-400 text-xs mb-1">Calculating bonus...</p>
+                      </div>
+                    </div>
+                  ) : bonusInfo && bonusInfo.bonusAmount > 0 ? (
+                    <div className="p-3 bg-green-500/10 rounded-lg border border-green-500/30">
+                      <div className="text-center">
+                        <p className="text-green-400 text-xs mb-1 flex items-center justify-center gap-1">
+                          <Gift size={12} />
+                          Bonus Applied
+                        </p>
+                        <p className="text-green-400 font-bold text-2xl">+${bonusInfo.bonusAmount.toFixed(2)}</p>
+                        <p className="text-white text-sm">Total: ${(parseFloat(localAmount) + bonusInfo.bonusAmount).toFixed(2)}</p>
+                        {bonusInfo.bonus && (
+                          <p className="text-gray-400 text-xs mt-1">
+                            {bonusInfo.bonus.bonusType === 'PERCENTAGE' 
+                              ? `${bonusInfo.bonus.bonusValue}% bonus` 
+                              : `$${bonusInfo.bonus.bonusValue} bonus`}
+                            • {bonusInfo.bonus.wagerRequirement}x wagering
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    localAmount && parseFloat(localAmount) >= 50 && (
+                      <div className="p-3 bg-gray-500/10 rounded-lg border border-gray-500/30">
+                        <div className="text-center">
+                          <p className="text-gray-400 text-xs">No bonus available for this amount</p>
+                          <p className="text-gray-500 text-sm">Minimum deposit for bonus: $50</p>
+                        </div>
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
+
+                          </div>
 
             <div className="mb-4">
               <label className="block text-gray-400 text-sm mb-2">Payment Method</label>

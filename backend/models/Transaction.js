@@ -88,6 +88,19 @@ const transactionSchema = new mongoose.Schema({
   processedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
+  },
+  // Bonus related fields
+  bonusAmount: {
+    type: Number,
+    default: 0
+  },
+  totalAmount: {
+    type: Number,
+    default: 0
+  },
+  bonusId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Bonus'
   }
 }, { timestamps: true })
 
