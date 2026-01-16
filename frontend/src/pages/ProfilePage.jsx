@@ -436,7 +436,7 @@ const ProfilePage = () => {
               <div className="flex gap-2">
                 <button
                   onClick={() => setEditing(false)}
-                  className="flex items-center gap-2 bg-dark-700 text-white px-4 py-2 rounded-lg hover:bg-dark-600"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg ${isDarkMode ? 'bg-dark-700 text-white hover:bg-dark-600' : 'bg-gray-200 text-gray-900 hover:bg-gray-300'}`}
                 >
                   <X size={16} />
                   Cancel
@@ -565,7 +565,7 @@ const ProfilePage = () => {
                       className={`w-full rounded-lg px-4 py-2 border ${isDarkMode ? 'bg-dark-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'}`}
                     />
                   ) : (
-                    <p className="text-white">{profile.dateOfBirth || '-'}</p>
+                    <p className={isDarkMode ? 'text-white' : 'text-gray-900'}>{profile.dateOfBirth || '-'}</p>
                   )}
                 </div>
 
@@ -578,10 +578,10 @@ const ProfilePage = () => {
                       type="text"
                       value={profile.country}
                       onChange={(e) => setProfile({...profile, country: e.target.value})}
-                      className="w-full bg-dark-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
+                      className={`w-full rounded-lg px-4 py-2 border ${isDarkMode ? 'bg-dark-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'}`}
                     />
                   ) : (
-                    <p className="text-white">{profile.country || '-'}</p>
+                    <p className={isDarkMode ? 'text-white' : 'text-gray-900'}>{profile.country || '-'}</p>
                   )}
                 </div>
 
@@ -594,10 +594,10 @@ const ProfilePage = () => {
                       type="text"
                       value={profile.address}
                       onChange={(e) => setProfile({...profile, address: e.target.value})}
-                      className="w-full bg-dark-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
+                      className={`w-full rounded-lg px-4 py-2 border ${isDarkMode ? 'bg-dark-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'}`}
                     />
                   ) : (
-                    <p className="text-white">{profile.address || '-'}</p>
+                    <p className={isDarkMode ? 'text-white' : 'text-gray-900'}>{profile.address || '-'}</p>
                   )}
                 </div>
               </div>
@@ -621,10 +621,10 @@ const ProfilePage = () => {
                         bankDetails: {...profile.bankDetails, bankName: e.target.value}
                       })}
                       placeholder="e.g., HDFC Bank"
-                      className="w-full bg-dark-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
+                      className={`w-full rounded-lg px-4 py-2 border ${isDarkMode ? 'bg-dark-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'}`}
                     />
                   ) : (
-                    <p className="text-white">{profile.bankDetails?.bankName || '-'}</p>
+                    <p className={isDarkMode ? 'text-white' : 'text-gray-900'}>{profile.bankDetails?.bankName || '-'}</p>
                   )}
                 </div>
 
@@ -639,10 +639,10 @@ const ProfilePage = () => {
                         bankDetails: {...profile.bankDetails, accountHolderName: e.target.value}
                       })}
                       placeholder="Name as per bank account"
-                      className="w-full bg-dark-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
+                      className={`w-full rounded-lg px-4 py-2 border ${isDarkMode ? 'bg-dark-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'}`}
                     />
                   ) : (
-                    <p className="text-white">{profile.bankDetails?.accountHolderName || '-'}</p>
+                    <p className={isDarkMode ? 'text-white' : 'text-gray-900'}>{profile.bankDetails?.accountHolderName || '-'}</p>
                   )}
                 </div>
 
@@ -657,10 +657,10 @@ const ProfilePage = () => {
                         bankDetails: {...profile.bankDetails, accountNumber: e.target.value}
                       })}
                       placeholder="Enter account number"
-                      className="w-full bg-dark-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
+                      className={`w-full rounded-lg px-4 py-2 border ${isDarkMode ? 'bg-dark-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'}`}
                     />
                   ) : (
-                    <p className="text-white">{profile.bankDetails?.accountNumber || '-'}</p>
+                    <p className={isDarkMode ? 'text-white' : 'text-gray-900'}>{profile.bankDetails?.accountNumber || '-'}</p>
                   )}
                 </div>
 
@@ -693,18 +693,18 @@ const ProfilePage = () => {
                         bankDetails: {...profile.bankDetails, branchName: e.target.value}
                       })}
                       placeholder="e.g., Mumbai Main Branch"
-                      className="w-full bg-dark-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
+                      className={`w-full rounded-lg px-4 py-2 border ${isDarkMode ? 'bg-dark-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'}`}
                     />
                   ) : (
-                    <p className="text-white">{profile.bankDetails?.branchName || '-'}</p>
+                    <p className={isDarkMode ? 'text-white' : 'text-gray-900'}>{profile.bankDetails?.branchName || '-'}</p>
                   )}
                 </div>
               </div>
             </div>
 
             {/* UPI Section */}
-            <div className="bg-dark-800 rounded-xl p-6 border border-gray-800 mt-6">
-              <h3 className="text-white font-semibold mb-6 flex items-center gap-2">
+            <div className={`${isDarkMode ? 'bg-dark-800 border-gray-800' : 'bg-white border-gray-200 shadow-sm'} rounded-xl p-6 border mt-6`}>
+              <h3 className={`font-semibold mb-6 flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                 <Smartphone size={18} /> UPI Details
               </h3>
               
@@ -716,10 +716,10 @@ const ProfilePage = () => {
                     value={profile.upiId || ''}
                     onChange={(e) => setProfile({...profile, upiId: e.target.value})}
                     placeholder="e.g., yourname@upi"
-                    className="w-full bg-dark-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
+                    className={`w-full rounded-lg px-4 py-2 border ${isDarkMode ? 'bg-dark-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'}`}
                   />
                 ) : (
-                  <p className="text-white">{profile.upiId || '-'}</p>
+                  <p className={isDarkMode ? 'text-white' : 'text-gray-900'}>{profile.upiId || '-'}</p>
                 )}
               </div>
 
@@ -733,9 +733,9 @@ const ProfilePage = () => {
             </div>
 
             {/* Withdrawal Accounts Section */}
-            <div className="bg-dark-800 rounded-xl p-6 border border-gray-800 mt-6">
+            <div className={`${isDarkMode ? 'bg-dark-800 border-gray-800' : 'bg-white border-gray-200 shadow-sm'} rounded-xl p-6 border mt-6`}>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-white font-semibold flex items-center gap-2">
+                <h3 className={`font-semibold flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   <CreditCard size={18} /> Withdrawal Accounts
                 </h3>
                 <button
@@ -751,13 +751,13 @@ const ProfilePage = () => {
               </p>
 
               {userBankAccounts.length === 0 ? (
-                <div className="p-4 bg-dark-700 rounded-lg text-center">
+                <div className={`p-4 rounded-lg text-center ${isDarkMode ? 'bg-dark-700' : 'bg-gray-100'}`}>
                   <p className="text-gray-500">No withdrawal accounts added yet</p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {userBankAccounts.map((acc) => (
-                    <div key={acc._id} className="p-4 bg-dark-700 rounded-lg border border-gray-700">
+                    <div key={acc._id} className={`p-4 rounded-lg border ${isDarkMode ? 'bg-dark-700 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-3">
                           {acc.type === 'Bank Transfer' ? (
@@ -767,7 +767,7 @@ const ProfilePage = () => {
                           )}
                           <div>
                             <div className="flex items-center gap-2">
-                              <span className="text-white font-medium">
+                              <span className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                                 {acc.type === 'Bank Transfer' ? acc.bankName : 'UPI'}
                               </span>
                               <span className={`px-2 py-0.5 rounded text-xs ${
@@ -933,8 +933,8 @@ const ProfilePage = () => {
             )}
 
             {/* KYC Verification Section */}
-            <div className="bg-dark-800 rounded-xl p-6 border border-gray-800 mt-6">
-              <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+            <div className={`${isDarkMode ? 'bg-dark-800 border-gray-800' : 'bg-white border-gray-200 shadow-sm'} rounded-xl p-6 border mt-6`}>
+              <h3 className={`font-semibold mb-4 flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                 <FileCheck size={18} /> KYC Verification
               </h3>
               
@@ -1138,34 +1138,34 @@ const ProfilePage = () => {
             </div>
 
             {/* Security Section */}
-            <div className="bg-dark-800 rounded-xl p-6 border border-gray-800 mt-6">
-              <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+            <div className={`${isDarkMode ? 'bg-dark-800 border-gray-800' : 'bg-white border-gray-200 shadow-sm'} rounded-xl p-6 border mt-6`}>
+              <h3 className={`font-semibold mb-4 flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                 <Shield size={18} /> Security
               </h3>
               <div className="space-y-4">
-                <div className="flex items-center justify-between py-3 border-b border-gray-700">
+                <div className={`flex items-center justify-between py-3 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                   <div>
-                    <p className="text-white">Password</p>
+                    <p className={isDarkMode ? 'text-white' : 'text-gray-900'}>Password</p>
                     <p className="text-gray-500 text-sm">Last changed: Never</p>
                   </div>
                   <button 
                     onClick={() => setShowPasswordModal(true)}
-                    className="text-gray-400 hover:text-white flex items-center gap-2"
+                    className={`flex items-center gap-2 ${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'}`}
                   >
                     <Lock size={16} />
                     Change
                   </button>
                 </div>
-                <div className="flex items-center justify-between py-3 border-b border-gray-700">
+                <div className={`flex items-center justify-between py-3 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                   <div>
-                    <p className="text-white">Two-Factor Authentication</p>
+                    <p className={isDarkMode ? 'text-white' : 'text-gray-900'}>Two-Factor Authentication</p>
                     <p className="text-gray-500 text-sm">Add an extra layer of security</p>
                   </div>
                   <button className="text-accent-green hover:underline text-sm">Enable</button>
                 </div>
                 <div className="flex items-center justify-between py-3">
                   <div>
-                    <p className="text-white">Login History</p>
+                    <p className={isDarkMode ? 'text-white' : 'text-gray-900'}>Login History</p>
                     <p className="text-gray-500 text-sm">View recent login activity</p>
                   </div>
                   <button className="text-accent-green hover:underline text-sm">View</button>

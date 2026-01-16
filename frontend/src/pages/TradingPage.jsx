@@ -103,7 +103,7 @@ const TradingPage = () => {
   const [killSwitchTimeLeft, setKillSwitchTimeLeft] = useState('')
   const [globalNotification, setGlobalNotification] = useState('')
 
-  const categories = ['All', 'Starred', 'Forex', 'Metals', 'Indices', 'Commodities', 'Crypto']
+  const categories = ['All', 'Starred', 'Forex', 'Metals', 'Commodities', 'Crypto']
 
   const user = JSON.parse(localStorage.getItem('user') || '{}')
 
@@ -997,26 +997,28 @@ const TradingPage = () => {
   const getSymbolForTradingView = (symbol) => {
     if (!symbol) return 'OANDA:XAUUSD'
     
-    // Specific mappings for known symbols
-    const symbolMap = {
-      'BTCUSD': 'COINBASE:BTCUSD',
-      'ETHUSD': 'COINBASE:ETHUSD',
-      'LTCUSD': 'COINBASE:LTCUSD',
-      'XRPUSD': 'BITSTAMP:XRPUSD',
-      'BCHUSD': 'COINBASE:BCHUSD',
-      'SOLUSD': 'COINBASE:SOLUSD',
-      'ADAUSD': 'COINBASE:ADAUSD',
-      'DOGEUSD': 'COINBASE:DOGEUSD',
-      'DOTUSD': 'KRAKEN:DOTUSD',
-      'AVAXUSD': 'COINBASE:AVAXUSD',
-      'LINKUSD': 'COINBASE:LINKUSD',
-      'BNBUSD': 'BINANCE:BNBUSDT',
-      'MATICUSD': 'COINBASE:MATICUSD',
-      '1INCHUSD': 'COINBASE:1INCHUSD',
-      'AAVEUSD': 'COINBASE:AAVEUSD',
+    // Crypto mappings - use BINANCE with USDT pairs for best coverage
+    const cryptoMap = {
+      'BTCUSD': 'BINANCE:BTCUSDT', 'ETHUSD': 'BINANCE:ETHUSDT', 'BNBUSD': 'BINANCE:BNBUSDT',
+      'SOLUSD': 'BINANCE:SOLUSDT', 'XRPUSD': 'BINANCE:XRPUSDT', 'ADAUSD': 'BINANCE:ADAUSDT',
+      'DOGEUSD': 'BINANCE:DOGEUSDT', 'TRXUSD': 'BINANCE:TRXUSDT', 'LINKUSD': 'BINANCE:LINKUSDT',
+      'MATICUSD': 'BINANCE:MATICUSDT', 'DOTUSD': 'BINANCE:DOTUSDT', 'SHIBUSD': 'BINANCE:SHIBUSDT',
+      'LTCUSD': 'BINANCE:LTCUSDT', 'BCHUSD': 'BINANCE:BCHUSDT', 'AVAXUSD': 'BINANCE:AVAXUSDT',
+      'XLMUSD': 'BINANCE:XLMUSDT', 'UNIUSD': 'BINANCE:UNIUSDT', 'ATOMUSD': 'BINANCE:ATOMUSDT',
+      'ETCUSD': 'BINANCE:ETCUSDT', 'FILUSD': 'BINANCE:FILUSDT', 'ICPUSD': 'BINANCE:ICPUSDT',
+      'VETUSD': 'BINANCE:VETUSDT', 'NEARUSD': 'BINANCE:NEARUSDT', 'GRTUSD': 'BINANCE:GRTUSDT',
+      'AAVEUSD': 'BINANCE:AAVEUSDT', 'MKRUSD': 'BINANCE:MKRUSDT', 'ALGOUSD': 'BINANCE:ALGOUSDT',
+      'FTMUSD': 'BINANCE:FTMUSDT', 'SANDUSD': 'BINANCE:SANDUSDT', 'MANAUSD': 'BINANCE:MANAUSDT',
+      'AXSUSD': 'BINANCE:AXSUSDT', 'THETAUSD': 'BINANCE:THETAUSDT', 'XMRUSD': 'BINANCE:XMRUSDT',
+      'FLOWUSD': 'BINANCE:FLOWUSDT', 'SNXUSD': 'BINANCE:SNXUSDT', 'EOSUSD': 'BINANCE:EOSUSDT',
+      'CHZUSD': 'BINANCE:CHZUSDT', 'ENJUSD': 'BINANCE:ENJUSDT', 'ZILUSD': 'BINANCE:ZILUSDT',
+      'BATUSD': 'BINANCE:BATUSDT', 'CRVUSD': 'BINANCE:CRVUSDT', 'COMPUSD': 'BINANCE:COMPUSDT',
+      'SUSHIUSD': 'BINANCE:SUSHIUSDT', 'ZRXUSD': 'BINANCE:ZRXUSDT', 'LRCUSD': 'BINANCE:LRCUSDT',
+      'ANKRUSD': 'BINANCE:ANKRUSDT', 'GALAUSD': 'BINANCE:GALAUSDT', 'APEUSD': 'BINANCE:APEUSDT',
+      'WAVESUSD': 'BINANCE:WAVESUSDT', 'ZECUSD': 'BINANCE:ZECUSDT',
     }
     
-    if (symbolMap[symbol]) return symbolMap[symbol]
+    if (cryptoMap[symbol]) return cryptoMap[symbol]
     
     // Forex pairs (6 char with USD, EUR, GBP, JPY, CHF, AUD, NZD, CAD)
     const forexCurrencies = ['USD', 'EUR', 'GBP', 'JPY', 'CHF', 'AUD', 'NZD', 'CAD', 'SGD', 'HKD', 'NOK', 'SEK', 'DKK', 'PLN', 'ZAR', 'MXN', 'TRY', 'CNH']
@@ -1059,27 +1061,28 @@ const TradingPage = () => {
     return `OANDA:${symbol}`
   }
 
-  // Instruments with live prices (limited due to MetaAPI rate limits)
-  const pricedSymbols = [
-    'EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD',
-    'EURGBP', 'EURJPY', 'GBPJPY', 'XAUUSD', 'XAGUSD',
-    'BTCUSD', 'ETHUSD', 'BNBUSD', 'SOLUSD', 'XRPUSD', 'ADAUSD', 'DOGEUSD', 'DOTUSD', 'LTCUSD'
-  ]
-  
+  // Filter instruments: show all when "All" tab or searching, popular for specific categories
   const filteredInstruments = instruments.filter(inst => {
-    const matchesSearch = inst.symbol.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesCategory = activeCategory === 'All' ||
-      (activeCategory === 'Starred' && inst.starred) ||
-      inst.category === activeCategory
+    const matchesSearch = inst.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      inst.name.toLowerCase().includes(searchTerm.toLowerCase())
     
-    // If user is searching, show all matching instruments
-    // If not searching, only show instruments with live prices
-    const hasPrices = pricedSymbols.includes(inst.symbol)
-    
+    // When searching, show all matching instruments across all categories
     if (searchTerm.length > 0) {
-      return matchesSearch && matchesCategory
+      return matchesSearch
     }
-    return matchesCategory && hasPrices
+    
+    // When viewing Starred, show all starred instruments
+    if (activeCategory === 'Starred') {
+      return inst.starred
+    }
+    
+    // When viewing "All", show ALL instruments
+    if (activeCategory === 'All') {
+      return true
+    }
+    
+    // For specific categories (Forex, Metals, etc.), show only popular by default
+    return inst.category === activeCategory && inst.popular
   })
 
   const handleInstrumentClick = (inst) => {
@@ -1089,6 +1092,16 @@ const TradingPage = () => {
     }
     setActiveTab(inst.symbol)
     setSelectedInstrument(inst)
+    
+    // When clicking from search, mark instrument as "added" so it shows in its category
+    if (searchTerm.length > 0 && !inst.popular) {
+      setInstruments(prevInsts => prevInsts.map(i => 
+        i.symbol === inst.symbol ? { ...i, popular: true } : i
+      ))
+    }
+    
+    // Clear search after selection
+    setSearchTerm('')
   }
 
   const handleTabClick = (symbol) => {
@@ -1188,21 +1201,21 @@ const TradingPage = () => {
               <span className="text-yellow-500 font-medium text-sm">
                 {challengeAccount.challenge?.name || 'Challenge'} - Phase {challengeAccount.account?.currentPhase}/{challengeAccount.account?.totalPhases}
               </span>
-              <span className="text-gray-400 text-xs">|</span>
-              <span className="text-gray-300 text-xs">
+              <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>|</span>
+              <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                 Daily DD: <span className={challengeAccount.drawdown?.dailyUsed > 3 ? 'text-red-500' : 'text-green-500'}>{challengeAccount.drawdown?.dailyUsed?.toFixed(2) || 0}%</span> / {challengeAccount.drawdown?.dailyMax || 5}%
               </span>
-              <span className="text-gray-400 text-xs">|</span>
-              <span className="text-gray-300 text-xs">
+              <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>|</span>
+              <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                 Overall DD: <span className={challengeAccount.drawdown?.overallUsed > 6 ? 'text-red-500' : 'text-green-500'}>{challengeAccount.drawdown?.overallUsed?.toFixed(2) || 0}%</span> / {challengeAccount.drawdown?.overallMax || 10}%
               </span>
-              <span className="text-gray-400 text-xs">|</span>
-              <span className="text-gray-300 text-xs">
+              <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>|</span>
+              <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                 Profit: <span className="text-green-500">{challengeAccount.profit?.currentPercent?.toFixed(2) || 0}%</span> / {challengeAccount.profit?.targetPercent || 8}%
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400">{challengeAccount.time?.remainingDays || 0} days left</span>
+              <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{challengeAccount.time?.remainingDays || 0} days left</span>
               {challengeRules?.stopLossMandatory && (
                 <span className="bg-red-500/20 text-red-400 text-xs px-2 py-0.5 rounded flex items-center gap-1">
                   <AlertTriangle size={12} /> SL Required
@@ -1220,7 +1233,7 @@ const TradingPage = () => {
               <span className={`ml-3 text-xs ${accountType === 'challenge' ? 'text-yellow-500' : 'text-teal-400'}`}>
                 {accountType === 'challenge' ? 'Challenge' : 'Standard'} - {account?.accountId}
               </span>
-              <span className="text-gray-400 ml-3 text-xs">Balance: <span className="text-white">${accountSummary.balance?.toFixed(2) || '0.00'}</span></span>
+              <span className="text-gray-400 ml-3 text-xs">Balance: <span className={isDarkMode ? 'text-white' : 'text-gray-900'}>${accountSummary.balance?.toFixed(2) || '0.00'}</span></span>
             </>
           )}
           <div className="flex-1" />
@@ -1255,7 +1268,7 @@ const TradingPage = () => {
               </>
             )}
           </button>
-          <button onClick={() => setShowOrderPanel(!showOrderPanel)} className="ml-1 sm:ml-2 text-gray-400 hover:text-white">
+          <button onClick={() => setShowOrderPanel(!showOrderPanel)} className={`ml-1 sm:ml-2 ${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}>
             <Settings size={16} />
           </button>
           <button 
@@ -1280,7 +1293,7 @@ const TradingPage = () => {
                 </button>
               </div>
               {/* Search */}
-              <div className="px-3 py-2">
+              <div className={`px-3 py-2 ${isDarkMode ? 'bg-[#0d0d0d]' : 'bg-white'}`}>
                 <div className="relative">
                   <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                   <input
@@ -1294,7 +1307,7 @@ const TradingPage = () => {
               </div>
               
               {/* Category Tabs */}
-              <div className={`flex items-center gap-1 px-3 py-2 border-b overflow-x-auto ${isDarkMode ? 'border-gray-800' : 'border-gray-200'}`}>
+              <div className={`flex items-center gap-1 px-3 py-2 border-b overflow-x-auto ${isDarkMode ? 'bg-[#0d0d0d] border-gray-800' : 'bg-white border-gray-200'}`}>
                 <button className="text-gray-600 hover:text-yellow-500 shrink-0">
                   <Star size={14} />
                 </button>
@@ -1305,7 +1318,7 @@ const TradingPage = () => {
                     className={`px-2 py-1 rounded text-xs font-medium transition-colors shrink-0 ${
                       activeCategory === cat 
                         ? 'bg-blue-600 text-white' 
-                        : 'text-gray-400 hover:text-white'
+                        : isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
                     }`}
                   >
                     {cat}
@@ -1314,7 +1327,7 @@ const TradingPage = () => {
               </div>
 
               {/* Instruments List */}
-              <div className="flex-1 overflow-y-auto px-2">
+              <div className={`flex-1 overflow-y-auto px-2 ${!isDarkMode ? 'light-scrollbar' : ''}`}>
                 {loadingInstruments ? (
                   <div className="flex items-center justify-center py-8">
                     <div className="text-gray-500 text-sm">Loading instruments...</div>
@@ -1334,7 +1347,11 @@ const TradingPage = () => {
                           : (isDarkMode ? 'border-gray-700 hover:border-gray-600 hover:bg-[#1a1a1a]' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50')
                       }`}
                     >
-                      <Star size={12} className={`shrink-0 mr-2 ${inst.starred ? 'text-yellow-500 fill-yellow-500' : 'text-gray-700'}`} />
+                      <Star 
+                        size={12} 
+                        className={`shrink-0 mr-2 cursor-pointer hover:text-yellow-400 ${inst.starred ? 'text-yellow-500 fill-yellow-500' : 'text-gray-700'}`}
+                        onClick={(e) => { e.stopPropagation(); toggleStar(inst.symbol); }}
+                      />
                       <div className="text-left min-w-[55px]">
                         <div className={`text-xs font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{inst.symbol}</div>
                         <div className="text-green-500 text-[10px]">+{inst.change?.toFixed(2) || '0.00'}%</div>
@@ -1344,9 +1361,9 @@ const TradingPage = () => {
                         <div className="text-red-500 text-xs font-mono">
                           {inst.bid > 0 ? inst.bid.toFixed(inst.bid > 100 ? 2 : 5) : '...'}
                         </div>
-                        <div className="text-gray-600 text-[9px]">Bid</div>
+                        <div className={`text-[9px] ${isDarkMode ? 'text-gray-600' : 'text-gray-500'}`}>Bid</div>
                       </div>
-                      <div className="bg-[#2a2a2a] px-1.5 py-0.5 rounded text-cyan-400 text-[10px] font-medium min-w-[28px] text-center mx-2">
+                      <div className={`px-1.5 py-0.5 rounded text-[10px] font-medium min-w-[28px] text-center mx-2 ${isDarkMode ? 'bg-[#2a2a2a] text-cyan-400' : 'bg-blue-100 text-blue-600'}`}>
                         {/* Show admin-set spread if available, otherwise show market spread */}
                         {adminSpreads[inst.symbol]?.spread > 0 ? (
                           // Convert admin spread to pips for display
@@ -1364,7 +1381,7 @@ const TradingPage = () => {
                         <div className="text-green-500 text-xs font-mono">
                           {inst.ask > 0 ? inst.ask.toFixed(inst.ask > 100 ? 2 : 5) : '...'}
                         </div>
-                        <div className="text-gray-600 text-[9px]">Ask</div>
+                        <div className={`text-[9px] ${isDarkMode ? 'text-gray-600' : 'text-gray-500'}`}>Ask</div>
                       </div>
                     </button>
                   ))
@@ -1372,7 +1389,7 @@ const TradingPage = () => {
               </div>
               
               {/* Footer */}
-              <div className="px-3 py-2 border-t border-gray-800 flex items-center justify-between shrink-0">
+              <div className={`px-3 py-2 border-t flex items-center justify-between shrink-0 ${isDarkMode ? 'border-gray-800' : 'border-gray-200'}`}>
                 <span className="text-gray-500 text-xs">{filteredInstruments.length} instruments</span>
                 <div className="flex items-center gap-1">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
@@ -1436,7 +1453,7 @@ const TradingPage = () => {
                   <button
                     key={tab.name}
                     onClick={() => setActivePositionTab(tab.name)}
-                    className={`text-xs sm:text-sm whitespace-nowrap ${activePositionTab === tab.name ? (isDarkMode ? 'text-white' : 'text-gray-900') : 'text-gray-500 hover:text-white'}`}
+                    className={`text-xs sm:text-sm whitespace-nowrap ${activePositionTab === tab.name ? (isDarkMode ? 'text-white' : 'text-gray-900') : (isDarkMode ? 'text-gray-500 hover:text-white' : 'text-gray-500 hover:text-gray-900')}`}
                   >
                     {isMobile ? `${tab.name.split(' ')[0]}(${tab.count})` : `${tab.name}(${tab.count})`}
                   </button>
@@ -1465,7 +1482,7 @@ const TradingPage = () => {
                           type="text"
                           value={volume}
                           onChange={(e) => setVolume(e.target.value)}
-                          className="w-14 h-7 bg-[#1a1a1a] border border-gray-600 rounded text-center text-white text-sm font-medium focus:outline-none focus:border-blue-500"
+                          className={`w-14 h-7 border rounded text-center text-sm font-medium focus:outline-none focus:border-blue-500 ${isDarkMode ? 'bg-[#1a1a1a] border-gray-600 text-white' : 'bg-gray-100 border-gray-300 text-gray-900'}`}
                         />
                         <button 
                           onClick={() => executeMarketOrder('BUY')}
@@ -1528,17 +1545,17 @@ const TradingPage = () => {
                       }
                       
                       return (
-                        <tr key={trade._id} className="border-t border-gray-800 hover:bg-[#1a1a1a]">
-                          <td className="py-2 px-3 text-xs">{new Date(trade.openedAt).toLocaleTimeString()}</td>
-                          <td className="py-2 px-3 text-xs font-medium">{trade.symbol}</td>
+                        <tr key={trade._id} className={`border-t ${isDarkMode ? 'border-gray-800 hover:bg-[#1a1a1a]' : 'border-gray-200 hover:bg-gray-50'}`}>
+                          <td className={`py-2 px-3 text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{new Date(trade.openedAt).toLocaleTimeString()}</td>
+                          <td className={`py-2 px-3 text-xs font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{trade.symbol}</td>
                           <td className={`py-2 px-3 text-xs font-medium ${trade.side === 'BUY' ? 'text-blue-400' : 'text-red-400'}`}>{trade.side}</td>
-                          <td className="py-2 px-3 text-xs">{trade.quantity}</td>
-                          <td className="py-2 px-3 text-xs">{formatPrice(trade.openPrice)}</td>
-                          <td className="py-2 px-3 text-xs">{formatPrice(currentPrice)}</td>
-                          <td className="py-2 px-3 text-xs">{trade.stopLoss ? formatPrice(trade.stopLoss) : '-'}</td>
-                          <td className="py-2 px-3 text-xs">{trade.takeProfit ? formatPrice(trade.takeProfit) : '-'}</td>
-                          <td className="py-2 px-3 text-xs">${trade.commission?.toFixed(2) || '0.00'}</td>
-                          <td className="py-2 px-3 text-xs">${trade.swap?.toFixed(2) || '0.00'}</td>
+                          <td className={`py-2 px-3 text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{trade.quantity}</td>
+                          <td className={`py-2 px-3 text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{formatPrice(trade.openPrice)}</td>
+                          <td className={`py-2 px-3 text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{formatPrice(currentPrice)}</td>
+                          <td className={`py-2 px-3 text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{trade.stopLoss ? formatPrice(trade.stopLoss) : '-'}</td>
+                          <td className={`py-2 px-3 text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{trade.takeProfit ? formatPrice(trade.takeProfit) : '-'}</td>
+                          <td className={`py-2 px-3 text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>${trade.commission?.toFixed(2) || '0.00'}</td>
+                          <td className={`py-2 px-3 text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>${trade.swap?.toFixed(2) || '0.00'}</td>
                           <td className={`py-2 px-3 text-xs font-medium ${pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                             ${pnl.toFixed(2)}
                           </td>
@@ -1570,7 +1587,7 @@ const TradingPage = () => {
 
               {activePositionTab === 'History' && (
               <table className="w-full text-sm">
-                <thead className="text-gray-500 border-b border-gray-800 sticky top-0 bg-[#0d0d0d]">
+                <thead className={`text-gray-500 border-b sticky top-0 ${isDarkMode ? 'border-gray-800 bg-[#0d0d0d]' : 'border-gray-200 bg-white'}`}>
                   <tr>
                     <th className="text-left py-2 px-3 font-normal">Closed</th>
                     <th className="text-left py-2 px-3 font-normal">Symbol</th>
@@ -1600,15 +1617,15 @@ const TradingPage = () => {
                       }
                       
                       return (
-                        <tr key={trade._id} className="border-t border-gray-800 hover:bg-[#1a1a1a]">
-                          <td className="py-2 px-3 text-xs">{new Date(trade.closedAt).toLocaleString()}</td>
-                          <td className="py-2 px-3 text-xs font-medium">{trade.symbol}</td>
+                        <tr key={trade._id} className={`border-t ${isDarkMode ? 'border-gray-800 hover:bg-[#1a1a1a]' : 'border-gray-200 hover:bg-gray-50'}`}>
+                          <td className={`py-2 px-3 text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{new Date(trade.closedAt).toLocaleString()}</td>
+                          <td className={`py-2 px-3 text-xs font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{trade.symbol}</td>
                           <td className={`py-2 px-3 text-xs font-medium ${trade.side === 'BUY' ? 'text-blue-400' : 'text-red-400'}`}>{trade.side}</td>
-                          <td className="py-2 px-3 text-xs">{trade.quantity}</td>
-                          <td className="py-2 px-3 text-xs">{formatPrice(trade.openPrice)}</td>
-                          <td className="py-2 px-3 text-xs">{formatPrice(trade.closePrice)}</td>
-                          <td className="py-2 px-3 text-xs">${trade.commission?.toFixed(2) || '0.00'}</td>
-                          <td className="py-2 px-3 text-xs">${trade.swap?.toFixed(2) || '0.00'}</td>
+                          <td className={`py-2 px-3 text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{trade.quantity}</td>
+                          <td className={`py-2 px-3 text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{formatPrice(trade.openPrice)}</td>
+                          <td className={`py-2 px-3 text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{formatPrice(trade.closePrice)}</td>
+                          <td className={`py-2 px-3 text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>${trade.commission?.toFixed(2) || '0.00'}</td>
+                          <td className={`py-2 px-3 text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>${trade.swap?.toFixed(2) || '0.00'}</td>
                           <td className={`py-2 px-3 text-xs font-medium ${trade.realizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                             ${trade.realizedPnl?.toFixed(2) || '0.00'}
                           </td>
@@ -1623,7 +1640,7 @@ const TradingPage = () => {
 
               {activePositionTab === 'Pending' && (
               <table className="w-full text-sm">
-                <thead className="text-gray-500 border-b border-gray-800 sticky top-0 bg-[#0d0d0d]">
+                <thead className={`text-gray-500 border-b sticky top-0 ${isDarkMode ? 'border-gray-800 bg-[#0d0d0d]' : 'border-gray-200 bg-white'}`}>
                   <tr>
                     <th className="text-left py-2 px-3 font-normal">Time</th>
                     <th className="text-left py-2 px-3 font-normal">Symbol</th>
@@ -1642,14 +1659,14 @@ const TradingPage = () => {
                     </tr>
                   ) : (
                     pendingOrders.map(order => (
-                      <tr key={order._id} className="border-t border-gray-800 hover:bg-[#1a1a1a]">
-                        <td className="py-2 px-3 text-xs">{new Date(order.createdAt).toLocaleTimeString()}</td>
-                        <td className="py-2 px-3 text-xs font-medium">{order.symbol}</td>
+                      <tr key={order._id} className={`border-t ${isDarkMode ? 'border-gray-800 hover:bg-[#1a1a1a]' : 'border-gray-200 hover:bg-gray-50'}`}>
+                        <td className={`py-2 px-3 text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{new Date(order.createdAt).toLocaleTimeString()}</td>
+                        <td className={`py-2 px-3 text-xs font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order.symbol}</td>
                         <td className={`py-2 px-3 text-xs font-medium ${order.orderType.includes('BUY') ? 'text-blue-400' : 'text-red-400'}`}>{order.orderType}</td>
-                        <td className="py-2 px-3 text-xs">{order.quantity}</td>
-                        <td className="py-2 px-3 text-xs">{order.pendingPrice?.toFixed(5)}</td>
-                        <td className="py-2 px-3 text-xs">{order.stopLoss || '-'}</td>
-                        <td className="py-2 px-3 text-xs">{order.takeProfit || '-'}</td>
+                        <td className={`py-2 px-3 text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{order.quantity}</td>
+                        <td className={`py-2 px-3 text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{order.pendingPrice?.toFixed(5)}</td>
+                        <td className={`py-2 px-3 text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{order.stopLoss || '-'}</td>
+                        <td className={`py-2 px-3 text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{order.takeProfit || '-'}</td>
                         <td className="py-2 px-3">
                           <button 
                             onClick={() => cancelPendingOrder(order._id)}
@@ -1700,23 +1717,23 @@ const TradingPage = () => {
 
             {orderTab === 'Market' ? (
               <>
-                <div className="p-3 flex-1 overflow-y-auto">
+                <div className={`p-3 flex-1 overflow-y-auto ${!isDarkMode ? 'light-scrollbar' : ''}`}>
                   {/* Leverage Selector */}
                   <div className={`flex items-center justify-between rounded px-3 py-2 mb-3 border ${isDarkMode ? 'bg-[#1a1a1a] border-gray-700' : 'bg-gray-50 border-gray-300'}`}>
-                    <span className="text-gray-400 text-xs">Leverage</span>
+                    <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Leverage</span>
                     <select
                       value={leverage}
                       onChange={(e) => setLeverage(e.target.value)}
                       className="bg-transparent text-yellow-500 font-semibold text-sm focus:outline-none cursor-pointer"
                     >
-                      <option value="1:10" className="bg-dark-800">1:10</option>
-                      <option value="1:20" className="bg-dark-800">1:20</option>
-                      <option value="1:50" className="bg-dark-800">1:50</option>
-                      <option value="1:100" className="bg-dark-800">1:100</option>
-                      <option value="1:200" className="bg-dark-800">1:200</option>
-                      <option value="1:500" className="bg-dark-800">1:500</option>
-                      <option value="1:1000" className="bg-dark-800">1:1000</option>
-                      <option value="1:2000" className="bg-dark-800">1:2000</option>
+                      <option value="1:10" className={isDarkMode ? 'bg-dark-800' : 'bg-white'}>1:10</option>
+                      <option value="1:20" className={isDarkMode ? 'bg-dark-800' : 'bg-white'}>1:20</option>
+                      <option value="1:50" className={isDarkMode ? 'bg-dark-800' : 'bg-white'}>1:50</option>
+                      <option value="1:100" className={isDarkMode ? 'bg-dark-800' : 'bg-white'}>1:100</option>
+                      <option value="1:200" className={isDarkMode ? 'bg-dark-800' : 'bg-white'}>1:200</option>
+                      <option value="1:500" className={isDarkMode ? 'bg-dark-800' : 'bg-white'}>1:500</option>
+                      <option value="1:1000" className={isDarkMode ? 'bg-dark-800' : 'bg-white'}>1:1000</option>
+                      <option value="1:2000" className={isDarkMode ? 'bg-dark-800' : 'bg-white'}>1:2000</option>
                     </select>
                   </div>
 
@@ -1798,7 +1815,7 @@ const TradingPage = () => {
 
                   {/* Leverage */}
                   <div className="mb-3">
-                    <div className="text-gray-400 text-xs mb-1">Leverage (Max: {account?.leverage || '1:100'})</div>
+                    <div className={`text-xs mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Leverage (Max: {account?.leverage || '1:100'})</div>
                     <div className="flex gap-2">
                       <select 
                         value={leverage}
@@ -1853,12 +1870,12 @@ const TradingPage = () => {
                           value={takeProfit}
                           onChange={(e) => setTakeProfit(e.target.value)}
                           placeholder="Price"
-                          className="flex-1 bg-[#1a1a1a] border border-green-500/50 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500"
+                          className={`flex-1 rounded px-3 py-2 text-sm focus:outline-none focus:border-green-500 border border-green-500/50 ${isDarkMode ? 'bg-[#1a1a1a] text-white' : 'bg-gray-50 text-gray-900'}`}
                         />
                         <input
                           type="text"
                           placeholder="Pips"
-                          className="w-16 bg-[#1a1a1a] border border-gray-700 rounded px-2 py-2 text-white text-sm focus:outline-none"
+                          className={`w-16 rounded px-2 py-2 text-sm focus:outline-none border ${isDarkMode ? 'bg-[#1a1a1a] border-gray-700 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'}`}
                         />
                       </div>
                     )}
@@ -1880,12 +1897,12 @@ const TradingPage = () => {
                           value={stopLoss}
                           onChange={(e) => setStopLoss(e.target.value)}
                           placeholder="Price"
-                          className="flex-1 bg-[#1a1a1a] border border-red-500/50 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-red-500"
+                          className={`flex-1 rounded px-3 py-2 text-sm focus:outline-none focus:border-red-500 border border-red-500/50 ${isDarkMode ? 'bg-[#1a1a1a] text-white' : 'bg-gray-50 text-gray-900'}`}
                         />
                         <input
                           type="text"
                           placeholder="Pips"
-                          className="w-16 bg-[#1a1a1a] border border-gray-700 rounded px-2 py-2 text-white text-sm focus:outline-none"
+                          className={`w-16 rounded px-2 py-2 text-sm focus:outline-none border ${isDarkMode ? 'bg-[#1a1a1a] border-gray-700 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'}`}
                         />
                       </div>
                     )}
@@ -1941,10 +1958,10 @@ const TradingPage = () => {
               </>
             ) : (
               <>
-                <div className="p-3 flex-1 overflow-y-auto">
+                <div className={`p-3 flex-1 overflow-y-auto ${!isDarkMode ? 'light-scrollbar' : ''}`}>
                   {/* Order Type */}
                   <div className="mb-3">
-                    <div className="text-gray-400 text-xs mb-2">Order type</div>
+                    <div className={`text-xs mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Order type</div>
                     <div className="grid grid-cols-2 gap-2">
                       {['BUY LIMIT', 'SELL LIMIT', 'BUY STOP', 'SELL STOP'].map(type => (
                         <button
@@ -1968,7 +1985,7 @@ const TradingPage = () => {
 
                   {/* Entry Price */}
                   <div className="mb-3">
-                    <div className="text-gray-400 text-xs mb-1">Entry price</div>
+                    <div className={`text-xs mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Entry price</div>
                     <input
                       type="text"
                       value={entryPrice}
@@ -1980,7 +1997,7 @@ const TradingPage = () => {
 
                   {/* Order Volume */}
                   <div className="mb-3">
-                    <div className="text-gray-400 text-xs mb-1">Order volume</div>
+                    <div className={`text-xs mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Order volume</div>
                     <div className={`flex items-center rounded border ${isDarkMode ? 'bg-[#1a1a1a] border-gray-700' : 'bg-gray-50 border-gray-300'}`}>
                       <input
                         type="text"
@@ -1999,7 +2016,7 @@ const TradingPage = () => {
 
                   {/* Leverage */}
                   <div className="mb-3">
-                    <div className="text-gray-400 text-xs mb-1">Leverage (Max: {account?.leverage || '1:100'})</div>
+                    <div className={`text-xs mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Leverage (Max: {account?.leverage || '1:100'})</div>
                     <div className="flex gap-2">
                       <select 
                         value={leverage}

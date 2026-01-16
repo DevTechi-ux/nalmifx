@@ -109,6 +109,20 @@ body {
   border-radius: 3px;
 }
 
+/* Light mode scrollbar */
+.light-scrollbar::-webkit-scrollbar-track {
+  background: #e5e7eb;
+}
+
+.light-scrollbar::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+  border-radius: 3px;
+}
+
+.light-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
 /* Mobile animations */
 @keyframes slide-up {
   from {

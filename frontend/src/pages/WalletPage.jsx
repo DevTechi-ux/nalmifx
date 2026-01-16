@@ -571,7 +571,7 @@ const WalletPage = () => {
                 </button>
                 <button 
                   onClick={fetchTransactions}
-                  className="p-2 hover:bg-dark-700 rounded-lg transition-colors"
+                  className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-dark-700' : 'hover:bg-gray-100'}`}
                 >
                   <RefreshCw size={18} className={`text-gray-400 ${loading ? 'animate-spin' : ''}`} />
                 </button>
@@ -603,7 +603,7 @@ const WalletPage = () => {
                   </thead>
                   <tbody>
                     {transactions.map((tx) => (
-                      <tr key={tx._id} className="border-b border-gray-800">
+                      <tr key={tx._id} className={`border-b ${isDarkMode ? 'border-gray-800' : 'border-gray-200'}`}>
                         <td className="py-4 px-4">
                           <div className="flex items-center gap-2">
                             {tx.type === 'Deposit' && <ArrowDownCircle size={18} className="text-green-500" />}
@@ -614,7 +614,7 @@ const WalletPage = () => {
                             {tx.type === 'Account_Transfer_In' && <ArrowDownCircle size={18} className="text-teal-500" />}
                             {tx.type === 'Challenge_Purchase' && <ArrowUpCircle size={18} className="text-yellow-500" />}
                             <div>
-                              <span className="text-white">
+                              <span className={isDarkMode ? 'text-white' : 'text-gray-900'}>
                                 {tx.type === 'Transfer_To_Account' ? 'To Trading Account' : 
                                  tx.type === 'Transfer_From_Account' ? 'From Trading Account' : 
                                  tx.type === 'Account_Transfer_Out' ? 'Account Transfer (Out)' :
@@ -655,7 +655,7 @@ const WalletPage = () => {
                         </td>
                         <td className="py-4 px-4">
                           {tx.type === 'Deposit' ? (
-                            <span className="text-white font-medium">
+                            <span className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                               ${(tx.totalAmount || (tx.amount + (tx.bonusAmount || 0))).toLocaleString()}
                             </span>
                           ) : (
@@ -691,9 +691,9 @@ const WalletPage = () => {
       {/* Deposit Modal */}
       {showDepositModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-dark-800 rounded-xl p-4 sm:p-6 w-full max-w-lg border border-gray-700 max-h-[90vh] overflow-y-auto">
+          <div className={`rounded-xl p-4 sm:p-6 w-full max-w-lg border max-h-[90vh] overflow-y-auto ${isDarkMode ? 'bg-dark-800 border-gray-700' : 'bg-white border-gray-300'}`}>
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-white font-semibold text-lg">Deposit Funds</h3>
+              <h3 className={`font-semibold text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Deposit Funds</h3>
               <button 
                 onClick={() => {
                   setShowDepositModal(false)
@@ -702,7 +702,7 @@ const WalletPage = () => {
                   setSelectedPaymentMethod(null)
                   setError('')
                 }}
-                className="text-gray-400 hover:text-white"
+                className={isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}
               >
                 <X size={20} />
               </button>
@@ -758,7 +758,7 @@ const WalletPage = () => {
                   }
                 }}
                 placeholder={`Enter amount in ${selectedCurrency?.currency || 'USD'}`}
-                className="w-full bg-dark-700 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-accent-green"
+                className={`w-full rounded-lg px-4 py-3 placeholder-gray-500 focus:outline-none focus:border-accent-green border ${isDarkMode ? 'bg-dark-700 border-gray-700 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'}`}
               />
               {selectedCurrency && selectedCurrency.currency !== 'USD' && localAmount && parseFloat(localAmount) > 0 && (
                 <div className="mt-2 p-3 bg-accent-green/10 rounded-lg border border-accent-green/30">
@@ -864,7 +864,7 @@ const WalletPage = () => {
                 value={transactionRef}
                 onChange={(e) => setTransactionRef(e.target.value)}
                 placeholder="Enter transaction ID or reference"
-                className="w-full bg-dark-700 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-accent-green"
+                className={`w-full rounded-lg px-4 py-3 placeholder-gray-500 focus:outline-none focus:border-accent-green border ${isDarkMode ? 'bg-dark-700 border-gray-700 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'}`}
               />
             </div>
 
@@ -948,9 +948,9 @@ const WalletPage = () => {
       {/* Withdraw Modal */}
       {showWithdrawModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-dark-800 rounded-xl p-4 sm:p-6 w-full max-w-lg border border-gray-700 max-h-[90vh] overflow-y-auto">
+          <div className={`rounded-xl p-4 sm:p-6 w-full max-w-lg border max-h-[90vh] overflow-y-auto ${isDarkMode ? 'bg-dark-800 border-gray-700' : 'bg-white border-gray-300'}`}>
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-white font-semibold text-lg">Withdraw Funds</h3>
+              <h3 className={`font-semibold text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Withdraw Funds</h3>
               <button 
                 onClick={() => {
                   setShowWithdrawModal(false)
@@ -958,15 +958,15 @@ const WalletPage = () => {
                   setSelectedBankAccount(null)
                   setError('')
                 }}
-                className="text-gray-400 hover:text-white"
+                className={isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="mb-2 p-3 bg-dark-700 rounded-lg">
+            <div className={`mb-2 p-3 rounded-lg ${isDarkMode ? 'bg-dark-700' : 'bg-gray-100'}`}>
               <p className="text-gray-400 text-sm">Available Balance</p>
-              <p className="text-white text-xl font-bold">${wallet?.balance?.toLocaleString() || '0.00'}</p>
+              <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>${wallet?.balance?.toLocaleString() || '0.00'}</p>
             </div>
 
             <div className="mb-4">
@@ -976,7 +976,7 @@ const WalletPage = () => {
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="Enter amount"
-                className="w-full bg-dark-700 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-accent-green"
+                className={`w-full rounded-lg px-4 py-3 placeholder-gray-500 focus:outline-none focus:border-accent-green border ${isDarkMode ? 'bg-dark-700 border-gray-700 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'}`}
               />
             </div>
 

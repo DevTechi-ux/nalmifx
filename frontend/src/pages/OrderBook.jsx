@@ -436,7 +436,7 @@ const OrderBook = () => {
               <button
                 onClick={() => setActiveTab('positions')}
                 className={`flex-1 py-3 px-4 text-sm font-medium flex items-center justify-center gap-2 ${
-                  activeTab === 'positions' ? 'bg-accent-green/10 text-accent-green border-b-2 border-accent-green' : 'text-gray-400 hover:text-white'
+                  activeTab === 'positions' ? 'bg-accent-green/10 text-accent-green border-b-2 border-accent-green' : isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
                 }`}
               >
                 <Activity size={16} /> Positions ({openTrades.length})
@@ -444,7 +444,7 @@ const OrderBook = () => {
               <button
                 onClick={() => setActiveTab('history')}
                 className={`flex-1 py-3 px-4 text-sm font-medium flex items-center justify-center gap-2 ${
-                  activeTab === 'history' ? 'bg-accent-green/10 text-accent-green border-b-2 border-accent-green' : 'text-gray-400 hover:text-white'
+                  activeTab === 'history' ? 'bg-accent-green/10 text-accent-green border-b-2 border-accent-green' : isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
                 }`}
               >
                 <History size={16} /> History ({closedTrades.length})
@@ -452,7 +452,7 @@ const OrderBook = () => {
               <button
                 onClick={() => setActiveTab('pending')}
                 className={`flex-1 py-3 px-4 text-sm font-medium flex items-center justify-center gap-2 ${
-                  activeTab === 'pending' ? 'bg-accent-green/10 text-accent-green border-b-2 border-accent-green' : 'text-gray-400 hover:text-white'
+                  activeTab === 'pending' ? 'bg-accent-green/10 text-accent-green border-b-2 border-accent-green' : isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
                 }`}
               >
                 <Clock size={16} /> Pending ({pendingOrders.length})
@@ -492,7 +492,7 @@ const OrderBook = () => {
                   ) : (
                     <table className="w-full">
                       <thead>
-                        <tr className="border-b border-gray-700">
+                        <tr className={`border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                           <th className="text-left text-gray-500 text-xs font-medium py-3 px-4">Account</th>
                           <th className="text-left text-gray-500 text-xs font-medium py-3 px-4">Symbol</th>
                           <th className="text-left text-gray-500 text-xs font-medium py-3 px-4">Side</th>
@@ -509,18 +509,18 @@ const OrderBook = () => {
                           const pnl = calculateFloatingPnl(trade)
                           const currentPrice = livePrices[trade.symbol]?.[trade.side === 'BUY' ? 'bid' : 'ask']
                           return (
-                            <tr key={trade._id} className="border-b border-gray-800 hover:bg-dark-700/50">
+                            <tr key={trade._id} className={`border-b ${isDarkMode ? 'border-gray-800 hover:bg-dark-700/50' : 'border-gray-200 hover:bg-gray-50'}`}>
                               <td className="py-3 px-4 text-gray-400 text-sm">{trade.accountName}</td>
-                              <td className="py-3 px-4 text-white font-medium">{trade.symbol}</td>
+                              <td className={`py-3 px-4 font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{trade.symbol}</td>
                               <td className="py-3 px-4">
                                 <span className={`flex items-center gap-1 ${trade.side === 'BUY' ? 'text-green-500' : 'text-red-500'}`}>
                                   {trade.side === 'BUY' ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
                                   {trade.side}
                                 </span>
                               </td>
-                              <td className="py-3 px-4 text-white">{trade.quantity}</td>
+                              <td className={`py-3 px-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{trade.quantity}</td>
                               <td className="py-3 px-4 text-gray-400">{trade.openPrice?.toFixed(5)}</td>
-                              <td className="py-3 px-4 text-white">{currentPrice?.toFixed(5) || '-'}</td>
+                              <td className={`py-3 px-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{currentPrice?.toFixed(5) || '-'}</td>
                               <td className={`py-3 px-4 font-medium ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                                 {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
                               </td>
@@ -582,7 +582,7 @@ const OrderBook = () => {
                       <>
                         <table className="w-full">
                           <thead>
-                            <tr className="border-b border-gray-700">
+                            <tr className={`border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                               <th className="text-left text-gray-500 text-xs font-medium py-3 px-4">Date</th>
                               <th className="text-left text-gray-500 text-xs font-medium py-3 px-4">Account</th>
                               <th className="text-left text-gray-500 text-xs font-medium py-3 px-4">Symbol</th>
@@ -595,17 +595,17 @@ const OrderBook = () => {
                           </thead>
                           <tbody>
                             {getPaginatedHistory().map((trade) => (
-                              <tr key={trade._id} className="border-b border-gray-800 hover:bg-dark-700/50">
+                              <tr key={trade._id} className={`border-b ${isDarkMode ? 'border-gray-800 hover:bg-dark-700/50' : 'border-gray-200 hover:bg-gray-50'}`}>
                                 <td className="py-3 px-4 text-gray-400 text-xs">{formatDate(trade.closedAt)}</td>
                                 <td className="py-3 px-4 text-gray-400 text-sm">{trade.accountName}</td>
-                                <td className="py-3 px-4 text-white font-medium">{trade.symbol}</td>
+                                <td className={`py-3 px-4 font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{trade.symbol}</td>
                                 <td className="py-3 px-4">
                                   <span className={`flex items-center gap-1 ${trade.side === 'BUY' ? 'text-green-500' : 'text-red-500'}`}>
                                     {trade.side === 'BUY' ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
                                     {trade.side}
                                   </span>
                                 </td>
-                                <td className="py-3 px-4 text-white">{trade.quantity}</td>
+                                <td className={`py-3 px-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{trade.quantity}</td>
                                 <td className="py-3 px-4 text-gray-400">{trade.openPrice?.toFixed(5)}</td>
                                 <td className="py-3 px-4 text-gray-400">{trade.closePrice?.toFixed(5)}</td>
                                 <td className={`py-3 px-4 font-medium ${(trade.realizedPnl || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
@@ -655,7 +655,7 @@ const OrderBook = () => {
                   ) : (
                     <table className="w-full">
                       <thead>
-                        <tr className="border-b border-gray-700">
+                        <tr className={`border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                           <th className="text-left text-gray-500 text-xs font-medium py-3 px-4">Account</th>
                           <th className="text-left text-gray-500 text-xs font-medium py-3 px-4">Symbol</th>
                           <th className="text-left text-gray-500 text-xs font-medium py-3 px-4">Type</th>
@@ -668,9 +668,9 @@ const OrderBook = () => {
                       </thead>
                       <tbody>
                         {pendingOrders.map((order) => (
-                          <tr key={order._id} className="border-b border-gray-800 hover:bg-dark-700/50">
+                          <tr key={order._id} className={`border-b ${isDarkMode ? 'border-gray-800 hover:bg-dark-700/50' : 'border-gray-200 hover:bg-gray-50'}`}>
                             <td className="py-3 px-4 text-gray-400 text-sm">{order.accountName}</td>
-                            <td className="py-3 px-4 text-white font-medium">{order.symbol}</td>
+                            <td className={`py-3 px-4 font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order.symbol}</td>
                             <td className="py-3 px-4 text-yellow-500 text-sm">{order.orderType}</td>
                             <td className="py-3 px-4">
                               <span className={`flex items-center gap-1 ${order.side === 'BUY' ? 'text-green-500' : 'text-red-500'}`}>
@@ -678,7 +678,7 @@ const OrderBook = () => {
                                 {order.side}
                               </span>
                             </td>
-                            <td className="py-3 px-4 text-white">{order.quantity}</td>
+                            <td className={`py-3 px-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order.quantity}</td>
                             <td className="py-3 px-4 text-gray-400">{order.limitPrice?.toFixed(5) || order.stopPrice?.toFixed(5)}</td>
                             <td className="py-3 px-4">
                               <span className="px-2 py-1 bg-yellow-500/20 text-yellow-500 rounded text-xs">

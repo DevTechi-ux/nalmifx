@@ -4,6 +4,7 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
+import WebSocket from 'ws'
 import authRoutes from './routes/auth.js'
 import adminRoutes from './routes/admin.js'
 import accountTypesRoutes from './routes/accountTypes.js'
@@ -51,39 +52,201 @@ const priceSubscribers = new Set()
 
 // Price cache for real-time streaming
 const priceCache = new Map()
-const BINANCE_SYMBOLS = {
-  'BTCUSD': 'BTCUSDT', 'ETHUSD': 'ETHUSDT', 'BNBUSD': 'BNBUSDT',
-  'SOLUSD': 'SOLUSDT', 'XRPUSD': 'XRPUSDT', 'ADAUSD': 'ADAUSDT',
-  'DOGEUSD': 'DOGEUSDT', 'DOTUSD': 'DOTUSDT', 'LTCUSD': 'LTCUSDT'
-}
-// Priority order - XAUUSD first as it's most traded
-const METAAPI_SYMBOLS = ['XAUUSD', 'EURUSD', 'GBPUSD', 'XAGUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD', 'EURGBP', 'EURJPY', 'GBPJPY']
-const META_API_TOKEN = process.env.META_API_TOKEN
-const META_API_ACCOUNT_ID = process.env.META_API_ACCOUNT_ID
 
-// Fetch MetaAPI price
-async function fetchMetaApiPrice(symbol) {
-  try {
-    const response = await fetch(
-      `https://mt-client-api-v1.london.agiliumtrade.ai/users/current/accounts/${META_API_ACCOUNT_ID}/symbols/${symbol}/current-price`,
-      { headers: { 'auth-token': META_API_TOKEN, 'Content-Type': 'application/json' } }
-    )
-    if (!response.ok) return null
-    const data = await response.json()
-    return data.bid ? { bid: data.bid, ask: data.ask || data.bid, time: Date.now() } : null
-  } catch (e) { return null }
+// Use Binance for ALL crypto (faster updates than AllTick for crypto)
+const BINANCE_CRYPTO_SYMBOLS = {
+  'BTCUSD': 'BTCUSDT', 'ETHUSD': 'ETHUSDT', 'BNBUSD': 'BNBUSDT', 'SOLUSD': 'SOLUSDT',
+  'XRPUSD': 'XRPUSDT', 'ADAUSD': 'ADAUSDT', 'DOGEUSD': 'DOGEUSDT', 'TRXUSD': 'TRXUSDT',
+  'LINKUSD': 'LINKUSDT', 'MATICUSD': 'MATICUSDT', 'DOTUSD': 'DOTUSDT',
+  'SHIBUSD': 'SHIBUSDT', 'LTCUSD': 'LTCUSDT', 'BCHUSD': 'BCHUSDT', 'AVAXUSD': 'AVAXUSDT',
+  'XLMUSD': 'XLMUSDT', 'UNIUSD': 'UNIUSDT', 'ATOMUSD': 'ATOMUSDT', 'ETCUSD': 'ETCUSDT',
+  'FILUSD': 'FILUSDT', 'ICPUSD': 'ICPUSDT', 'VETUSD': 'VETUSDT',
+  'NEARUSD': 'NEARUSDT', 'GRTUSD': 'GRTUSDT', 'AAVEUSD': 'AAVEUSDT', 'MKRUSD': 'MKRUSDT',
+  'ALGOUSD': 'ALGOUSDT', 'FTMUSD': 'FTMUSDT', 'SANDUSD': 'SANDUSDT', 'MANAUSD': 'MANAUSDT',
+  'AXSUSD': 'AXSUSDT', 'THETAUSD': 'THETAUSDT', 'FLOWUSD': 'FLOWUSDT',
+  'SNXUSD': 'SNXUSDT', 'EOSUSD': 'EOSUSDT', 'CHZUSD': 'CHZUSDT', 'ENJUSD': 'ENJUSDT',
+  'ZILUSD': 'ZILUSDT', 'BATUSD': 'BATUSDT', 'CRVUSD': 'CRVUSDT', 'COMPUSD': 'COMPUSDT',
+  'SUSHIUSD': 'SUSHIUSDT', 'ZRXUSD': 'ZRXUSDT', 'LRCUSD': 'LRCUSDT', 'ANKRUSD': 'ANKRUSDT',
+  'GALAUSD': 'GALAUSDT', 'APEUSD': 'APEUSDT', 'WAVESUSD': 'WAVESUSDT', 'ZECUSD': 'ZECUSDT',
+  'PEPEUSD': 'PEPEUSDT', 'ARBUSD': 'ARBUSDT', 'OPUSD': 'OPUSDT', 'SUIUSD': 'SUIUSDT',
+  'APTUSD': 'APTUSDT', 'INJUSD': 'INJUSDT', 'LDOUSD': 'LDOUSDT', 'IMXUSD': 'IMXUSDT',
+  'RUNEUSD': 'RUNEUSDT', 'KAVAUSD': 'KAVAUSDT', 'KSMUSD': 'KSMUSDT', 'NEOUSD': 'NEOUSDT',
+  'QNTUSD': 'QNTUSDT', 'FETUSD': 'FETUSDT', 'RNDRUSD': 'RNDRUSDT', 'OCEANUSD': 'OCEANUSDT',
+  'WLDUSD': 'WLDUSDT', 'SEIUSD': 'SEIUSDT', 'TIAUSD': 'TIAUSDT', 'BLURUSD': 'BLURUSDT',
+  'ROSEUSD': 'ROSEUSDT', 'MINAUSD': 'MINAUSDT', 'GMXUSD': 'GMXUSDT', 'DYDXUSD': 'DYDXUSDT',
+  'STXUSD': 'STXUSDT', 'CFXUSD': 'CFXUSDT', 'ACHUSD': 'ACHUSDT', 'DASHUSD': 'DASHUSDT',
+  'XTZUSD': 'XTZUSDT', 'CELOUSD': 'CELOUSDT', 'ONEUSD': 'ONEUSDT',
+  'HOTUSD': 'HOTUSDT', 'SKLUSD': 'SKLUSDT', 'STORJUSD': 'STORJUSDT', 'YFIUSD': 'YFIUSDT',
+  'UMAUSD': 'UMAUSDT', 'BANDUSD': 'BANDUSDT', 'RVNUSD': 'RVNUSDT', 'OXTUSD': 'OXTUSDT',
+  'NKNUSD': 'NKNUSDT', 'WOOUSD': 'WOOUSDT', 'JASMYUSD': 'JASMYUSDT',
+  'MASKUSD': 'MASKUSDT', 'DENTUSD': 'DENTUSDT', 'CELRUSD': 'CELRUSDT', 'COTIUSD': 'COTIUSDT',
+  'IOTXUSD': 'IOTXUSDT', 'KLAYUSD': 'KLAYUSDT', 'OGNUSD': 'OGNUSDT',
+  'RLCUSD': 'RLCUSDT', 'STMXUSD': 'STMXUSDT', 'SUNUSD': 'SUNUSDT', 'SXPUSD': 'SXPUSDT',
+  'AUDIOUSD': 'AUDIOUSDT', 'BONKUSD': 'BONKUSDT', 'FLOKIUSD': 'FLOKIUSDT', 'ORDIUSD': 'ORDIUSDT',
+  '1INCHUSD': '1INCHUSDT', 'HBARUSD': 'HBARUSDT', 'TONUSD': 'TONUSDT'
+}
+// AllTick API config
+const ALLTICK_API_TOKEN = process.env.ALLTICK_API_TOKEN || '1b2b3ad1b5c8c28b9d956652ecb4111d-c-app'
+const ALLTICK_WS_URL = `wss://quote.alltick.co/quote-b-ws-api?token=${ALLTICK_API_TOKEN}`
+
+// AllTick symbol mapping (internal -> AllTick code) - ~120 symbols
+const ALLTICK_SYMBOL_MAP = {
+  // Forex Majors (7)
+  'EURUSD': 'EURUSD', 'GBPUSD': 'GBPUSD', 'USDJPY': 'USDJPY', 'USDCHF': 'USDCHF',
+  'AUDUSD': 'AUDUSD', 'NZDUSD': 'NZDUSD', 'USDCAD': 'USDCAD',
+  // Forex Crosses (21)
+  'EURGBP': 'EURGBP', 'EURJPY': 'EURJPY', 'GBPJPY': 'GBPJPY', 'EURCHF': 'EURCHF',
+  'EURAUD': 'EURAUD', 'EURCAD': 'EURCAD', 'GBPAUD': 'GBPAUD', 'GBPCAD': 'GBPCAD',
+  'AUDCAD': 'AUDCAD', 'AUDJPY': 'AUDJPY', 'CADJPY': 'CADJPY', 'CHFJPY': 'CHFJPY',
+  'NZDJPY': 'NZDJPY', 'AUDNZD': 'AUDNZD', 'CADCHF': 'CADCHF', 'GBPCHF': 'GBPCHF',
+  'GBPNZD': 'GBPNZD', 'EURNZD': 'EURNZD', 'NZDCAD': 'NZDCAD', 'NZDCHF': 'NZDCHF',
+  'AUDCHF': 'AUDCHF',
+  // Forex Exotics (30+)
+  'USDSGD': 'USDSGD', 'EURSGD': 'EURSGD', 'GBPSGD': 'GBPSGD', 'AUDSGD': 'AUDSGD',
+  'SGDJPY': 'SGDJPY', 'USDHKD': 'USDHKD', 'USDZAR': 'USDZAR', 'EURZAR': 'EURZAR',
+  'GBPZAR': 'GBPZAR', 'ZARJPY': 'ZARJPY', 'USDTRY': 'USDTRY', 'EURTRY': 'EURTRY',
+  'TRYJPY': 'TRYJPY', 'USDMXN': 'USDMXN', 'EURMXN': 'EURMXN', 'MXNJPY': 'MXNJPY',
+  'USDPLN': 'USDPLN', 'EURPLN': 'EURPLN', 'GBPPLN': 'GBPPLN', 'USDSEK': 'USDSEK',
+  'EURSEK': 'EURSEK', 'GBPSEK': 'GBPSEK', 'SEKJPY': 'SEKJPY', 'USDNOK': 'USDNOK',
+  'EURNOK': 'EURNOK', 'GBPNOK': 'GBPNOK', 'NOKJPY': 'NOKJPY', 'USDDKK': 'USDDKK',
+  'EURDKK': 'EURDKK', 'DKKJPY': 'DKKJPY', 'USDCNH': 'USDCNH', 'CNHJPY': 'CNHJPY',
+  'USDHUF': 'USDHUF', 'EURHUF': 'EURHUF', 'USDCZK': 'USDCZK', 'EURCZK': 'EURCZK',
+  // Metals (4)
+  'XAUUSD': 'GOLD', 'XAGUSD': 'Silver', 'XPTUSD': 'Platinum', 'XPDUSD': 'Palladium',
+  // Commodities (6)
+  'USOIL': 'USOIL', 'UKOIL': 'UKOIL', 'NGAS': 'NGAS', 'COPPER': 'COPPER',
+  'ALUMINUM': 'Aluminum', 'NICKEL': 'Nickel',
+  // Crypto (126 coins to reach 200 total)
+  'BTCUSD': 'BTCUSDT', 'ETHUSD': 'ETHUSDT', 'BNBUSD': 'BNBUSDT', 'SOLUSD': 'SOLUSDT',
+  'XRPUSD': 'XRPUSDT', 'ADAUSD': 'ADAUSDT', 'DOGEUSD': 'DOGEUSDT', 'TRXUSD': 'TRXUSDT',
+  'LINKUSD': 'LINKUSDT', 'MATICUSD': 'MATICUSDT', 'DOTUSD': 'DOTUSDT',
+  'SHIBUSD': 'SHIBUSDT', 'LTCUSD': 'LTCUSDT', 'BCHUSD': 'BCHUSDT', 'AVAXUSD': 'AVAXUSDT',
+  'XLMUSD': 'XLMUSDT', 'UNIUSD': 'UNIUSDT', 'ATOMUSD': 'ATOMUSDT', 'ETCUSD': 'ETCUSDT',
+  'FILUSD': 'FILUSDT', 'ICPUSD': 'ICPUSDT', 'VETUSD': 'VETUSDT',
+  'NEARUSD': 'NEARUSDT', 'GRTUSD': 'GRTUSDT', 'AAVEUSD': 'AAVEUSDT', 'MKRUSD': 'MKRUSDT',
+  'ALGOUSD': 'ALGOUSDT', 'FTMUSD': 'FTMUSDT', 'SANDUSD': 'SANDUSDT', 'MANAUSD': 'MANAUSDT',
+  'AXSUSD': 'AXSUSDT', 'THETAUSD': 'THETAUSDT', 'XMRUSD': 'XMRUSDT', 'FLOWUSD': 'FLOWUSDT',
+  'SNXUSD': 'SNXUSDT', 'EOSUSD': 'EOSUSDT', 'CHZUSD': 'CHZUSDT', 'ENJUSD': 'ENJUSDT',
+  'ZILUSD': 'ZILUSDT', 'BATUSD': 'BATUSDT', 'CRVUSD': 'CRVUSDT', 'COMPUSD': 'COMPUSDT',
+  'SUSHIUSD': 'SUSHIUSDT', 'ZRXUSD': 'ZRXUSDT', 'LRCUSD': 'LRCUSDT', 'ANKRUSD': 'ANKRUSDT',
+  'GALAUSD': 'GALAUSDT', 'APEUSD': 'APEUSDT', 'WAVESUSD': 'WAVESUSDT', 'ZECUSD': 'ZECUSDT',
+  // More crypto coins
+  'PEPEUSD': 'PEPEUSDT', 'ARBUSD': 'ARBUSDT', 'OPUSD': 'OPUSDT', 'SUIUSD': 'SUIUSDT',
+  'APTUSD': 'APTUSDT', 'INJUSD': 'INJUSDT', 'LDOUSD': 'LDOUSDT', 'IMXUSD': 'IMXUSDT',
+  'RUNEUSD': 'RUNEUSDT', 'KAVAUSD': 'KAVAUSDT', 'KSMUSD': 'KSMUSDT', 'NEOUSD': 'NEOUSDT',
+  'QNTUSD': 'QNTUSDT', 'FETUSD': 'FETUSDT', 'RNDRUSD': 'RNDRUSDT', 'OCEANUSD': 'OCEANUSDT',
+  'WLDUSD': 'WLDUSDT', 'SEIUSD': 'SEIUSDT', 'TIAUSD': 'TIAUSDT', 'BLURUSD': 'BLURUSDT',
+  'ROSEUSD': 'ROSEUSDT', 'MINAUSD': 'MINAUSDT', 'GMXUSD': 'GMXUSDT', 'DYDXUSD': 'DYDXUSDT',
+  'STXUSD': 'STXUSDT', 'CFXUSD': 'CFXUSDT', 'ACHUSD': 'ACHUSDT', 'DASHUSD': 'DASHUSDT',
+  'XTZUSD': 'XTZUSDT', 'IOTUSD': 'IOTAUSDT', 'CELOUSD': 'CELOUSDT', 'ONEUSD': 'ONEUSDT',
+  'HOTUSD': 'HOTUSDT', 'SKLUSD': 'SKLUSDT', 'STORJUSD': 'STORJUSDT', 'YFIUSD': 'YFIUSDT',
+  'UMAUSD': 'UMAUSDT', 'BANDUSD': 'BANDUSDT', 'RVNUSD': 'RVNUSDT', 'OXTUSD': 'OXTUSDT',
+  'NKNUSD': 'NKNUSDT', 'WOOUSD': 'WOOUSDT', 'AABORUSD': 'AGIXUSDT', 'JASMYUSD': 'JASMYUSDT',
+  'MASKUSD': 'MASKUSDT', 'DENTUSD': 'DENTUSDT', 'CELRUSD': 'CELRUSDT', 'COTIUSD': 'COTIUSDT',
+  'CTSIUSD': 'CTSIUSDT', 'IOTXUSD': 'IOTXUSDT', 'KLAYUSD': 'KLAYUSDT', 'OGNUSD': 'OGNUSDT',
+  'RLCUSD': 'RLCUSDT', 'STMXUSD': 'STMXUSDT', 'SUNUSD': 'SUNUSDT', 'SXPUSD': 'SXPUSDT',
+  'WINUSD': 'WINUSDT', 'AKROUSD': 'AKROUSDT', 'AUDIOUSD': 'AUDIOUSDT', 'BELUSD': 'BELUSDT',
+  'BONKUSD': 'BONKUSDT', 'FLOKIUSD': 'FLOKIUSDT', 'JTUSD': 'JTOUSDT', 'ORDIUSD': 'ORDIUSDT',
+  'PENDUSD': 'PENDLEUSDT', 'RADUSD': 'RADUSDT', 'RDNTUSD': 'RDNTUSDT', 'RPLUSD': 'RPLUSDT',
+  'SSVUSD': 'SSVUSDT', 'TUSDUSD': 'TUSDT', 'WAXUSD': 'WAXPUSDT', 'XECUSD': 'XECUSDT',
+  'ZENUSD': 'ZENUSDT', 'ZILUSD': 'ZILUSDT', '1INCHUSD': '1INCHUSDT', 'HBARUSD': 'HBARUSDT',
+  'TONUSD': 'TONUSDT', 'EGLDUSDUSD': 'EGLDUSDT'
 }
 
-// Background price streaming - runs every 500ms for Binance, every 3s for MetaAPI
-let lastMetaApiRefresh = 0
-let metaApiIndex = 0
+// Reverse mapping (AllTick code -> internal symbol)
+const ALLTICK_REVERSE_MAP = Object.fromEntries(
+  Object.entries(ALLTICK_SYMBOL_MAP).map(([k, v]) => [v, k])
+)
+
+// All symbols to subscribe via AllTick WebSocket (78 total)
+const ALLTICK_WS_SYMBOLS = Object.keys(ALLTICK_SYMBOL_MAP)
+
+// AllTick WebSocket connection
+let allTickWs = null
+let allTickReconnectTimer = null
+let allTickHeartbeatTimer = null
+
+function connectAllTickWebSocket() {
+  if (allTickWs && allTickWs.readyState === WebSocket.OPEN) return
+  
+  console.log('Connecting to AllTick WebSocket...')
+  allTickWs = new WebSocket(ALLTICK_WS_URL)
+  
+  allTickWs.on('open', () => {
+    console.log('AllTick WebSocket connected!')
+    
+    // Subscribe to ALL symbols (forex, metals, commodities, crypto) - 78 total
+    const symbolList = ALLTICK_WS_SYMBOLS.map(s => ({
+      code: ALLTICK_SYMBOL_MAP[s] || s,
+      depth_level: 1
+    }))
+    
+    const subscribeMsg = {
+      cmd_id: 22002,
+      seq_id: Date.now(),
+      trace: `sub-${Date.now()}`,
+      data: { symbol_list: symbolList }
+    }
+    
+    allTickWs.send(JSON.stringify(subscribeMsg))
+    console.log(`Subscribed to ${symbolList.length} AllTick symbols (forex, metals, commodities, crypto)`)
+    
+    // Start heartbeat every 10 seconds
+    if (allTickHeartbeatTimer) clearInterval(allTickHeartbeatTimer)
+    allTickHeartbeatTimer = setInterval(() => {
+      if (allTickWs && allTickWs.readyState === WebSocket.OPEN) {
+        allTickWs.send(JSON.stringify({ cmd_id: 22000, seq_id: Date.now(), trace: 'heartbeat' }))
+      }
+    }, 10000)
+  })
+  
+  allTickWs.on('message', (data) => {
+    try {
+      const msg = JSON.parse(data.toString())
+      
+      // Handle price push (cmd_id 22999)
+      if (msg.cmd_id === 22999 && msg.data) {
+        const code = msg.data.code
+        const internalSymbol = ALLTICK_REVERSE_MAP[code] || code
+        
+        const bid = msg.data.bids?.[0]?.price ? parseFloat(msg.data.bids[0].price) : null
+        const ask = msg.data.asks?.[0]?.price ? parseFloat(msg.data.asks[0].price) : null
+        
+        if (bid && ask) {
+          const price = { bid, ask, time: Date.now() }
+          priceCache.set(internalSymbol, price)
+          
+          // Broadcast to subscribers
+          if (priceSubscribers.size > 0) {
+            io.to('prices').emit('priceUpdate', { symbol: internalSymbol, price })
+          }
+        }
+      }
+    } catch (e) {
+      // Ignore parse errors
+    }
+  })
+  
+  allTickWs.on('error', (err) => {
+    console.error('AllTick WebSocket error:', err.message)
+  })
+  
+  allTickWs.on('close', () => {
+    console.log('AllTick WebSocket disconnected, reconnecting in 5s...')
+    if (allTickHeartbeatTimer) clearInterval(allTickHeartbeatTimer)
+    if (allTickReconnectTimer) clearTimeout(allTickReconnectTimer)
+    allTickReconnectTimer = setTimeout(connectAllTickWebSocket, 5000)
+  })
+}
+
+// Background price streaming - Binance polling + AllTick WebSocket
 async function streamPrices() {
   if (priceSubscribers.size === 0) return
   
   const now = Date.now()
   const updatedPrices = {}
   
-  // Binance - fast refresh (every call)
+  // Binance - fast refresh for crypto (every call)
   try {
     const response = await fetch('https://api.binance.com/api/v3/ticker/bookTicker')
     if (response.ok) {
@@ -91,8 +254,8 @@ async function streamPrices() {
       const tickerMap = {}
       tickers.forEach(t => { tickerMap[t.symbol] = t })
       
-      Object.keys(BINANCE_SYMBOLS).forEach(symbol => {
-        const ticker = tickerMap[BINANCE_SYMBOLS[symbol]]
+      Object.keys(BINANCE_CRYPTO_SYMBOLS).forEach(symbol => {
+        const ticker = tickerMap[BINANCE_CRYPTO_SYMBOLS[symbol]]
         if (ticker) {
           const price = { bid: parseFloat(ticker.bidPrice), ask: parseFloat(ticker.askPrice), time: now }
           priceCache.set(symbol, price)
@@ -102,31 +265,8 @@ async function streamPrices() {
     }
   } catch (e) {}
   
-  // MetaAPI - fetch 3 symbols every 3 seconds (rate limit friendly)
-  if (now - lastMetaApiRefresh > 3000) {
-    lastMetaApiRefresh = now
-    
-    // Always fetch XAUUSD (index 0) plus 2 rotating symbols
-    const symbolsToFetch = ['XAUUSD']
-    const otherSymbols = METAAPI_SYMBOLS.slice(1) // All except XAUUSD
-    symbolsToFetch.push(otherSymbols[metaApiIndex % otherSymbols.length])
-    symbolsToFetch.push(otherSymbols[(metaApiIndex + 1) % otherSymbols.length])
-    metaApiIndex = (metaApiIndex + 2) % otherSymbols.length
-    
-    // Fetch in parallel for speed
-    const results = await Promise.allSettled(
-      symbolsToFetch.map(symbol => fetchMetaApiPrice(symbol))
-    )
-    
-    results.forEach((result, i) => {
-      if (result.status === 'fulfilled' && result.value) {
-        priceCache.set(symbolsToFetch[i], result.value)
-        updatedPrices[symbolsToFetch[i]] = result.value
-      }
-    })
-  }
-  
-  // Always broadcast full cache so clients have all prices
+  // AllTick prices come via WebSocket (connectAllTickWebSocket)
+  // Just broadcast the full cache periodically
   io.to('prices').emit('priceStream', {
     prices: Object.fromEntries(priceCache),
     updated: updatedPrices,
@@ -134,8 +274,11 @@ async function streamPrices() {
   })
 }
 
-// Start price streaming interval
+// Start price streaming interval (500ms for Binance crypto)
 setInterval(streamPrices, 500)
+
+// Connect AllTick WebSocket on startup
+connectAllTickWebSocket()
 
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id)

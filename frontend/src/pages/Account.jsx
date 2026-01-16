@@ -682,7 +682,7 @@ const Account = () => {
                       <Trophy size={28} className="text-yellow-500" />
                     </div>
                     <div>
-                      <h3 className="text-white font-semibold text-lg">Prop Trading Challenge</h3>
+                      <h3 className={`font-semibold text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Prop Trading Challenge</h3>
                       <p className="text-gray-400 text-sm">Get funded up to $200,000. Keep up to 80% of profits.</p>
                     </div>
                   </div>
@@ -697,11 +697,11 @@ const Account = () => {
 
               {/* Challenge Accounts List */}
               {challengeAccounts.length === 0 ? (
-                <div className={`border border-dashed border-gray-700 rounded-xl ${isMobile ? 'p-8' : 'p-16'} text-center`}>
-                  <div className={`${isMobile ? 'w-12 h-12' : 'w-14 h-14'} bg-dark-700 rounded-full flex items-center justify-center mx-auto mb-4`}>
+                <div className={`border border-dashed rounded-xl ${isMobile ? 'p-8' : 'p-16'} text-center ${isDarkMode ? 'border-gray-700' : 'border-gray-300'}`}>
+                  <div className={`${isMobile ? 'w-12 h-12' : 'w-14 h-14'} rounded-full flex items-center justify-center mx-auto mb-4 ${isDarkMode ? 'bg-dark-700' : 'bg-gray-100'}`}>
                     <Trophy size={isMobile ? 20 : 24} className="text-gray-500" />
                   </div>
-                  <h3 className={`text-white font-medium ${isMobile ? 'text-base' : 'text-lg'} mb-2`}>No challenge accounts yet</h3>
+                  <h3 className={`font-medium ${isMobile ? 'text-base' : 'text-lg'} mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>No challenge accounts yet</h3>
                   <p className="text-gray-500 text-sm mb-4">Buy a challenge to start your prop trading journey</p>
                   <button
                     onClick={() => navigate('/buy-challenge')}
@@ -713,9 +713,9 @@ const Account = () => {
               ) : (
                 <div className={`grid ${isMobile ? 'grid-cols-1 gap-3' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'}`}>
                   {challengeAccounts.map((account) => (
-                    <div key={account._id} className="bg-dark-800 rounded-xl border border-gray-800 overflow-hidden">
+                    <div key={account._id} className={`rounded-xl border overflow-hidden ${isDarkMode ? 'bg-dark-800 border-gray-800' : 'bg-white border-gray-200 shadow-sm'}`}>
                       {/* Card Header */}
-                      <div className="p-4 border-b border-gray-800">
+                      <div className={`p-4 border-b ${isDarkMode ? 'border-gray-800' : 'border-gray-200'}`}>
                         <div className="flex items-start justify-between">
                           <div className="flex items-center gap-3">
                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
@@ -730,7 +730,7 @@ const Account = () => {
                               } />
                             </div>
                             <div>
-                              <h3 className="text-white font-semibold">{account.accountId}</h3>
+                              <h3 className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{account.accountId}</h3>
                               <p className="text-gray-500 text-xs uppercase">
                                 {account.challengeId?.name || 'Challenge'} • Phase {account.currentPhase}/{account.totalPhases}
                               </p>
@@ -750,17 +750,17 @@ const Account = () => {
                       {/* Card Body - Stats */}
                       <div className="p-4">
                         <div className="text-center mb-4">
-                          <p className="text-white text-2xl font-bold">${(account.currentBalance || 0).toLocaleString()}</p>
+                          <p className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>${(account.currentBalance || 0).toLocaleString()}</p>
                           <p className="text-gray-500 text-sm">Balance</p>
                         </div>
                         <div className="grid grid-cols-2 gap-3 text-sm">
-                          <div className="bg-dark-700 rounded-lg p-2 text-center">
+                          <div className={`rounded-lg p-2 text-center ${isDarkMode ? 'bg-dark-700' : 'bg-gray-100'}`}>
                             <p className="text-gray-400 text-xs">Profit</p>
                             <p className={`font-medium ${account.currentProfitPercent >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                               {account.currentProfitPercent >= 0 ? '+' : ''}{(account.currentProfitPercent || 0).toFixed(2)}%
                             </p>
                           </div>
-                          <div className="bg-dark-700 rounded-lg p-2 text-center">
+                          <div className={`rounded-lg p-2 text-center ${isDarkMode ? 'bg-dark-700' : 'bg-gray-100'}`}>
                             <p className="text-gray-400 text-xs">Daily DD</p>
                             <p className="text-red-500 font-medium">{(account.currentDailyDrawdownPercent || 0).toFixed(2)}%</p>
                           </div>
@@ -768,7 +768,7 @@ const Account = () => {
                       </div>
 
                       {/* Card Footer - Actions */}
-                      <div className="flex border-t border-gray-800">
+                      <div className={`flex border-t ${isDarkMode ? 'border-gray-800' : 'border-gray-200'}`}>
                         {account.status === 'ACTIVE' || account.status === 'FUNDED' ? (
                           <button
                             onClick={() => {
@@ -780,7 +780,7 @@ const Account = () => {
                             <ArrowRight size={16} /> Start Trading
                           </button>
                         ) : (
-                          <div className="flex-1 flex items-center justify-center gap-2 py-3 text-gray-500 bg-dark-700">
+                          <div className={`flex-1 flex items-center justify-center gap-2 py-3 text-gray-500 ${isDarkMode ? 'bg-dark-700' : 'bg-gray-100'}`}>
                             {account.status === 'PASSED' ? 'Awaiting Funded Account' : account.status}
                           </div>
                         )}
@@ -791,11 +791,11 @@ const Account = () => {
               )}
             </div>
           ) : userAccounts.length === 0 ? (
-            <div className="border border-dashed border-gray-700 rounded-xl p-16 text-center">
-              <div className="w-14 h-14 bg-dark-700 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className={`border border-dashed rounded-xl p-16 text-center ${isDarkMode ? 'border-gray-700' : 'border-gray-300'}`}>
+              <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 ${isDarkMode ? 'bg-dark-700' : 'bg-gray-100'}`}>
                 <TrendingUp size={24} className="text-gray-500" />
               </div>
-              <h3 className="text-white font-medium text-lg mb-2">No {activeTab.toLowerCase()} accounts yet</h3>
+              <h3 className={`font-medium text-lg mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>No {activeTab.toLowerCase()} accounts yet</h3>
               <p className="text-gray-500 text-sm mb-6">Open your first {activeTab.toLowerCase()} trading account to start trading</p>
               <button
                 onClick={() => { fetchAccountTypes(); setShowCreateModal(true); }}
@@ -924,7 +924,7 @@ const Account = () => {
                       // Demo account - show Reset button only
                       <button
                         onClick={() => handleResetDemo(account._id)}
-                        className={`flex-1 flex items-center justify-center gap-1 ${isMobile ? 'py-2 text-xs' : 'py-3'} text-yellow-400 hover:text-yellow-300 hover:bg-dark-700 transition-colors border-l border-gray-800`}
+                        className={`flex-1 flex items-center justify-center gap-1 ${isMobile ? 'py-2 text-xs' : 'py-3'} text-yellow-400 hover:text-yellow-300 transition-colors border-l ${isDarkMode ? 'hover:bg-dark-700 border-gray-800' : 'hover:bg-gray-100 border-gray-200'}`}
                       >
                         <RefreshCw size={isMobile ? 12 : 16} /> Reset
                       </button>
@@ -933,19 +933,19 @@ const Account = () => {
                       <>
                         <button
                           onClick={() => { setSelectedAccount(account); setShowTransferModal(true); }}
-                          className={`flex-1 flex items-center justify-center gap-1 ${isMobile ? 'py-2 text-xs' : 'py-3'} text-gray-400 hover:text-white hover:bg-dark-700 transition-colors border-l border-gray-800`}
+                          className={`flex-1 flex items-center justify-center gap-1 ${isMobile ? 'py-2 text-xs' : 'py-3'} transition-colors border-l ${isDarkMode ? 'text-gray-400 hover:text-white hover:bg-dark-700 border-gray-800' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 border-gray-200'}`}
                         >
                           <Plus size={isMobile ? 12 : 16} /> Deposit
                         </button>
                         <button
                           onClick={() => { setSelectedAccount(account); setShowWithdrawModal(true); }}
-                          className={`flex-1 flex items-center justify-center gap-1 ${isMobile ? 'py-2 text-xs' : 'py-3'} text-gray-400 hover:text-white hover:bg-dark-700 transition-colors border-l border-gray-800`}
+                          className={`flex-1 flex items-center justify-center gap-1 ${isMobile ? 'py-2 text-xs' : 'py-3'} transition-colors border-l ${isDarkMode ? 'text-gray-400 hover:text-white hover:bg-dark-700 border-gray-800' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 border-gray-200'}`}
                         >
                           <Minus size={isMobile ? 12 : 16} /> Withdraw
                         </button>
                         <button
                           onClick={() => { setSelectedAccount(account); setShowAccountTransferModal(true); }}
-                          className={`flex-1 flex items-center justify-center gap-1 ${isMobile ? 'py-2 text-xs' : 'py-3'} text-blue-400 hover:text-blue-300 hover:bg-dark-700 transition-colors border-l border-gray-800`}
+                          className={`flex-1 flex items-center justify-center gap-1 ${isMobile ? 'py-2 text-xs' : 'py-3'} text-blue-400 hover:text-blue-300 transition-colors border-l ${isDarkMode ? 'hover:bg-dark-700 border-gray-800' : 'hover:bg-gray-100 border-gray-200'}`}
                         >
                           <Copy size={isMobile ? 12 : 16} /> Transfer
                         </button>
@@ -962,9 +962,9 @@ const Account = () => {
       {/* Create Account Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-dark-800 rounded-xl p-6 w-full max-w-2xl border border-gray-700 max-h-[90vh] overflow-y-auto">
+          <div className={`rounded-xl p-6 w-full max-w-2xl border max-h-[90vh] overflow-y-auto ${isDarkMode ? 'bg-dark-800 border-gray-700' : 'bg-white border-gray-300'}`}>
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-white font-semibold text-lg">Open New Account</h3>
+              <h3 className={`font-semibold text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Open New Account</h3>
               <button 
                 onClick={() => {
                   setShowCreateModal(false)
@@ -972,7 +972,7 @@ const Account = () => {
                   setSelectedType(null)
                   setError('')
                 }}
-                className="text-gray-400 hover:text-white"
+                className={isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}
               >
                 <X size={20} />
               </button>
@@ -986,7 +986,7 @@ const Account = () => {
                   className={`flex-1 py-2 rounded-lg font-medium transition-colors ${
                     createAccountTab === 'live' 
                       ? 'bg-accent-green text-black' 
-                      : 'bg-dark-700 text-gray-400 hover:text-white'
+                      : isDarkMode ? 'bg-dark-700 text-gray-400 hover:text-white' : 'bg-gray-100 text-gray-600 hover:text-gray-900'
                   }`}
                 >
                   Live Account
@@ -996,7 +996,7 @@ const Account = () => {
                   className={`flex-1 py-2 rounded-lg font-medium transition-colors ${
                     createAccountTab === 'demo' 
                       ? 'bg-yellow-500 text-black' 
-                      : 'bg-dark-700 text-gray-400 hover:text-white'
+                      : isDarkMode ? 'bg-dark-700 text-gray-400 hover:text-white' : 'bg-gray-100 text-gray-600 hover:text-gray-900'
                   }`}
                 >
                   Demo Account
@@ -1117,9 +1117,9 @@ const Account = () => {
       {/* Change PIN Modal */}
       {showPinModal && selectedAccount && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-dark-800 rounded-xl p-6 w-full max-w-md border border-gray-700">
+          <div className={`rounded-xl p-6 w-full max-w-md border ${isDarkMode ? 'bg-dark-800 border-gray-700' : 'bg-white border-gray-300'}`}>
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-white font-semibold text-lg">Change PIN</h3>
+              <h3 className={`font-semibold text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Change PIN</h3>
               <button 
                 onClick={() => {
                   setShowPinModal(false)
@@ -1127,7 +1127,7 @@ const Account = () => {
                   setNewPin(['', '', '', ''])
                   setError('')
                 }}
-                className="text-gray-400 hover:text-white"
+                className={isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}
               >
                 <X size={20} />
               </button>
@@ -1202,9 +1202,9 @@ const Account = () => {
       {/* Transfer Funds Modal (Main Wallet → Account Wallet) */}
       {showTransferModal && selectedAccount && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-dark-800 rounded-xl p-6 w-full max-w-md border border-gray-700">
+          <div className={`rounded-xl p-6 w-full max-w-md border ${isDarkMode ? 'bg-dark-800 border-gray-700' : 'bg-white border-gray-300'}`}>
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-white font-semibold text-lg">Transfer to Account</h3>
+              <h3 className={`font-semibold text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Transfer to Account</h3>
               <button 
                 onClick={() => {
                   setShowTransferModal(false)
@@ -1212,19 +1212,19 @@ const Account = () => {
                   setTransferPin(['', '', '', ''])
                   setError('')
                 }}
-                className="text-gray-400 hover:text-white"
+                className={isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="p-3 bg-dark-700 rounded-lg mb-4">
+            <div className={`p-3 rounded-lg mb-4 ${isDarkMode ? 'bg-dark-700' : 'bg-gray-100'}`}>
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-8 h-8 bg-blue-500/20 rounded flex items-center justify-center">
                   <TrendingUp size={16} className="text-blue-500" />
                 </div>
                 <div>
-                  <p className="text-white font-medium">{selectedAccount.accountId}</p>
+                  <p className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedAccount.accountId}</p>
                   <p className="text-gray-500 text-xs">{selectedAccount.accountTypeId?.name}</p>
                 </div>
               </div>
@@ -1294,9 +1294,9 @@ const Account = () => {
       {/* Withdraw from Account Modal (Account Wallet → Main Wallet) */}
       {showWithdrawModal && selectedAccount && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-dark-800 rounded-xl p-6 w-full max-w-md border border-gray-700">
+          <div className={`rounded-xl p-6 w-full max-w-md border ${isDarkMode ? 'bg-dark-800 border-gray-700' : 'bg-white border-gray-300'}`}>
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-white font-semibold text-lg">Withdraw to Main Wallet</h3>
+              <h3 className={`font-semibold text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Withdraw to Main Wallet</h3>
               <button 
                 onClick={() => {
                   setShowWithdrawModal(false)
@@ -1304,19 +1304,19 @@ const Account = () => {
                   setTransferPin(['', '', '', ''])
                   setError('')
                 }}
-                className="text-gray-400 hover:text-white"
+                className={isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="p-3 bg-dark-700 rounded-lg mb-4">
+            <div className={`p-3 rounded-lg mb-4 ${isDarkMode ? 'bg-dark-700' : 'bg-gray-100'}`}>
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-8 h-8 bg-blue-500/20 rounded flex items-center justify-center">
                   <TrendingUp size={16} className="text-blue-500" />
                 </div>
                 <div>
-                  <p className="text-white font-medium">{selectedAccount.accountId}</p>
+                  <p className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedAccount.accountId}</p>
                   <p className="text-gray-500 text-xs">{selectedAccount.accountTypeId?.name}</p>
                 </div>
               </div>
@@ -1379,9 +1379,9 @@ const Account = () => {
       {/* Account to Account Transfer Modal */}
       {showAccountTransferModal && selectedAccount && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-dark-800 rounded-xl p-6 w-full max-w-md border border-gray-700">
+          <div className={`rounded-xl p-6 w-full max-w-md border ${isDarkMode ? 'bg-dark-800 border-gray-700' : 'bg-white border-gray-300'}`}>
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-white font-semibold text-lg">Transfer Between Accounts</h3>
+              <h3 className={`font-semibold text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Transfer Between Accounts</h3>
               <button 
                 onClick={() => {
                   setShowAccountTransferModal(false)
@@ -1390,21 +1390,21 @@ const Account = () => {
                   setTargetAccount(null)
                   setError('')
                 }}
-                className="text-gray-400 hover:text-white"
+                className={isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}
               >
                 <X size={20} />
               </button>
             </div>
 
             {/* From Account */}
-            <div className="p-3 bg-dark-700 rounded-lg mb-4">
+            <div className={`p-3 rounded-lg mb-4 ${isDarkMode ? 'bg-dark-700' : 'bg-gray-100'}`}>
               <p className="text-gray-400 text-xs mb-1">From Account</p>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <TrendingUp size={16} className="text-blue-500" />
-                  <span className="text-white font-medium">{selectedAccount.accountId}</span>
+                  <span className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedAccount.accountId}</span>
                 </div>
-                <span className="text-white">${selectedAccount.balance.toLocaleString()}</span>
+                <span className={isDarkMode ? 'text-white' : 'text-gray-900'}>${selectedAccount.balance.toLocaleString()}</span>
               </div>
             </div>
 
@@ -1497,13 +1497,13 @@ const Account = () => {
                   <Trophy size={20} className="text-yellow-500" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-white">Challenge Rules</h2>
+                  <h2 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Challenge Rules</h2>
                   <p className="text-gray-500 text-sm">{selectedChallengeAccount.accountId}</p>
                 </div>
               </div>
               <button 
                 onClick={() => setShowRulesModal(false)} 
-                className="text-gray-400 hover:text-white"
+                className={isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}
               >
                 <X size={24} />
               </button>
@@ -1511,7 +1511,7 @@ const Account = () => {
             
             <div className="p-6">
               {/* Challenge Info */}
-              <div className="bg-dark-700 rounded-xl p-4 mb-6">
+              <div className={`rounded-xl p-4 mb-6 ${isDarkMode ? 'bg-dark-700' : 'bg-gray-100'}`}>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                   <div>
                     <p className="text-gray-400 text-xs">Account Size</p>
@@ -1628,7 +1628,7 @@ const Account = () => {
                 <p className="text-white">{failReason}</p>
               </div>
 
-              <div className="bg-dark-700 rounded-xl p-4 mb-6">
+              <div className={`rounded-xl p-4 mb-6 ${isDarkMode ? 'bg-dark-700' : 'bg-gray-100'}`}>
                 <p className="text-gray-400 text-sm mb-2">What happened?</p>
                 <p className="text-gray-300 text-sm">
                   You violated the challenge rules multiple times. After 3 warnings for the same rule violation, 

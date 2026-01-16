@@ -55,7 +55,7 @@ const MobileTradingApp = () => {
   const [notifications, setNotifications] = useState([])
   const notificationIdRef = useRef(0)
 
-  const categories = ['All', 'Starred', 'Forex', 'Metals', 'Indices', 'Commodities', 'Crypto']
+  const categories = ['All', 'Starred', 'Forex', 'Metals', 'Commodities', 'Crypto']
 
   // Default starred symbols
   const defaultStarred = ['XAUUSD', 'EURUSD', 'GBPUSD', 'BTCUSD']
@@ -311,6 +311,16 @@ const MobileTradingApp = () => {
   const openOrderPanel = (instrument) => {
     setSelectedInstrument(instrument)
     setShowOrderPanel(true)
+    
+    // When clicking from search, mark instrument as "added" so it shows in its category
+    if (searchTerm.length > 0 && !instrument.popular) {
+      setInstruments(prevInsts => prevInsts.map(i => 
+        i.symbol === instrument.symbol ? { ...i, popular: true } : i
+      ))
+    }
+    
+    // Clear search after selection
+    setSearchTerm('')
   }
 
   const executeOrder = async () => {
@@ -467,27 +477,28 @@ const MobileTradingApp = () => {
     }
   }
 
-  // Instruments with live prices (limited due to MetaAPI rate limits)
-  const pricedSymbols = [
-    'EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD',
-    'EURGBP', 'EURJPY', 'GBPJPY', 'XAUUSD', 'XAGUSD',
-    'BTCUSD', 'ETHUSD', 'BNBUSD', 'SOLUSD', 'XRPUSD', 'ADAUSD', 'DOGEUSD', 'DOTUSD', 'LTCUSD'
-  ]
-  
+  // Filter instruments: show all when "All" tab or searching, popular for specific categories
   const filteredInstruments = instruments.filter(inst => {
     const matchesSearch = inst.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          inst.name.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesCategory = activeCategory === 'All' || 
-                           (activeCategory === 'Starred' && inst.starred) ||
-                           inst.category === activeCategory
-    const hasPrices = pricedSymbols.includes(inst.symbol)
     
-    // If user is searching, show all matching instruments
-    // If not searching, only show instruments with live prices
+    // When searching, show all matching instruments
     if (searchTerm.length > 0) {
-      return matchesSearch && matchesCategory
+      return matchesSearch
     }
-    return matchesCategory && hasPrices
+    
+    // When viewing Starred, show all starred instruments
+    if (activeCategory === 'Starred') {
+      return inst.starred
+    }
+    
+    // When viewing "All", show ALL instruments
+    if (activeCategory === 'All') {
+      return true
+    }
+    
+    // For specific categories, show only popular by default
+    return inst.category === activeCategory && inst.popular
   })
 
   const moreMenuItems = [
@@ -1083,19 +1094,37 @@ const MobileTradingApp = () => {
     </div>
   )
 
-  // TradingView symbol mapping (same as TradingPage)
+  // TradingView symbol mapping
   const getSymbolForTradingView = (symbol) => {
-    const symbolMap = {
+    // Crypto - use BINANCE:USDT pairs
+    const cryptoMap = {
+      'BTCUSD': 'BINANCE:BTCUSDT', 'ETHUSD': 'BINANCE:ETHUSDT', 'BNBUSD': 'BINANCE:BNBUSDT',
+      'SOLUSD': 'BINANCE:SOLUSDT', 'XRPUSD': 'BINANCE:XRPUSDT', 'ADAUSD': 'BINANCE:ADAUSDT',
+      'DOGEUSD': 'BINANCE:DOGEUSDT', 'TRXUSD': 'BINANCE:TRXUSDT', 'LINKUSD': 'BINANCE:LINKUSDT',
+      'MATICUSD': 'BINANCE:MATICUSDT', 'DOTUSD': 'BINANCE:DOTUSDT', 'SHIBUSD': 'BINANCE:SHIBUSDT',
+      'LTCUSD': 'BINANCE:LTCUSDT', 'BCHUSD': 'BINANCE:BCHUSDT', 'AVAXUSD': 'BINANCE:AVAXUSDT',
+      'XLMUSD': 'BINANCE:XLMUSDT', 'UNIUSD': 'BINANCE:UNIUSDT', 'ATOMUSD': 'BINANCE:ATOMUSDT',
+      'ETCUSD': 'BINANCE:ETCUSDT', 'FILUSD': 'BINANCE:FILUSDT', 'ICPUSD': 'BINANCE:ICPUSDT',
+      'VETUSD': 'BINANCE:VETUSDT', 'NEARUSD': 'BINANCE:NEARUSDT', 'GRTUSD': 'BINANCE:GRTUSDT',
+      'AAVEUSD': 'BINANCE:AAVEUSDT', 'MKRUSD': 'BINANCE:MKRUSDT', 'ALGOUSD': 'BINANCE:ALGOUSDT',
+      'FTMUSD': 'BINANCE:FTMUSDT', 'SANDUSD': 'BINANCE:SANDUSDT', 'MANAUSD': 'BINANCE:MANAUSDT',
+      'AXSUSD': 'BINANCE:AXSUSDT', 'THETAUSD': 'BINANCE:THETAUSDT', 'XMRUSD': 'BINANCE:XMRUSDT',
+      'FLOWUSD': 'BINANCE:FLOWUSDT', 'SNXUSD': 'BINANCE:SNXUSDT', 'EOSUSD': 'BINANCE:EOSUSDT',
+      'CHZUSD': 'BINANCE:CHZUSDT', 'ENJUSD': 'BINANCE:ENJUSDT', 'ZILUSD': 'BINANCE:ZILUSDT',
+      'BATUSD': 'BINANCE:BATUSDT', 'CRVUSD': 'BINANCE:CRVUSDT', 'COMPUSD': 'BINANCE:COMPUSDT',
+      'SUSHIUSD': 'BINANCE:SUSHIUSDT', 'ZRXUSD': 'BINANCE:ZRXUSDT', 'GALAUSD': 'BINANCE:GALAUSDT',
+      'APEUSD': 'BINANCE:APEUSDT', 'WAVESUSD': 'BINANCE:WAVESUSDT', 'ZECUSD': 'BINANCE:ZECUSDT',
+    }
+    if (cryptoMap[symbol]) return cryptoMap[symbol]
+    
+    // Forex & Metals - use OANDA
+    const forexMap = {
       'EURUSD': 'OANDA:EURUSD', 'GBPUSD': 'OANDA:GBPUSD', 'USDJPY': 'OANDA:USDJPY',
       'USDCHF': 'OANDA:USDCHF', 'AUDUSD': 'OANDA:AUDUSD', 'NZDUSD': 'OANDA:NZDUSD',
       'USDCAD': 'OANDA:USDCAD', 'EURGBP': 'OANDA:EURGBP', 'EURJPY': 'OANDA:EURJPY',
       'GBPJPY': 'OANDA:GBPJPY', 'XAUUSD': 'OANDA:XAUUSD', 'XAGUSD': 'OANDA:XAGUSD',
-      'BTCUSD': 'COINBASE:BTCUSD', 'ETHUSD': 'COINBASE:ETHUSD', 'LTCUSD': 'COINBASE:LTCUSD',
-      'XRPUSD': 'BITSTAMP:XRPUSD', 'BNBUSD': 'BINANCE:BNBUSDT', 'SOLUSD': 'COINBASE:SOLUSD',
-      'ADAUSD': 'COINBASE:ADAUSD', 'DOGEUSD': 'BINANCE:DOGEUSDT', 'DOTUSD': 'COINBASE:DOTUSD',
-      'MATICUSD': 'COINBASE:MATICUSD', 'AVAXUSD': 'COINBASE:AVAXUSD', 'LINKUSD': 'COINBASE:LINKUSD',
     }
-    return symbolMap[symbol] || `OANDA:${symbol}`
+    return forexMap[symbol] || `OANDA:${symbol}`
   }
 
   // CHART TAB - Full screen chart with buy/sell at bottom

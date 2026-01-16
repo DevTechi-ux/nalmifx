@@ -8,35 +8,40 @@ import copyTradingEngine from '../services/copyTradingEngine.js'
 import ibEngine from '../services/ibEngineNew.js'
 import MasterTrader from '../models/MasterTrader.js'
 
-// MetaAPI config for fresh price fetching
-const META_API_TOKEN = process.env.META_API_TOKEN
-const META_API_ACCOUNT_ID = process.env.META_API_ACCOUNT_ID
+// AllTick API config for fresh price fetching
+const ALLTICK_API_TOKEN = process.env.ALLTICK_API_TOKEN || '1b2b3ad1b5c8c28b9d956652ecb4111d-c-app'
+const ALLTICK_FOREX_API = 'https://quote.alltick.co/quote-b-api/depth-tick'
+const ALLTICK_MAP = { 'XAUUSD': 'GOLD', 'XAGUSD': 'Silver', 'BTCUSD': 'BTCUSDT', 'ETHUSD': 'ETHUSDT' }
 
-// Fetch fresh price from MetaAPI
+// Fetch fresh price from AllTick API
 async function getFreshPrice(symbol) {
   try {
-    if (!META_API_TOKEN || !META_API_ACCOUNT_ID) {
-      console.log(`[getFreshPrice] Missing MetaAPI credentials`)
-      return null
+    const alltickCode = ALLTICK_MAP[symbol] || symbol
+    const query = {
+      trace: `fresh-${Date.now()}`,
+      data: { symbol_list: [{ code: alltickCode }] }
     }
-    const response = await fetch(
-      `https://mt-client-api-v1.london.agiliumtrade.ai/users/current/accounts/${META_API_ACCOUNT_ID}/symbols/${symbol}/current-price`,
-      {
-        headers: {
-          'auth-token': META_API_TOKEN,
-          'Content-Type': 'application/json'
-        }
-      }
-    )
+    const encodedQuery = encodeURIComponent(JSON.stringify(query))
+    const url = `${ALLTICK_FOREX_API}?token=${ALLTICK_API_TOKEN}&query=${encodedQuery}`
+    
+    const response = await fetch(url)
     if (!response.ok) {
-      console.log(`[getFreshPrice] MetaAPI error for ${symbol}: ${response.status}`)
+      console.log(`[getFreshPrice] AllTick error for ${symbol}: ${response.status}`)
       return null
     }
     const data = await response.json()
-    if (data.bid) {
-      return { bid: data.bid, ask: data.ask || data.bid }
+    if (data.ret !== 200 || !data.data?.tick_list?.[0]) {
+      console.log(`[getFreshPrice] No data for ${symbol}`)
+      return null
     }
-    console.log(`[getFreshPrice] No bid in response for ${symbol}`)
+    const tick = data.data.tick_list[0]
+    const bid = tick.bids?.[0]?.price ? parseFloat(tick.bids[0].price) : null
+    const ask = tick.asks?.[0]?.price ? parseFloat(tick.asks[0].price) : null
+    if (bid && ask) {
+      return { bid, ask }
+    } else if (bid) {
+      return { bid, ask: bid }
+    }
     return null
   } catch (e) {
     console.log(`[getFreshPrice] Error for ${symbol}:`, e.message)

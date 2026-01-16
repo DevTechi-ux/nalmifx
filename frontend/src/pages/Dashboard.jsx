@@ -326,8 +326,10 @@ const Dashboard = () => {
     navigate('/user/login')
   }
 
-  // Load TradingView widgets
+  // Load TradingView widgets - re-render when theme changes
   useEffect(() => {
+    const colorTheme = isDarkMode ? "dark" : "light"
+    
     // TradingView Timeline Widget (News)
     if (tradingViewRef.current) {
       tradingViewRef.current.innerHTML = ''
@@ -336,8 +338,8 @@ const Dashboard = () => {
       script.async = true
       script.innerHTML = JSON.stringify({
         "feedMode": "all_symbols",
-        "colorTheme": "dark",
-        "isTransparent": true,
+        "colorTheme": colorTheme,
+        "isTransparent": false,
         "displayMode": "regular",
         "width": "100%",
         "height": "100%",
@@ -353,8 +355,8 @@ const Dashboard = () => {
       script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-events.js'
       script.async = true
       script.innerHTML = JSON.stringify({
-        "colorTheme": "dark",
-        "isTransparent": true,
+        "colorTheme": colorTheme,
+        "isTransparent": false,
         "width": "100%",
         "height": "100%",
         "locale": "en",
@@ -374,8 +376,8 @@ const Dashboard = () => {
         "width": "100%",
         "height": "100%",
         "currencies": ["EUR", "USD", "JPY", "GBP", "CHF", "AUD", "CAD", "NZD"],
-        "isTransparent": true,
-        "colorTheme": "dark",
+        "isTransparent": false,
+        "colorTheme": colorTheme,
         "locale": "en"
       })
       forexHeatmapRef.current.appendChild(script)
@@ -394,13 +396,13 @@ const Dashboard = () => {
         "defaultScreen": "general",
         "market": "forex",
         "showToolbar": true,
-        "colorTheme": "dark",
+        "colorTheme": colorTheme,
         "locale": "en",
-        "isTransparent": true
+        "isTransparent": false
       })
       forexScreenerRef.current.appendChild(script)
     }
-  }, [])
+  }, [isDarkMode])
 
   return (
     <div className={`h-screen flex transition-colors duration-300 ${isDarkMode ? 'bg-dark-900' : 'bg-gray-100'}`}>
@@ -474,7 +476,7 @@ const Dashboard = () => {
               {/* News Label */}
               <div className="bg-red-500 px-4 py-3 flex items-center gap-2">
                 <Newspaper size={16} className="text-white" />
-                <span className="text-white font-bold text-sm uppercase">Breaking</span>
+                <span className="text-white font-bold text-sm uppercase">News</span>
               </div>
               
               {/* News Slider */}
