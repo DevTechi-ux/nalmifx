@@ -341,6 +341,7 @@ const Account = () => {
           setSelectedAccount(account)
           setShowWithdrawModal(true)
           setError(`Please withdraw $${data.balance.toFixed(2)} before archiving this account.`)
+          setTimeout(() => setError(''), 5000)
         }
       } else {
         setError(data.message || 'Failed to archive account')
