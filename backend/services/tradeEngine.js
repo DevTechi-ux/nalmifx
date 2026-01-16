@@ -518,15 +518,14 @@ class TradeEngine {
       const bid = prices.bid
       const ask = prices.ask || prices.bid // Fallback to bid if ask not available
 
-      // Debug log for trades with SL/TP
+      // Only log if SL or TP is actually set (not null)
       if (sl || tp) {
-        console.log(`[Regular SL/TP] Trade ${trade.tradeId}: ${trade.side} ${trade.symbol} | bid=${bid} ask=${ask} | SL=${sl} TP=${tp}`)
+        // Minimal logging - only show when close to triggering
+        const slTrigger = trade.side === 'BUY' ? (sl && bid <= sl) : (sl && ask >= sl)
+        const tpTrigger = trade.side === 'BUY' ? (tp && bid >= tp) : (tp && ask <= tp)
         
-        // Check if SL/TP would trigger
-        if (trade.side === 'SELL') {
-          console.log(`[Regular SL/TP] SELL check: ask(${ask}) >= sl(${sl}) = ${ask >= sl}, ask(${ask}) <= tp(${tp}) = ${ask <= tp}`)
-        } else {
-          console.log(`[Regular SL/TP] BUY check: bid(${bid}) <= sl(${sl}) = ${bid <= sl}, bid(${bid}) >= tp(${tp}) = ${bid >= tp}`)
+        if (slTrigger || tpTrigger) {
+          console.log(`[Regular SL/TP] Trade ${trade.tradeId}: ${trade.side} ${trade.symbol} | bid=${bid} ask=${ask} | SL=${sl || 'none'} TP=${tp || 'none'}`)
         }
       }
 

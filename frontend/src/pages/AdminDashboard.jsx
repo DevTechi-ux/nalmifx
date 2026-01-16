@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { API_URL } from '../config/api'
 // import BonusManagement from './admin/BonusManagement.jsx'
 
 // Temporarily remove import to test
@@ -69,7 +70,7 @@ console.log('Menu items:', menuItems)
     const fetchUsers = async () => {
       setLoading(true)
       try {
-        const response = await fetch('http://localhost:5001/api/admin/users')
+        const response = await fetch(`${API_URL}/admin/users`)
         if (response.ok) {
           const data = await response.json()
           setUsers(data.users || [])
