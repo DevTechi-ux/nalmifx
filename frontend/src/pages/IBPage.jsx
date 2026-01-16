@@ -188,10 +188,28 @@ const IBPage = () => {
     }
   }
 
-  const copyReferralLink = () => {
+  const copyReferralLink = async () => {
     const link = `${window.location.origin}/user/signup?ref=${ibProfile?.referralCode}`
-    navigator.clipboard.writeText(link)
-    alert('Referral link copied!')
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(link)
+      } else {
+        // Fallback for HTTP or older browsers
+        const textArea = document.createElement('textarea')
+        textArea.value = link
+        textArea.style.position = 'fixed'
+        textArea.style.left = '-9999px'
+        document.body.appendChild(textArea)
+        textArea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textArea)
+      }
+      alert('Referral link copied!')
+    } catch (err) {
+      console.error('Failed to copy:', err)
+      // Final fallback - show the link in a prompt
+      prompt('Copy your referral link:', link)
+    }
   }
 
   const handleLogout = () => {

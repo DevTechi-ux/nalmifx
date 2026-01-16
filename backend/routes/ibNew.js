@@ -63,6 +63,12 @@ router.post('/register-referral', async (req, res) => {
 router.get('/my-profile/:userId', async (req, res) => {
   try {
     const { userId } = req.params
+    
+    // Validate userId
+    if (!userId || userId === 'undefined' || userId === 'null') {
+      return res.status(400).json({ success: false, message: 'Invalid user ID' })
+    }
+    
     const user = await User.findById(userId).populate('ibPlanId').populate('ibLevelId')
     
     if (!user) {

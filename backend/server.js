@@ -244,37 +244,72 @@ function connectAllTickWebSocket() {
   })
 }
 
-// Forex symbols to fetch via HTTP fallback if WebSocket doesn't provide them
-const FOREX_MAJOR_SYMBOLS = ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD', 'EURGBP', 'EURJPY', 'GBPJPY', 'XAUUSD', 'XAGUSD']
+// ALL forex/metals/commodities symbols to fetch via HTTP fallback
+const FOREX_ALL_SYMBOLS = [
+  // Majors
+  'EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD',
+  // Crosses
+  'EURGBP', 'EURJPY', 'GBPJPY', 'EURCHF', 'EURAUD', 'EURCAD', 'GBPAUD', 'GBPCAD',
+  'AUDCAD', 'AUDJPY', 'CADJPY', 'CHFJPY', 'NZDJPY', 'AUDNZD', 'CADCHF', 'GBPCHF',
+  'GBPNZD', 'EURNZD', 'NZDCAD', 'NZDCHF', 'AUDCHF',
+  // Exotics
+  'USDSGD', 'EURSGD', 'GBPSGD', 'AUDSGD', 'SGDJPY', 'USDHKD', 'USDZAR', 'EURZAR',
+  'GBPZAR', 'ZARJPY', 'USDTRY', 'EURTRY', 'TRYJPY', 'USDMXN', 'EURMXN', 'MXNJPY',
+  'USDPLN', 'EURPLN', 'GBPPLN', 'USDSEK', 'EURSEK', 'GBPSEK', 'SEKJPY', 'USDNOK',
+  'EURNOK', 'GBPNOK', 'NOKJPY', 'USDDKK', 'EURDKK', 'DKKJPY', 'USDCNH', 'CNHJPY',
+  'USDHUF', 'EURHUF', 'USDCZK', 'EURCZK',
+  // Metals & Commodities
+  'XAUUSD', 'XAGUSD', 'XPTUSD', 'XPDUSD', 'USOIL', 'UKOIL', 'NGAS', 'COPPER'
+]
 
-// Fetch forex prices via AllTick HTTP API as fallback
+// Fetch forex prices via AllTick HTTP API as fallback - split into chunks
+let lastForexLogTime = 0
 async function fetchForexPricesHTTP() {
-  try {
-    const symbolList = FOREX_MAJOR_SYMBOLS.map(s => ({ code: ALLTICK_SYMBOL_MAP[s] || s }))
-    const query = {
-      trace: `forex-${Date.now()}`,
-      data: { symbol_list: symbolList }
-    }
-    const encodedQuery = encodeURIComponent(JSON.stringify(query))
-    const url = `https://quote.alltick.co/quote-b-api/depth-tick?token=${ALLTICK_API_TOKEN}&query=${encodedQuery}`
-    
-    const response = await fetch(url)
-    if (response.ok) {
-      const data = await response.json()
-      if (data.ret === 200 && data.data?.tick_list) {
-        const now = Date.now()
-        for (const tick of data.data.tick_list) {
-          const internalSymbol = ALLTICK_REVERSE_MAP[tick.code] || tick.code
-          const bid = tick.bids?.[0]?.price ? parseFloat(tick.bids[0].price) : null
-          const ask = tick.asks?.[0]?.price ? parseFloat(tick.asks[0].price) : null
-          if (bid && ask) {
-            priceCache.set(internalSymbol, { bid, ask, time: now })
+  const CHUNK_SIZE = 15 // Batch 15 symbols at a time
+  const now = Date.now()
+  let fetchedCount = 0
+  
+  for (let i = 0; i < FOREX_ALL_SYMBOLS.length; i += CHUNK_SIZE) {
+    try {
+      const chunk = FOREX_ALL_SYMBOLS.slice(i, i + CHUNK_SIZE)
+      const symbolList = chunk.map(s => ({ code: ALLTICK_SYMBOL_MAP[s] || s }))
+      const query = {
+        trace: `forex-${Date.now()}-${i}`,
+        data: { symbol_list: symbolList }
+      }
+      const encodedQuery = encodeURIComponent(JSON.stringify(query))
+      const url = `https://quote.alltick.co/quote-b-api/depth-tick?token=${ALLTICK_API_TOKEN}&query=${encodedQuery}`
+      
+      const response = await fetch(url)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.ret === 200 && data.data?.tick_list) {
+          for (const tick of data.data.tick_list) {
+            const internalSymbol = ALLTICK_REVERSE_MAP[tick.code] || tick.code
+            const bid = tick.bids?.[0]?.price ? parseFloat(tick.bids[0].price) : null
+            const ask = tick.asks?.[0]?.price ? parseFloat(tick.asks[0].price) : null
+            if (bid && ask) {
+              priceCache.set(internalSymbol, { bid, ask, time: now })
+              fetchedCount++
+            }
           }
+        } else if (data.ret !== 200) {
+          console.error(`AllTick HTTP error for chunk ${i}: ${data.msg || data.ret}`)
         }
       }
+      // Small delay between chunks
+      if (i + CHUNK_SIZE < FOREX_ALL_SYMBOLS.length) {
+        await new Promise(r => setTimeout(r, 200))
+      }
+    } catch (e) {
+      console.error(`AllTick HTTP chunk ${i} error:`, e.message)
     }
-  } catch (e) {
-    // Silently fail HTTP fallback
+  }
+  
+  // Log every 30 seconds
+  if (now - lastForexLogTime > 30000) {
+    console.log(`AllTick HTTP: Fetched ${fetchedCount} forex prices, cache has ${priceCache.size} total symbols`)
+    lastForexLogTime = now
   }
 }
 
@@ -313,8 +348,13 @@ async function streamPrices() {
   })
 }
 
-// Forex HTTP fallback - poll every 2 seconds for major forex pairs
-setInterval(fetchForexPricesHTTP, 2000)
+// Forex HTTP fallback - poll every 3 seconds for all forex pairs
+setInterval(fetchForexPricesHTTP, 3000)
+
+// Fetch forex prices immediately on startup
+fetchForexPricesHTTP().then(() => {
+  console.log(`Initial forex prices loaded: ${priceCache.size} symbols in cache`)
+})
 
 // Start price streaming interval (500ms for Binance crypto)
 setInterval(streamPrices, 500)
