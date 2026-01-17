@@ -38,6 +38,9 @@ const MobileTradingApp = () => {
   const [volume, setVolume] = useState('0.01')
   const [stopLoss, setStopLoss] = useState('')
   const [takeProfit, setTakeProfit] = useState('')
+  const [pendingOrderType, setPendingOrderType] = useState('BUY_LIMIT')
+  const [entryPrice, setEntryPrice] = useState('')
+  const [leverage, setLeverage] = useState('1:100')
   const [isExecuting, setIsExecuting] = useState(false)
   const [accountSummary, setAccountSummary] = useState({ balance: 0, equity: 0, credit: 0, freeMargin: 0, usedMargin: 0, floatingPnl: 0 })
   const [expandedTrade, setExpandedTrade] = useState(null)
@@ -336,7 +339,18 @@ const MobileTradingApp = () => {
       return
     }
 
+    // For pending orders, validate entry price
+    if (orderType === 'pending' && !entryPrice) {
+      showNotification('Please enter an entry price for pending order', 'error')
+      setIsExecuting(false)
+      return
+    }
+
     try {
+      const side = orderType === 'pending' ? (pendingOrderType.includes('BUY') ? 'BUY' : 'SELL') : orderSide
+      const actualOrderType = orderType === 'market' ? 'MARKET' : pendingOrderType
+      const pendingPrice = orderType === 'pending' ? parseFloat(entryPrice) : null
+
       const res = await fetch(`${API_URL}/trade/open`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -345,11 +359,12 @@ const MobileTradingApp = () => {
           tradingAccountId: selectedAccount._id,
           symbol: selectedInstrument.symbol,
           segment: selectedInstrument.category,
-          side: orderSide,
-          orderType: orderType === 'market' ? 'MARKET' : 'PENDING',
+          side: side,
+          orderType: actualOrderType,
           quantity: parseFloat(volume),
-          bid: prices.bid,
-          ask: prices.ask,
+          bid: pendingPrice || prices.bid,
+          ask: pendingPrice || prices.ask,
+          leverage: leverage,
           sl: stopLoss ? parseFloat(stopLoss) : null,
           tp: takeProfit ? parseFloat(takeProfit) : null
         })
@@ -357,9 +372,15 @@ const MobileTradingApp = () => {
       const data = await res.json()
       if (data.success) {
         setShowOrderPanel(false)
-        fetchOpenTrades()
+        if (orderType === 'pending') {
+          fetchPendingOrders()
+          showNotification(`${pendingOrderType.replace('_', ' ')} order placed!`, 'success')
+          setEntryPrice('')
+        } else {
+          fetchOpenTrades()
+          showNotification('Order executed successfully!', 'success')
+        }
         fetchAccountSummary()
-        showNotification('Order executed successfully!', 'success')
       } else {
         showNotification(data.message || 'Order failed', 'error')
       }
@@ -1257,7 +1278,7 @@ const MobileTradingApp = () => {
                     quantity: parseFloat(volume),
                     bid: price.bid,
                     ask: price.ask,
-                    leverage: selectedAccount.leverage || '1:100'
+                    leverage: leverage
                   })
                 })
                 const data = await res.json()
@@ -1304,7 +1325,7 @@ const MobileTradingApp = () => {
                     quantity: parseFloat(volume),
                     bid: price.bid,
                     ask: price.ask,
-                    leverage: selectedAccount.leverage || '1:100'
+                    leverage: leverage
                   })
                 })
                 const data = await res.json()
@@ -1399,10 +1420,23 @@ const MobileTradingApp = () => {
                 </button>
               </div>
 
-              {/* Leverage Display */}
+              {/* Leverage Selector */}
               <div className="flex items-center justify-between bg-dark-700 rounded-lg px-4 py-2 mb-4">
                 <span className="text-gray-400 text-sm">Leverage</span>
-                <span className="text-yellow-500 font-bold">{selectedAccount?.leverage || '1:100'}</span>
+                <select
+                  value={leverage}
+                  onChange={(e) => setLeverage(e.target.value)}
+                  className="bg-transparent text-yellow-500 font-bold text-sm focus:outline-none cursor-pointer"
+                >
+                  {(() => {
+                    const maxLev = parseInt((selectedAccount?.leverage || '1:100').replace('1:', '')) || 100
+                    const options = [10, 20, 50, 100, 200, 500, 1000, 2000].filter(l => l <= maxLev)
+                    if (!options.includes(maxLev)) options.push(maxLev)
+                    return options.sort((a, b) => a - b).map(l => (
+                      <option key={l} value={`1:${l}`} className="bg-dark-800 text-white">1:{l}</option>
+                    ))
+                  })()}
+                </select>
               </div>
 
               {/* One-Click Buy/Sell */}
@@ -1457,6 +1491,46 @@ const MobileTradingApp = () => {
                 </button>
               </div>
 
+              {/* Pending Order Type Selection */}
+              {orderType === 'pending' && (
+                <div className="mb-4">
+                  <label className="text-gray-400 text-sm mb-2 block">Order Type</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {['BUY_LIMIT', 'SELL_LIMIT', 'BUY_STOP', 'SELL_STOP'].map(type => (
+                      <button
+                        key={type}
+                        onClick={() => setPendingOrderType(type)}
+                        className={`py-2.5 rounded-lg text-xs font-medium transition-colors ${
+                          pendingOrderType === type
+                            ? type.includes('BUY') 
+                              ? 'bg-blue-600 text-white' 
+                              : 'bg-red-600 text-white'
+                            : type.includes('BUY')
+                              ? 'bg-dark-700 border border-blue-500/30 text-blue-400'
+                              : 'bg-dark-700 border border-red-500/30 text-red-400'
+                        }`}
+                      >
+                        {type.replace('_', ' ')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Entry Price for Pending Orders */}
+              {orderType === 'pending' && (
+                <div className="mb-4">
+                  <label className="text-gray-400 text-sm mb-2 block">Entry Price</label>
+                  <input
+                    type="text"
+                    value={entryPrice}
+                    onChange={(e) => setEntryPrice(e.target.value)}
+                    placeholder="Enter price"
+                    className="w-full bg-dark-700 border border-gray-700 rounded-lg px-4 py-3 text-white"
+                  />
+                </div>
+              )}
+
               {/* Volume */}
               <div className="mb-4">
                 <label className="text-gray-400 text-sm mb-2 block">Volume (Lots)</label>
@@ -1506,23 +1580,37 @@ const MobileTradingApp = () => {
                 </div>
               </div>
 
-              {/* Buy/Sell Buttons */}
-              <div className="flex gap-3">
+              {/* Buy/Sell Buttons for Market Orders */}
+              {orderType === 'market' ? (
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => { setOrderSide('SELL'); executeOrder() }}
+                    disabled={isExecuting}
+                    className="flex-1 py-4 bg-red-500 text-white font-semibold rounded-xl disabled:opacity-50"
+                  >
+                    {isExecuting ? 'Executing...' : 'SELL'}
+                  </button>
+                  <button
+                    onClick={() => { setOrderSide('BUY'); executeOrder() }}
+                    disabled={isExecuting}
+                    className="flex-1 py-4 bg-blue-500 text-white font-semibold rounded-xl disabled:opacity-50"
+                  >
+                    {isExecuting ? 'Executing...' : 'BUY'}
+                  </button>
+                </div>
+              ) : (
                 <button
-                  onClick={() => { setOrderSide('SELL'); executeOrder() }}
+                  onClick={executeOrder}
                   disabled={isExecuting}
-                  className="flex-1 py-4 bg-red-500 text-white font-semibold rounded-xl disabled:opacity-50"
+                  className={`w-full py-4 font-semibold rounded-xl disabled:opacity-50 ${
+                    pendingOrderType.includes('BUY') 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-red-600 text-white'
+                  }`}
                 >
-                  {isExecuting ? 'Executing...' : 'SELL'}
+                  {isExecuting ? 'Placing...' : `Place ${pendingOrderType.replace('_', ' ')}`}
                 </button>
-                <button
-                  onClick={() => { setOrderSide('BUY'); executeOrder() }}
-                  disabled={isExecuting}
-                  className="flex-1 py-4 bg-blue-500 text-white font-semibold rounded-xl disabled:opacity-50"
-                >
-                  {isExecuting ? 'Executing...' : 'BUY'}
-                </button>
-              </div>
+              )}
             </div>
           </div>
         </div>
