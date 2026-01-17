@@ -169,6 +169,13 @@ router.post('/follow', async (req, res) => {
       return res.status(400).json({ message: 'Master trader not available' })
     }
 
+    // Prevent user from following their own master account
+    if (master.userId.toString() === followerUserId) {
+      return res.status(400).json({ 
+        message: 'You cannot follow your own master account. This would cause duplicate trades when you trade.' 
+      })
+    }
+
     // Check follower limit
     if (master.stats.activeFollowers >= settings.copyLimits.maxFollowersPerMaster) {
       return res.status(400).json({ message: 'Master has reached maximum followers' })

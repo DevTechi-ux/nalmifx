@@ -364,7 +364,9 @@ const CopyTradePage = () => {
   }
 
   const filteredMasters = masters.filter(m => 
-    m.displayName?.toLowerCase().includes(searchTerm.toLowerCase())
+    m.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) &&
+    // Exclude user's own master account to prevent self-following (causes duplicate trades)
+    m._id !== myMasterProfile?._id
   )
 
   return (
