@@ -5,6 +5,7 @@ import CopyCommission from '../models/CopyCommission.js'
 import CopySettings from '../models/CopySettings.js'
 import Trade from '../models/Trade.js'
 import TradingAccount from '../models/TradingAccount.js'
+import Wallet from '../models/Wallet.js'
 import tradeEngine from './tradeEngine.js'
 
 class CopyTradingEngine {
@@ -577,7 +578,7 @@ class CopyTradingEngine {
     return commissionResults
   }
 
-  // Process master commission withdrawal
+  // Process master commission withdrawal to main wallet
   async processMasterWithdrawal(masterId, amount, adminId) {
     const master = await MasterTrader.findById(masterId)
     if (!master) throw new Error('Master not found')
@@ -591,13 +592,15 @@ class CopyTradingEngine {
       throw new Error(`Minimum payout amount is $${settings.commissionSettings.minPayoutAmount}`)
     }
 
-    // Get master's trading account
-    const tradingAccount = await TradingAccount.findById(master.tradingAccountId)
-    if (!tradingAccount) throw new Error('Master trading account not found')
+    // Get or create user's main wallet
+    let wallet = await Wallet.findOne({ userId: master.userId })
+    if (!wallet) {
+      wallet = await Wallet.create({ userId: master.userId, balance: 0 })
+    }
 
-    // Transfer commission to master
-    tradingAccount.balance += amount
-    await tradingAccount.save()
+    // Transfer commission to main wallet
+    wallet.balance += amount
+    await wallet.save()
 
     // Update master records
     master.pendingCommission -= amount
@@ -607,7 +610,7 @@ class CopyTradingEngine {
     return {
       amount,
       newPendingCommission: master.pendingCommission,
-      newAccountBalance: tradingAccount.balance
+      newWalletBalance: wallet.balance
     }
   }
 

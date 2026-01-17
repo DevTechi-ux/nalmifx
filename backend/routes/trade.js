@@ -2,6 +2,7 @@ import express from 'express'
 import Trade from '../models/Trade.js'
 import TradingAccount from '../models/TradingAccount.js'
 import ChallengeAccount from '../models/ChallengeAccount.js'
+import Charges from '../models/Charges.js'
 import tradeEngine from '../services/tradeEngine.js'
 import propTradingEngine from '../services/propTradingEngine.js'
 import copyTradingEngine from '../services/copyTradingEngine.js'
@@ -246,9 +247,33 @@ router.post('/close', async (req, res) => {
     if (challengeAccount) {
       // Close trade for challenge account
       const closePrice = tradeToClose.side === 'BUY' ? parseFloat(bid) : parseFloat(ask)
-      const pnl = tradeToClose.side === 'BUY'
+      const rawPnl = tradeToClose.side === 'BUY'
         ? (closePrice - tradeToClose.openPrice) * tradeToClose.quantity * tradeToClose.contractSize
         : (tradeToClose.openPrice - closePrice) * tradeToClose.quantity * tradeToClose.contractSize
+      
+      // Get charges for commission on close
+      const charges = await Charges.getChargesForTrade(
+        tradeToClose.userId, 
+        tradeToClose.symbol, 
+        tradeToClose.segment, 
+        null
+      )
+      
+      // Calculate commission on close if enabled
+      let closeCommission = 0
+      if (charges.commissionOnClose && charges.commissionValue > 0) {
+        if (charges.commissionType === 'FIXED') {
+          closeCommission = charges.commissionValue
+        } else if (charges.commissionType === 'PER_LOT') {
+          closeCommission = tradeToClose.quantity * charges.commissionValue
+        } else if (charges.commissionType === 'PERCENTAGE') {
+          const tradeValue = tradeToClose.quantity * tradeToClose.contractSize * closePrice
+          closeCommission = tradeValue * (charges.commissionValue / 100)
+        }
+      }
+      
+      // Calculate final PnL (subtract swap and close commission)
+      const pnl = rawPnl - (tradeToClose.swap || 0) - closeCommission
       
       // Update trade
       tradeToClose.status = 'CLOSED'

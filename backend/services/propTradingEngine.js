@@ -3,6 +3,7 @@ import ChallengeAccount from '../models/ChallengeAccount.js'
 import PropSettings from '../models/PropSettings.js'
 import Trade from '../models/Trade.js'
 import User from '../models/User.js'
+import Charges from '../models/Charges.js'
 import { sendTemplateEmail } from '../services/emailService.js'
 
 class PropTradingEngine {
@@ -202,6 +203,33 @@ class PropTradingEngine {
     return { valid: true, account, challenge }
   }
 
+  // Calculate execution price with spread
+  calculateExecutionPrice(side, bid, ask, spreadValue, spreadType) {
+    let spread = spreadValue || 0
+    if (spreadType === 'PERCENTAGE') {
+      spread = (ask - bid) * (spreadValue / 100)
+    }
+    
+    if (side === 'BUY') {
+      return ask + spread
+    } else {
+      return bid - spread
+    }
+  }
+
+  // Calculate commission
+  calculateCommission(quantity, price, commissionType, commissionValue, contractSize) {
+    if (commissionType === 'FIXED') {
+      return commissionValue
+    } else if (commissionType === 'PER_LOT') {
+      return quantity * commissionValue
+    } else if (commissionType === 'PERCENTAGE') {
+      const tradeValue = quantity * contractSize * price
+      return tradeValue * (commissionValue / 100)
+    }
+    return 0
+  }
+
   // Open a trade for challenge account
   async openChallengeTrade(userId, challengeAccountId, tradeParams) {
     const account = await ChallengeAccount.findById(challengeAccountId)
@@ -214,9 +242,13 @@ class PropTradingEngine {
     const challenge = account.challengeId
     const rules = challenge.rules
 
-    // Calculate execution price with spread
     const { symbol, segment, side, orderType, quantity, bid, ask, sl, tp } = tradeParams
-    const openPrice = side === 'BUY' ? ask : bid
+
+    // Get charges for this trade (use default charges for challenge accounts)
+    const charges = await Charges.getChargesForTrade(userId, symbol, segment || 'Forex', null)
+    
+    // Calculate execution price with spread
+    const openPrice = this.calculateExecutionPrice(side, bid, ask, charges.spreadValue, charges.spreadType)
 
     // Get contract size based on symbol
     const contractSize = this.getContractSize(symbol)
@@ -224,6 +256,14 @@ class PropTradingEngine {
     // Calculate margin
     const leverage = rules.maxLeverage || 100
     const marginRequired = (quantity * contractSize * openPrice) / leverage
+
+    // Calculate commission on open
+    let commission = 0
+    const shouldChargeCommission = (side === 'BUY' && charges.commissionOnBuy !== false) || 
+                                   (side === 'SELL' && charges.commissionOnSell !== false)
+    if (shouldChargeCommission && charges.commissionValue > 0) {
+      commission = this.calculateCommission(quantity, openPrice, charges.commissionType, charges.commissionValue, contractSize)
+    }
 
     // Generate trade ID
     const tradeId = `CH${Date.now()}${Math.random().toString(36).substr(2, 6).toUpperCase()}`
@@ -245,13 +285,14 @@ class PropTradingEngine {
       marginUsed: marginRequired,
       contractSize,
       leverage: leverage,
+      spread: charges.spreadValue || 0,
       status: 'OPEN',
       openedAt: new Date(),
       sl: sl || null,
       tp: tp || null,
       stopLoss: sl || null,
       takeProfit: tp || null,
-      commission: 0,
+      commission,
       swap: 0
     })
 
@@ -980,7 +1021,10 @@ class PropTradingEngine {
         stopLossMandatory: rules.stopLossMandatory,
         minHoldTimeSeconds: rules.minTradeHoldTimeSeconds,
         allowedSymbols: rules.allowedSymbols,
-        allowedSegments: rules.allowedSegments
+        allowedSegments: rules.allowedSegments,
+        maxLeverage: rules.maxLeverage || 100,
+        minLotSize: rules.minLotSize || 0.01,
+        maxLotSize: rules.maxLotSize || 100
       },
       time: {
         expiresAt: account.expiresAt,

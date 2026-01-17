@@ -5,6 +5,7 @@ import dotenv from 'dotenv'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
 import WebSocket from 'ws'
+import cron from 'node-cron'
 import authRoutes from './routes/auth.js'
 import adminRoutes from './routes/admin.js'
 import accountTypesRoutes from './routes/accountTypes.js'
@@ -29,6 +30,8 @@ import emailTemplatesRoutes from './routes/emailTemplates.js'
 import bonusRoutes from './routes/bonus.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import copyTradingEngine from './services/copyTradingEngine.js'
+import tradeEngine from './services/tradeEngine.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -471,4 +474,34 @@ app.get('/', (req, res) => {
 const PORT = process.env.PORT || 5000
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
+  
+  // Schedule daily commission calculation for copy trading
+  // Runs at 11:59 PM every day (end of trading day)
+  cron.schedule('59 23 * * *', async () => {
+    console.log('[CRON] Running daily copy trade commission calculation...')
+    try {
+      const results = await copyTradingEngine.calculateDailyCommission()
+      console.log(`[CRON] Daily commission calculated: ${results.length} commission records processed`)
+    } catch (error) {
+      console.error('[CRON] Error calculating daily commission:', error)
+    }
+  }, {
+    timezone: 'UTC'
+  })
+  console.log('[CRON] Daily commission calculation scheduled for 23:59 UTC')
+  
+  // Schedule daily swap application for all open trades
+  // Runs at 10:00 PM UTC (5:00 PM EST - forex rollover time)
+  cron.schedule('0 22 * * *', async () => {
+    console.log('[CRON] Applying daily swap to all open trades...')
+    try {
+      await tradeEngine.applySwap()
+      console.log('[CRON] Swap applied successfully')
+    } catch (error) {
+      console.error('[CRON] Error applying swap:', error)
+    }
+  }, {
+    timezone: 'UTC'
+  })
+  console.log('[CRON] Daily swap application scheduled for 22:00 UTC')
 })

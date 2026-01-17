@@ -14,7 +14,6 @@ import {
   DollarSign,
   Newspaper,
   Calendar,
-  ExternalLink,
   RefreshCw,
   Activity,
   Trophy,
@@ -42,8 +41,6 @@ const Dashboard = () => {
   const [totalPnl, setTotalPnl] = useState(0)
   const [userAccounts, setUserAccounts] = useState([])
   const [challengeModeEnabled, setChallengeModeEnabled] = useState(false)
-  const [marketNews, setMarketNews] = useState([])
-  const [currentNewsIndex, setCurrentNewsIndex] = useState(0)
   const tradingViewRef = useRef(null)
   const economicCalendarRef = useRef(null)
   const forexHeatmapRef = useRef(null)
@@ -239,57 +236,6 @@ const Dashboard = () => {
     setEventsLoading(false)
   }, [])
 
-  // Fetch market news from free API
-  useEffect(() => {
-    const fetchMarketNews = async () => {
-      try {
-        // Using NewsData.io free tier or fallback to sample data
-        const response = await fetch('https://newsdata.io/api/1/news?apikey=pub_63aboreal&q=forex%20OR%20currency%20OR%20trading&language=en&category=business')
-        if (response.ok) {
-          const data = await response.json()
-          if (data.results && data.results.length > 0) {
-            setMarketNews(data.results.slice(0, 10))
-            return
-          }
-        }
-      } catch (error) {
-        console.log('Using fallback news data')
-      }
-      
-      // Fallback sample news with images
-      setMarketNews([
-        { title: 'EUR/USD Breaks Key Resistance Level', description: 'Euro surges against dollar amid ECB hawkish stance', image_url: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=400', pubDate: new Date().toISOString(), link: '#' },
-        { title: 'Fed Signals Potential Rate Cuts in 2026', description: 'Federal Reserve hints at monetary policy shift', image_url: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=400', pubDate: new Date().toISOString(), link: '#' },
-        { title: 'GBP/JPY Volatility Spikes on BOJ News', description: 'Bank of Japan policy decision creates market turbulence', image_url: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=400', pubDate: new Date().toISOString(), link: '#' },
-        { title: 'Gold Prices Hit New Record High', description: 'Safe-haven demand drives precious metals rally', image_url: 'https://images.unsplash.com/photo-1610375461246-83df859d849d?w=400', pubDate: new Date().toISOString(), link: '#' },
-        { title: 'Oil Markets React to OPEC+ Decision', description: 'Crude prices fluctuate on production cut news', image_url: 'https://images.unsplash.com/photo-1518186285589-2f7649de83e0?w=400', pubDate: new Date().toISOString(), link: '#' },
-        { title: 'USD/CHF Tests Critical Support Zone', description: 'Swiss franc strengthens on risk-off sentiment', image_url: 'https://images.unsplash.com/photo-1642790106117-e829e14a795f?w=400', pubDate: new Date().toISOString(), link: '#' },
-        { title: 'AUD/USD Rallies on China Data', description: 'Australian dollar gains on positive trade figures', image_url: 'https://images.unsplash.com/photo-1523961131990-5ea7c61b2107?w=400', pubDate: new Date().toISOString(), link: '#' },
-        { title: 'Crypto Markets Show Correlation with Forex', description: 'Bitcoin movements mirror dollar index trends', image_url: 'https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=400', pubDate: new Date().toISOString(), link: '#' },
-      ])
-    }
-    
-    fetchMarketNews()
-    const interval = setInterval(fetchMarketNews, 600000) // Refresh every 10 minutes
-    return () => clearInterval(interval)
-  }, [])
-
-  // Auto-slide news
-  useEffect(() => {
-    if (marketNews.length === 0) return
-    const interval = setInterval(() => {
-      setCurrentNewsIndex((prev) => (prev + 1) % marketNews.length)
-    }, 5000) // Change slide every 5 seconds
-    return () => clearInterval(interval)
-  }, [marketNews.length])
-
-  const nextNews = () => {
-    setCurrentNewsIndex((prev) => (prev + 1) % marketNews.length)
-  }
-
-  const prevNews = () => {
-    setCurrentNewsIndex((prev) => (prev - 1 + marketNews.length) % marketNews.length)
-  }
 
   const formatTimeAgo = (timestamp) => {
     const seconds = Math.floor((Date.now() - timestamp) / 1000)
@@ -469,79 +415,27 @@ const Dashboard = () => {
 
       {/* Main Content - Scrollable */}
       <main className="flex-1 overflow-y-auto">
-        {/* Market News Slider - Top Banner */}
-        {marketNews.length > 0 && (
-          <div className={`relative border-b ${isDarkMode ? 'bg-gradient-to-r from-dark-800 via-dark-900 to-dark-800 border-gray-800' : 'bg-gradient-to-r from-gray-100 via-white to-gray-100 border-gray-200'}`}>
-            <div className="flex items-center">
-              {/* News Label */}
-              <div className="bg-red-500 px-4 py-3 flex items-center gap-2">
-                <Newspaper size={16} className="text-white" />
-                <span className="text-white font-bold text-sm uppercase">News</span>
+        {/* Welcome Banner */}
+        <div className={`relative border-b ${isDarkMode ? 'bg-gradient-to-r from-dark-800 via-dark-900 to-dark-800 border-gray-800' : 'bg-gradient-to-r from-gray-100 via-white to-gray-100 border-gray-200'}`}>
+          <div className="flex items-center justify-between px-6 py-3">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDarkMode ? 'bg-accent-green/20' : 'bg-green-100'}`}>
+                <User size={20} className="text-accent-green" />
               </div>
-              
-              {/* News Slider */}
-              <div className="flex-1 overflow-hidden relative">
-                <div 
-                  className="flex transition-transform duration-500 ease-in-out"
-                  style={{ transform: `translateX(-${currentNewsIndex * 100}%)` }}
-                >
-                  {marketNews.map((item, index) => (
-                    <a 
-                      key={index}
-                      href={item.link || '#'}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`min-w-full flex items-center gap-4 px-4 py-2 transition-colors ${isDarkMode ? 'hover:bg-dark-700/50' : 'hover:bg-gray-100'}`}
-                    >
-                      {item.image_url && (
-                        <img 
-                          src={item.image_url} 
-                          alt="" 
-                          className="w-12 h-12 object-cover rounded-lg flex-shrink-0"
-                          onError={(e) => e.target.style.display = 'none'}
-                        />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className={`font-medium text-sm truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{item.title}</p>
-                        <p className={`text-xs truncate ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{item.description}</p>
-                      </div>
-                      <ExternalLink size={14} className="text-gray-500 flex-shrink-0" />
-                    </a>
-                  ))}
-                </div>
-              </div>
-
-              {/* Navigation Buttons */}
-              <div className="flex items-center gap-1 px-2">
-                <button 
-                  onClick={prevNews}
-                  className={`p-1.5 rounded transition-colors ${isDarkMode ? 'hover:bg-dark-700 text-gray-400 hover:text-white' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'}`}
-                >
-                  <ChevronLeft size={18} />
-                </button>
-                <button 
-                  onClick={nextNews}
-                  className={`p-1.5 rounded transition-colors ${isDarkMode ? 'hover:bg-dark-700 text-gray-400 hover:text-white' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'}`}
-                >
-                  <ChevronRight size={18} />
-                </button>
-              </div>
-
-              {/* Dots Indicator */}
-              <div className={`flex items-center gap-1 px-3 border-l ${isDarkMode ? 'border-gray-700' : 'border-gray-300'}`}>
-                {marketNews.slice(0, 8).map((_, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setCurrentNewsIndex(index)}
-                    className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                      currentNewsIndex === index ? 'bg-accent-green' : isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
-                    }`}
-                  />
-                ))}
+              <div>
+                <p className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Welcome back, {user.firstName || 'Trader'}!
+                </p>
+                <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                </p>
               </div>
             </div>
+            <p className={`text-sm ${isDarkMode ? 'text-accent-green' : 'text-green-600'}`}>
+              Have a great trading day!
+            </p>
           </div>
-        )}
+        </div>
 
         {/* Simple Header */}
         <header className={`flex items-center justify-between px-6 py-4 border-b ${isDarkMode ? 'border-gray-800' : 'border-gray-200'}`}>

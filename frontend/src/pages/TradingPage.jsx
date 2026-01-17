@@ -962,17 +962,19 @@ const TradingPage = () => {
         if (data.success && data.account) {
           setChallengeAccount(data)
           setChallengeRules(data.rules || {})
+          // Get max leverage from challenge rules
+          const challengeMaxLeverage = data.rules?.maxLeverage || 100
           // Create a compatible account object for the trading UI
           setAccount({
             _id: data.account._id,
             accountId: data.account.accountId,
             balance: data.balance?.current || 0,
             equity: data.balance?.equity || 0,
-            leverage: `1:100`,
+            leverage: `1:${challengeMaxLeverage}`,
             accountType: 'CHALLENGE',
             status: data.account.status
           })
-          setLeverage('1:100')
+          setLeverage(`1:${challengeMaxLeverage}`)
         } else {
           navigate('/account')
         }

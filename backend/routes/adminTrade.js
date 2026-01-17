@@ -1,6 +1,7 @@
 import express from 'express'
 import Trade from '../models/Trade.js'
 import TradingAccount from '../models/TradingAccount.js'
+import ChallengeAccount from '../models/ChallengeAccount.js'
 import User from '../models/User.js'
 import Charges from '../models/Charges.js'
 import TradeSettings from '../models/TradeSettings.js'
@@ -171,8 +172,13 @@ router.put('/edit/:tradeId', async (req, res) => {
         trade.closedBy = 'ADMIN'
         trade.closedAt = new Date()
         
-        // Update account balance with P&L
-        const account = await TradingAccount.findById(trade.tradingAccountId)
+        // Update account balance with P&L - handle both account types
+        let account = null
+        if (trade.accountType === 'ChallengeAccount' || trade.isChallengeAccount) {
+          account = await ChallengeAccount.findById(trade.tradingAccountId)
+        } else {
+          account = await TradingAccount.findById(trade.tradingAccountId)
+        }
         if (account) {
           account.balance += trade.realizedPnl
           if (account.balance < 0) account.balance = 0
@@ -184,9 +190,14 @@ router.put('/edit/:tradeId', async (req, res) => {
       const oldPnl = trade.realizedPnl || 0
       trade.realizedPnl = realizedPnl
       
-      // Adjust account balance if trade is closed
+      // Adjust account balance if trade is closed - handle both account types
       if (trade.status === 'CLOSED') {
-        const account = await TradingAccount.findById(trade.tradingAccountId)
+        let account = null
+        if (trade.accountType === 'ChallengeAccount' || trade.isChallengeAccount) {
+          account = await ChallengeAccount.findById(trade.tradingAccountId)
+        } else {
+          account = await TradingAccount.findById(trade.tradingAccountId)
+        }
         if (account) {
           account.balance = account.balance - oldPnl + realizedPnl
           if (account.balance < 0) account.balance = 0
@@ -264,8 +275,14 @@ router.post('/close/:tradeId', async (req, res) => {
 
     await trade.save()
 
-    // Update account balance
-    const account = await TradingAccount.findById(trade.tradingAccountId)
+    // Update account balance - handle both TradingAccount and ChallengeAccount
+    let account = null
+    if (trade.accountType === 'ChallengeAccount' || trade.isChallengeAccount) {
+      account = await ChallengeAccount.findById(trade.tradingAccountId)
+    } else {
+      account = await TradingAccount.findById(trade.tradingAccountId)
+    }
+    
     if (account) {
       account.balance += realizedPnl
       if (account.balance < 0) account.balance = 0
@@ -274,14 +291,14 @@ router.post('/close/:tradeId', async (req, res) => {
 
     // Check if this is a master trader's trade and close follower trades
     let followerResults = []
-    const master = await MasterTrader.findOne({ tradingAccountId: trade.tradingAccountId, status: 'APPROVED' })
+    const master = await MasterTrader.findOne({ tradingAccountId: trade.tradingAccountId, status: 'ACTIVE' })
     if (master) {
       console.log(`[AdminTrade] Master trade closed, propagating to followers. TradeId: ${tradeId}, ClosePrice: ${finalClosePrice}`)
       followerResults = await copyTradingEngine.closeFollowerTrades(trade._id, finalClosePrice)
       console.log(`[AdminTrade] Closed ${followerResults.length} follower trades`)
     }
 
-    res.json({ 
+    res.json({    
       success: true, 
       message: 'Trade closed', 
       trade, 

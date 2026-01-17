@@ -12,11 +12,11 @@ const copyTradeSchema = new mongoose.Schema({
     ref: 'MasterTrader',
     required: true
   },
-  // Follower trade reference
+  // Follower trade reference (null for failed copies)
   followerTradeId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Trade',
-    required: true
+    default: null
   },
   followerId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -53,7 +53,7 @@ const copyTradeSchema = new mongoose.Schema({
   },
   copyMode: {
     type: String,
-    enum: ['FIXED_LOT', 'LOT_MULTIPLIER', 'AUTO'],
+    enum: ['FIXED_LOT', 'BALANCE_BASED', 'EQUITY_BASED', 'MULTIPLIER', 'LOT_MULTIPLIER', 'AUTO'],
     required: true
   },
   copyValue: {

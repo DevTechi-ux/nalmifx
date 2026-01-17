@@ -46,6 +46,11 @@ const CopyTradePage = () => {
   const [editAccount, setEditAccount] = useState('')
   const [editCopyMode, setEditCopyMode] = useState('FIXED_LOT')
   const [editCopyValue, setEditCopyValue] = useState('0.01')
+  
+  // Earnings withdrawal states
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false)
+  const [withdrawAmount, setWithdrawAmount] = useState('')
+  const [withdrawing, setWithdrawing] = useState(false)
 
   const user = JSON.parse(localStorage.getItem('user') || '{}')
 
@@ -204,6 +209,35 @@ const CopyTradePage = () => {
       alert('Failed to submit application')
     }
     setApplyingMaster(false)
+  }
+
+  const handleWithdrawToWallet = async () => {
+    if (!myMasterProfile || !withdrawAmount || parseFloat(withdrawAmount) <= 0) return
+    
+    setWithdrawing(true)
+    try {
+      const res = await fetch(`${API_URL}/copy/master/withdraw`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          masterId: myMasterProfile._id,
+          amount: parseFloat(withdrawAmount)
+        })
+      })
+      const data = await res.json()
+      if (data.newWalletBalance !== undefined) {
+        alert(`Successfully transferred $${parseFloat(withdrawAmount).toFixed(2)} to your wallet!`)
+        setShowWithdrawModal(false)
+        setWithdrawAmount('')
+        fetchMyMasterProfile()
+      } else {
+        alert(data.message || 'Failed to withdraw')
+      }
+    } catch (error) {
+      console.error('Error withdrawing:', error)
+      alert('Failed to withdraw earnings')
+    }
+    setWithdrawing(false)
   }
 
   const handleFollow = async () => {
@@ -457,6 +491,39 @@ const CopyTradePage = () => {
                   </div>
                 )}
               </div>
+              
+              {/* Earnings Report Section */}
+              {myMasterProfile.status === 'ACTIVE' && (
+                <div className={`mt-4 pt-4 border-t border-green-500/20 ${isMobile ? 'grid grid-cols-2 gap-3' : 'grid grid-cols-4 gap-4'}`}>
+                  <div className="bg-dark-800/50 rounded-lg p-3">
+                    <p className="text-gray-400 text-xs mb-1">Available Balance</p>
+                    <p className="text-green-400 font-bold text-lg">${(myMasterProfile.pendingCommission || 0).toFixed(2)}</p>
+                  </div>
+                  <div className="bg-dark-800/50 rounded-lg p-3">
+                    <p className="text-gray-400 text-xs mb-1">Total Earned</p>
+                    <p className="text-white font-bold text-lg">${(myMasterProfile.totalCommissionEarned || 0).toFixed(2)}</p>
+                  </div>
+                  <div className="bg-dark-800/50 rounded-lg p-3">
+                    <p className="text-gray-400 text-xs mb-1">Withdrawn</p>
+                    <p className="text-purple-400 font-bold text-lg">${(myMasterProfile.totalCommissionWithdrawn || 0).toFixed(2)}</p>
+                  </div>
+                  <div className="bg-dark-800/50 rounded-lg p-3 flex items-center justify-center">
+                    <button
+                      onClick={() => setShowWithdrawModal(true)}
+                      disabled={!myMasterProfile.pendingCommission || myMasterProfile.pendingCommission <= 0}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                        myMasterProfile.pendingCommission > 0 
+                          ? 'bg-accent-green text-black hover:bg-accent-green/90' 
+                          : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      <Wallet size={16} />
+                      Withdraw to Wallet
+                    </button>
+                  </div>
+                </div>
+              )}
+              
               {myMasterProfile.status === 'REJECTED' && myMasterProfile.rejectionReason && (
                 <p className="text-red-400 text-xs mt-2">Reason: {myMasterProfile.rejectionReason}</p>
               )}
@@ -1043,6 +1110,87 @@ const CopyTradePage = () => {
                 className="flex-1 bg-blue-500 text-white py-2 rounded-lg font-medium hover:bg-blue-600"
               >
                 Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Withdraw to Wallet Modal */}
+      {showWithdrawModal && myMasterProfile && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-800 rounded-2xl p-6 w-full max-w-md border border-gray-700">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-white">Withdraw to Wallet</h2>
+              <button onClick={() => setShowWithdrawModal(false)} className="text-gray-400 hover:text-white">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-dark-700 rounded-lg p-4">
+                <p className="text-gray-400 text-sm mb-1">Available Balance</p>
+                <p className="text-green-400 font-bold text-2xl">${(myMasterProfile.pendingCommission || 0).toFixed(2)}</p>
+              </div>
+
+              <div>
+                <label className="text-gray-400 text-sm mb-1 block">Amount to Withdraw</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                  <input
+                    type="number"
+                    value={withdrawAmount}
+                    onChange={(e) => setWithdrawAmount(e.target.value)}
+                    placeholder="0.00"
+                    min="0"
+                    max={myMasterProfile.pendingCommission || 0}
+                    step="0.01"
+                    className="w-full bg-dark-700 border border-gray-600 rounded-lg pl-8 pr-3 py-3 text-white text-lg"
+                  />
+                </div>
+                <div className="flex justify-between mt-2">
+                  <button
+                    onClick={() => setWithdrawAmount((myMasterProfile.pendingCommission || 0).toFixed(2))}
+                    className="text-accent-green text-xs hover:underline"
+                  >
+                    Withdraw Max
+                  </button>
+                  <p className="text-gray-500 text-xs">Min: $1.00</p>
+                </div>
+              </div>
+
+              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+                <p className="text-yellow-400 text-sm">
+                  <DollarSign size={14} className="inline mr-1" />
+                  Funds will be transferred to your main wallet instantly.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowWithdrawModal(false)}
+                className="flex-1 bg-dark-700 text-white py-3 rounded-lg hover:bg-dark-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleWithdrawToWallet}
+                disabled={withdrawing || !withdrawAmount || parseFloat(withdrawAmount) <= 0 || parseFloat(withdrawAmount) > (myMasterProfile.pendingCommission || 0)}
+                className={`flex-1 py-3 rounded-lg font-medium flex items-center justify-center gap-2 ${
+                  withdrawing || !withdrawAmount || parseFloat(withdrawAmount) <= 0 || parseFloat(withdrawAmount) > (myMasterProfile.pendingCommission || 0)
+                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                    : 'bg-accent-green text-black hover:bg-accent-green/90'
+                }`}
+              >
+                {withdrawing ? (
+                  <>Processing...</>
+                ) : (
+                  <>
+                    <Wallet size={18} />
+                    Withdraw
+                  </>
+                )}
               </button>
             </div>
           </div>
