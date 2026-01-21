@@ -1,5 +1,4 @@
 import mongoose from 'mongoose'
-import bcrypt from 'bcryptjs'
 
 const tradingAccountSchema = new mongoose.Schema({
   userId: {
@@ -16,11 +15,6 @@ const tradingAccountSchema = new mongoose.Schema({
     type: String,
     unique: true,
     required: true
-  },
-  pin: {
-    type: String,
-    required: false,
-    default: null
   },
   balance: {
     type: Number,
@@ -61,18 +55,6 @@ const tradingAccountSchema = new mongoose.Schema({
     default: false
   }
 }, { timestamps: true })
-
-// Hash PIN before saving
-tradingAccountSchema.pre('save', async function(next) {
-  if (!this.isModified('pin')) return next()
-  this.pin = await bcrypt.hash(this.pin, 10)
-  next()
-})
-
-// Verify PIN
-tradingAccountSchema.methods.verifyPin = async function(pin) {
-  return await bcrypt.compare(pin, this.pin)
-}
 
 // Generate unique account ID (numbers only, 8 digits)
 tradingAccountSchema.statics.generateAccountId = async function() {
