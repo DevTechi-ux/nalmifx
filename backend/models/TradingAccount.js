@@ -19,7 +19,8 @@ const tradingAccountSchema = new mongoose.Schema({
   },
   pin: {
     type: String,
-    required: true
+    required: false,
+    default: null
   },
   balance: {
     type: Number,
