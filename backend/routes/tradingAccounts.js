@@ -35,12 +35,7 @@ router.get('/all', async (req, res) => {
 // POST /api/trading-accounts - Create trading account
 router.post('/', async (req, res) => {
   try {
-    const { userId, accountTypeId, pin } = req.body
-
-    // Validate PIN (4 digits)
-    if (!pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
-      return res.status(400).json({ message: 'PIN must be exactly 4 digits' })
-    }
+    const { userId, accountTypeId } = req.body
 
     // Get account type
     const accountType = await AccountType.findById(accountTypeId)
@@ -66,7 +61,6 @@ router.post('/', async (req, res) => {
       userId,
       accountTypeId,
       accountId,
-      pin,
       balance: initialBalance,
       credit: accountType.isDemo ? initialBalance : 0, // Demo balance is non-refundable (credit)
       leverage: accountType.leverage,
