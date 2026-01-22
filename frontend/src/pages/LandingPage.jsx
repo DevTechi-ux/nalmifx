@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { ChevronDown, Globe } from 'lucide-react'
+import { ChevronDown, Globe, Smartphone } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+
+// App Download Link
+const APP_DOWNLOAD_URL = 'https://expo.dev/accounts/minal_chouhan/projects/nalmifx/builds/f8d7b8dc-0fd4-47db-a926-0907247c0248'
 
 // Navigation Component
 const Navigation = () => {
@@ -40,7 +43,17 @@ const Navigation = () => {
           </div>
         </div>
         <div className="flex items-center gap-[12px] md:gap-[24px]">
-          <button className="flex items-center gap-[6px] text-white hover:text-[#CFF12F] transition-colors text-[14px] font-medium">
+          <a
+            href={APP_DOWNLOAD_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-[6px] bg-gradient-to-r from-[#CFF12F] to-[#a8c926] text-black px-[12px] md:px-[16px] py-[8px] rounded-[20px] text-[13px] md:text-[14px] font-semibold hover:brightness-110 transition-all whitespace-nowrap shadow-lg"
+          >
+            <Smartphone size={16} />
+            <span className="hidden sm:inline">Download App</span>
+            <span className="sm:hidden">App</span>
+          </a>
+          <button className="hidden md:flex items-center gap-[6px] text-white hover:text-[#CFF12F] transition-colors text-[14px] font-medium">
             <Globe size={18} />
             <span className="hidden sm:inline">EN</span>
             <ChevronDown size={14} className="hidden sm:inline" />
@@ -312,6 +325,24 @@ const Footer = () => {
               </div>
             </div>
             <div className="mt-auto">
+              {/* Download App Section */}
+              <div className="mb-8">
+                <span className="text-[14px] font-medium block mb-4">Get the App</span>
+                <a
+                  href={APP_DOWNLOAD_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-3 bg-black text-white px-5 py-3 rounded-xl hover:bg-black/80 transition-all group"
+                >
+                  <div className="w-10 h-10 bg-[#CFF12F] rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <Smartphone size={22} className="text-black" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[11px] opacity-70">Download on</span>
+                    <span className="text-[15px] font-semibold">Android</span>
+                  </div>
+                </a>
+              </div>
               <span className="text-[14px] font-medium block mb-4">Follow us on</span>
               <ul className="flex items-center gap-6">
                 {socialLinks.map((social) => (
