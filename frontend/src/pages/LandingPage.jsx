@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { ChevronDown, Globe, Smartphone } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
-// App Download Link
-const APP_DOWNLOAD_URL = 'https://expo.dev/accounts/minal_chouhan/projects/nalmifx/builds/f8d7b8dc-0fd4-47db-a926-0907247c0248'
+// App Download Link (APK with internal distribution)
+const APP_DOWNLOAD_URL = 'https://expo.dev/accounts/minal_chouhan/projects/nalmifx/builds/1ad54bbd-0c07-49ac-a953-678dcb6efff1'
 
 // Navigation Component
 const Navigation = () => {
