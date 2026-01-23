@@ -1,6 +1,7 @@
 import express from 'express'
 import mongoose from 'mongoose'
 import cors from 'cors'
+import compression from 'compression'
 import dotenv from 'dotenv'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
@@ -430,6 +431,7 @@ io.on('connection', (socket) => {
 app.set('io', io)
 
 // Middleware
+app.use(compression()) // Enable gzip compression for faster API responses
 app.use(cors())
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ limit: '50mb', extended: true }))
