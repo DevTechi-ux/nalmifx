@@ -468,8 +468,8 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 
 // Serve APK download
 app.get('/downloads/nalmifx.apk', (req, res) => {
-  // APK stored in backend/downloads folder
-  const apkPath = path.join(__dirname, 'downloads', 'nalmifx.apk')
+  // APK stored in backend/apk folder
+  const apkPath = path.join(__dirname, 'apk', 'nalmifx.apk')
   res.download(apkPath, 'NalmiFX.apk', (err) => {
     if (err) {
       console.error('APK download error:', err)
