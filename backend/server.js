@@ -466,6 +466,18 @@ app.use('/api/bonus', bonusRoutes)
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 
+// Serve APK download
+app.get('/downloads/nalmifx.apk', (req, res) => {
+  // Path: backend -> nalmifx -> NalmiMobileApp -> first_mobile_app -> apk
+  const apkPath = path.join(__dirname, '..', '..', 'first_mobile_app', 'apk', 'application-ff39106f-5779-4d69-9e38-c439482cdee5.apk')
+  res.download(apkPath, 'NalmiFX.apk', (err) => {
+    if (err) {
+      console.error('APK download error:', err)
+      res.status(404).json({ error: 'APK not found' })
+    }
+  })
+})
+
 // Health check
 app.get('/', (req, res) => {
   res.json({ message: 'NalmiFX API is running' })
