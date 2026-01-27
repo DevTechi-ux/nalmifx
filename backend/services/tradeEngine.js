@@ -22,10 +22,36 @@ class TradeEngine {
   }
 
   // Calculate execution price with spread
-  calculateExecutionPrice(side, bid, ask, spreadValue, spreadType) {
-    let spread = spreadValue
+  // For FIXED spread: value is in PIPS (needs conversion based on symbol)
+  // For PERCENTAGE spread: value is percentage of price difference
+  calculateExecutionPrice(side, bid, ask, spreadValue, spreadType, symbol = '') {
+    let spread = 0
+    
     if (spreadType === 'PERCENTAGE') {
       spread = (ask - bid) * (spreadValue / 100)
+    } else {
+      // FIXED spread - value is in PIPS, need to convert to price
+      // For JPY pairs: 1 pip = 0.01
+      // For other forex pairs: 1 pip = 0.0001
+      // For metals (XAUUSD): 1 pip = 0.01
+      // For crypto: spread is in USD directly
+      const isJPYPair = symbol.includes('JPY')
+      const isMetal = ['XAUUSD', 'XAGUSD'].includes(symbol)
+      const isCrypto = ['BTCUSD', 'ETHUSD', 'LTCUSD', 'XRPUSD', 'BCHUSD'].includes(symbol)
+      
+      if (isCrypto) {
+        // Crypto: spread is in USD
+        spread = spreadValue
+      } else if (isMetal) {
+        // Metals: 1 pip = 0.01 (cents)
+        spread = spreadValue * 0.01
+      } else if (isJPYPair) {
+        // JPY pairs: 1 pip = 0.01
+        spread = spreadValue * 0.01
+      } else {
+        // Standard forex pairs: 1 pip = 0.0001
+        spread = spreadValue * 0.0001
+      }
     }
     
     if (side === 'BUY') {
@@ -215,7 +241,7 @@ class TradeEngine {
     console.log(`Charges retrieved: spread=${charges.spreadValue}, commission=${charges.commissionValue}, commissionType=${charges.commissionType}`)
 
     // Calculate execution price with spread
-    const openPrice = this.calculateExecutionPrice(side, bid, ask, charges.spreadValue, charges.spreadType)
+    const openPrice = this.calculateExecutionPrice(side, bid, ask, charges.spreadValue, charges.spreadType, symbol)
 
     // Get contract size based on symbol
     const contractSize = this.getContractSize(symbol)

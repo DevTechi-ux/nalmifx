@@ -204,10 +204,28 @@ class PropTradingEngine {
   }
 
   // Calculate execution price with spread
-  calculateExecutionPrice(side, bid, ask, spreadValue, spreadType) {
-    let spread = spreadValue || 0
+  // For FIXED spread: value is in PIPS (needs conversion based on symbol)
+  // For PERCENTAGE spread: value is percentage of price difference
+  calculateExecutionPrice(side, bid, ask, spreadValue, spreadType, symbol = '') {
+    let spread = 0
+    
     if (spreadType === 'PERCENTAGE') {
       spread = (ask - bid) * (spreadValue / 100)
+    } else {
+      // FIXED spread - value is in PIPS, need to convert to price
+      const isJPYPair = symbol.includes('JPY')
+      const isMetal = ['XAUUSD', 'XAGUSD'].includes(symbol)
+      const isCrypto = ['BTCUSD', 'ETHUSD', 'LTCUSD', 'XRPUSD', 'BCHUSD'].includes(symbol)
+      
+      if (isCrypto) {
+        spread = spreadValue || 0
+      } else if (isMetal) {
+        spread = (spreadValue || 0) * 0.01
+      } else if (isJPYPair) {
+        spread = (spreadValue || 0) * 0.01
+      } else {
+        spread = (spreadValue || 0) * 0.0001
+      }
     }
     
     if (side === 'BUY') {
@@ -248,7 +266,7 @@ class PropTradingEngine {
     const charges = await Charges.getChargesForTrade(userId, symbol, segment || 'Forex', null)
     
     // Calculate execution price with spread
-    const openPrice = this.calculateExecutionPrice(side, bid, ask, charges.spreadValue, charges.spreadType)
+    const openPrice = this.calculateExecutionPrice(side, bid, ask, charges.spreadValue, charges.spreadType, symbol)
 
     // Get contract size based on symbol
     const contractSize = this.getContractSize(symbol)

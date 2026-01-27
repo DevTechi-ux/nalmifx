@@ -118,6 +118,18 @@ const userSchema = new mongoose.Schema({
     default: ''
   },
   
+  // Profile Image
+  profileImage: {
+    type: String,
+    default: null
+  },
+  
+  // KYC Status
+  kycApproved: {
+    type: Boolean,
+    default: false
+  },
+  
   createdAt: {
     type: Date,
     default: Date.now
