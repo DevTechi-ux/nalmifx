@@ -626,6 +626,37 @@ class TradeEngine {
       await trade.save()
     }
   }
+
+  // Check stop-out for ALL accounts with open trades (background job)
+  async checkAllAccountsStopOut(currentPrices) {
+    try {
+      // Get all unique trading accounts with open trades (non-challenge only)
+      const openTrades = await Trade.find({ status: 'OPEN', isChallengeAccount: { $ne: true } })
+      const accountIds = [...new Set(openTrades.map(t => t.tradingAccountId?.toString()).filter(Boolean))]
+      
+      if (accountIds.length === 0) return { checked: 0, stopOuts: [] }
+
+      console.log(`[STOP-OUT CHECK] Checking ${accountIds.length} accounts with open trades`)
+      
+      const stopOuts = []
+      for (const accountId of accountIds) {
+        try {
+          const result = await this.checkStopOut(accountId, currentPrices)
+          if (result && result.stopOutTriggered) {
+            console.log(`[STOP-OUT] Account ${accountId} stopped out: ${result.reason}`)
+            stopOuts.push({ accountId, ...result })
+          }
+        } catch (err) {
+          console.error(`[STOP-OUT CHECK] Error checking account ${accountId}:`, err.message)
+        }
+      }
+
+      return { checked: accountIds.length, stopOuts }
+    } catch (error) {
+      console.error('[STOP-OUT CHECK] Error in checkAllAccountsStopOut:', error)
+      return { checked: 0, stopOuts: [], error: error.message }
+    }
+  }
 }
 
 export default new TradeEngine()

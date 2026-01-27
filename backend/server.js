@@ -363,6 +363,27 @@ fetchForexPricesHTTP().then(() => {
 // Start price streaming interval (500ms for Binance crypto)
 setInterval(streamPrices, 500)
 
+// Background stop-out check every 5 seconds
+// This ensures trades are closed even if user closes browser
+setInterval(async () => {
+  try {
+    if (priceCache.size === 0) return // No prices yet
+    
+    // Convert priceCache to object format expected by tradeEngine
+    const currentPrices = {}
+    priceCache.forEach((data, symbol) => {
+      currentPrices[symbol] = { bid: data.bid, ask: data.ask }
+    })
+    
+    const result = await tradeEngine.checkAllAccountsStopOut(currentPrices)
+    if (result.stopOuts && result.stopOuts.length > 0) {
+      console.log(`[STOP-OUT] ${result.stopOuts.length} accounts stopped out`)
+    }
+  } catch (error) {
+    // Silent fail - don't spam logs
+  }
+}, 5000)
+
 // Connect AllTick WebSocket on startup
 connectAllTickWebSocket()
 
