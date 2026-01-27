@@ -156,7 +156,7 @@ router.get('/my-accounts/:userId', async (req, res) => {
     if (status) query.status = status
 
     const accounts = await ChallengeAccount.find(query)
-      .populate('challengeId', 'name fundSize stepsCount')
+      .populate('challengeId')
       .sort({ createdAt: -1 })
 
     res.json({ success: true, accounts })

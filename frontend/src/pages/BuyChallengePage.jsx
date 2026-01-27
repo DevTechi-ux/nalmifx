@@ -302,24 +302,6 @@ export default function BuyChallengePage() {
           {/* Right Column - Order Summary */}
           <div className="lg:col-span-1">
             <div className="bg-dark-800 rounded-xl border border-gray-800 sticky top-4">
-              {/* Coupon Code */}
-              <div className="p-6 border-b border-gray-800">
-                <h3 className="text-white font-semibold mb-2">Coupon Code</h3>
-                <p className="text-gray-500 text-sm mb-3">Enter a coupon code to get a discount</p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={couponCode}
-                    onChange={(e) => setCouponCode(e.target.value)}
-                    placeholder="Enter coupon code"
-                    className="flex-1 bg-dark-700 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-500"
-                  />
-                  <button className="px-4 py-2 bg-dark-700 text-gray-400 rounded-lg hover:text-white">
-                    Apply
-                  </button>
-                </div>
-              </div>
-
               {/* Order Summary */}
               <div className="p-6 border-b border-gray-800">
                 <h3 className="text-white font-semibold mb-4">Order Summary</h3>
