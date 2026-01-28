@@ -370,19 +370,31 @@ const AdminKYC = () => {
                 {selectedKyc.frontImage && (
                   <div>
                     <p className="text-gray-400 text-sm mb-2">Front Side</p>
-                    <img src={selectedKyc.frontImage} alt="Front" className="max-w-full rounded-lg border border-gray-700" />
+                    <img 
+                      src={selectedKyc.frontImage.startsWith('http') ? selectedKyc.frontImage : `${API_URL.replace('/api', '')}${selectedKyc.frontImage}`} 
+                      alt="Front" 
+                      className="max-w-full rounded-lg border border-gray-700" 
+                    />
                   </div>
                 )}
                 {selectedKyc.backImage && (
                   <div>
                     <p className="text-gray-400 text-sm mb-2">Back Side</p>
-                    <img src={selectedKyc.backImage} alt="Back" className="max-w-full rounded-lg border border-gray-700" />
+                    <img 
+                      src={selectedKyc.backImage.startsWith('http') ? selectedKyc.backImage : `${API_URL.replace('/api', '')}${selectedKyc.backImage}`} 
+                      alt="Back" 
+                      className="max-w-full rounded-lg border border-gray-700" 
+                    />
                   </div>
                 )}
                 {selectedKyc.selfieImage && (
                   <div>
                     <p className="text-gray-400 text-sm mb-2">Selfie with Document</p>
-                    <img src={selectedKyc.selfieImage} alt="Selfie" className="max-w-full rounded-lg border border-gray-700" />
+                    <img 
+                      src={selectedKyc.selfieImage.startsWith('http') ? selectedKyc.selfieImage : `${API_URL.replace('/api', '')}${selectedKyc.selfieImage}`} 
+                      alt="Selfie" 
+                      className="max-w-full rounded-lg border border-gray-700" 
+                    />
                   </div>
                 )}
               </div>
