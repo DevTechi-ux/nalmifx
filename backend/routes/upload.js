@@ -101,28 +101,40 @@ const profileUpload = multer({
 // POST /api/upload/profile-image - Upload profile image
 router.post('/profile-image', profileUpload.single('profileImage'), async (req, res) => {
   try {
+    console.log('[Profile Image] Upload request received')
+    console.log('[Profile Image] File:', req.file)
+    console.log('[Profile Image] Body:', req.body)
+    
     if (!req.file) {
+      console.log('[Profile Image] No file in request')
       return res.status(400).json({ success: false, message: 'No file uploaded' })
     }
 
     const { userId } = req.body
     if (!userId) {
+      console.log('[Profile Image] No userId in request')
       return res.status(400).json({ success: false, message: 'User ID is required' })
     }
 
     const fileUrl = `/uploads/profiles/${req.file.filename}`
+    console.log('[Profile Image] File URL:', fileUrl)
     
     // Update user's profile image in database
     const User = (await import('../models/User.js')).default
-    const user = await User.findByIdAndUpdate(
-      userId,
-      { profileImage: fileUrl },
-      { new: true }
-    )
-
-    if (!user) {
+    
+    // First check if user exists
+    const existingUser = await User.findById(userId)
+    console.log('[Profile Image] Existing user found:', existingUser ? 'Yes' : 'No')
+    
+    if (!existingUser) {
       return res.status(404).json({ success: false, message: 'User not found' })
     }
+    
+    // Update the user
+    existingUser.profileImage = fileUrl
+    await existingUser.save()
+    
+    console.log('[Profile Image] User updated, new profileImage:', existingUser.profileImage)
     
     res.json({
       success: true,
@@ -130,7 +142,7 @@ router.post('/profile-image', profileUpload.single('profileImage'), async (req, 
       profileImage: fileUrl
     })
   } catch (error) {
-    console.error('Error uploading profile image:', error)
+    console.error('[Profile Image] Error:', error)
     res.status(500).json({ success: false, message: error.message })
   }
 })
