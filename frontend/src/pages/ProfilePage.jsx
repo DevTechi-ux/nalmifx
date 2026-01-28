@@ -537,12 +537,11 @@ const ProfilePage = () => {
                 <div className="relative">
                   {profileImage ? (
                     <img 
-                      src={profileImage.startsWith('http') ? profileImage : `${API_URL.replace('/api', '')}${profileImage}`}
+                      src={`${profileImage.startsWith('http') ? profileImage : `${API_URL.replace('/api', '')}${profileImage}`}?t=${Date.now()}`}
                       alt="Profile"
                       className={`${isMobile ? 'w-16 h-16' : 'w-24 h-24'} rounded-full object-cover border-2 border-accent-green`}
                       onError={(e) => {
                         console.error('Image failed to load:', e.target.src)
-                        e.target.style.display = 'none'
                       }}
                       onLoad={() => console.log('Image loaded successfully')}
                     />
