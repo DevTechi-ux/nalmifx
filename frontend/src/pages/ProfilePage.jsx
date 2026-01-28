@@ -268,11 +268,17 @@ const ProfilePage = () => {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         const data = await res.json()
+        console.log('Fetched user data:', data)
         if (data.user) {
           // Update localStorage with fresh data
           localStorage.setItem('user', JSON.stringify(data.user))
           // Update profile image state
           if (data.user.profileImage) {
+            console.log('Setting profile image:', data.user.profileImage)
+            const fullUrl = data.user.profileImage.startsWith('http') 
+              ? data.user.profileImage 
+              : `${API_URL.replace('/api', '')}${data.user.profileImage}`
+            console.log('Full profile image URL:', fullUrl)
             setProfileImage(data.user.profileImage)
           }
         }
@@ -534,6 +540,11 @@ const ProfilePage = () => {
                       src={profileImage.startsWith('http') ? profileImage : `${API_URL.replace('/api', '')}${profileImage}`}
                       alt="Profile"
                       className={`${isMobile ? 'w-16 h-16' : 'w-24 h-24'} rounded-full object-cover border-2 border-accent-green`}
+                      onError={(e) => {
+                        console.error('Image failed to load:', e.target.src)
+                        e.target.style.display = 'none'
+                      }}
+                      onLoad={() => console.log('Image loaded successfully')}
                     />
                   ) : (
                     <div className={`${isMobile ? 'w-16 h-16' : 'w-24 h-24'} bg-accent-green/20 rounded-full flex items-center justify-center`}>
