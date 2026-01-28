@@ -35,6 +35,7 @@ router.get('/all', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { userId, accountTypeId } = req.body
+    console.log('[CREATE ACCOUNT] Request:', { userId, accountTypeId })
 
     // Get account type
     const accountType = await AccountType.findById(accountTypeId)
@@ -68,6 +69,7 @@ router.post('/', async (req, res) => {
     })
 
     await tradingAccount.save()
+    console.log('[CREATE ACCOUNT] Success:', { accountId: tradingAccount.accountId, id: tradingAccount._id, userId })
 
     // Log demo account creation
     if (accountType.isDemo) {
@@ -99,6 +101,7 @@ router.post('/', async (req, res) => {
       }
     })
   } catch (error) {
+    console.error('[CREATE ACCOUNT] Error:', error.message)
     res.status(500).json({ success: false, message: 'Error creating account', error: error.message })
   }
 })
