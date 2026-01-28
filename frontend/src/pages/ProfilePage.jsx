@@ -253,6 +253,49 @@ const ProfilePage = () => {
     upiId: storedUser.upiId || ''
   })
 
+  // Profile image state
+  const [profileImage, setProfileImage] = useState(storedUser.profileImage || null)
+  const [uploadingImage, setUploadingImage] = useState(false)
+
+  // Handle profile image upload
+  const handleProfileImageUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size should be less than 5MB')
+      return
+    }
+
+    setUploadingImage(true)
+    try {
+      const formData = new FormData()
+      formData.append('userId', storedUser._id)
+      formData.append('profileImage', file)
+
+      const res = await fetch(`${API_URL}/upload/profile-image`, {
+        method: 'POST',
+        body: formData
+      })
+      const data = await res.json()
+      
+      if (data.success || data.profileImage) {
+        const imageUrl = data.profileImage
+        setProfileImage(imageUrl)
+        // Update localStorage
+        const updatedUser = { ...storedUser, profileImage: imageUrl }
+        localStorage.setItem('user', JSON.stringify(updatedUser))
+        alert('Profile image updated successfully!')
+      } else {
+        alert(data.message || 'Failed to upload image')
+      }
+    } catch (error) {
+      console.error('Upload error:', error)
+      alert('Failed to upload profile image')
+    }
+    setUploadingImage(false)
+  }
+
   // Password change state
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [passwordData, setPasswordData] = useState({
@@ -460,16 +503,33 @@ const ProfilePage = () => {
             <div className={`${isDarkMode ? 'bg-dark-800 border-gray-800' : 'bg-white border-gray-200 shadow-sm'} rounded-xl ${isMobile ? 'p-4' : 'p-6'} border mb-4`}>
               <div className={`flex ${isMobile ? 'flex-col' : ''} items-center gap-4`}>
                 <div className="relative">
-                  <div className={`${isMobile ? 'w-16 h-16' : 'w-24 h-24'} bg-accent-green/20 rounded-full flex items-center justify-center`}>
-                    <span className={`text-accent-green font-bold ${isMobile ? 'text-xl' : 'text-3xl'}`}>
-                      {profile.firstName?.charAt(0)}{profile.lastName?.charAt(0)}
-                    </span>
-                  </div>
-                  {editing && (
-                    <button className="absolute bottom-0 right-0 w-6 h-6 bg-accent-green rounded-full flex items-center justify-center">
-                      <Camera size={12} className="text-black" />
-                    </button>
+                  {profileImage ? (
+                    <img 
+                      src={profileImage.startsWith('http') ? profileImage : `${API_URL.replace('/api', '')}${profileImage}`}
+                      alt="Profile"
+                      className={`${isMobile ? 'w-16 h-16' : 'w-24 h-24'} rounded-full object-cover border-2 border-accent-green`}
+                    />
+                  ) : (
+                    <div className={`${isMobile ? 'w-16 h-16' : 'w-24 h-24'} bg-accent-green/20 rounded-full flex items-center justify-center`}>
+                      <span className={`text-accent-green font-bold ${isMobile ? 'text-xl' : 'text-3xl'}`}>
+                        {profile.firstName?.charAt(0)}{profile.lastName?.charAt(0)}
+                      </span>
+                    </div>
                   )}
+                  <label className={`absolute bottom-0 right-0 w-6 h-6 bg-accent-green rounded-full flex items-center justify-center cursor-pointer ${uploadingImage ? 'opacity-50' : 'hover:bg-accent-green/80'}`}>
+                    {uploadingImage ? (
+                      <div className="w-3 h-3 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Camera size={12} className="text-black" />
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleProfileImageUpload}
+                      disabled={uploadingImage}
+                      className="hidden"
+                    />
+                  </label>
                 </div>
                 <div className={isMobile ? 'text-center' : ''}>
                   <h2 className={`font-bold ${isMobile ? 'text-lg' : 'text-2xl'} ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{profile.firstName} {profile.lastName}</h2>
