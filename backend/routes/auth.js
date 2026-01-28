@@ -266,10 +266,14 @@ router.post('/login', async (req, res) => {
         _id: user._id,
         id: user._id,
         firstName: user.firstName,
+        lastName: user.lastName,
         email: user.email,
         phone: user.phone,
+        profileImage: user.profileImage,
         assignedAdmin: user.assignedAdmin,
-        adminUrlSlug: user.adminUrlSlug
+        adminUrlSlug: user.adminUrlSlug,
+        kycApproved: user.kycApproved,
+        createdAt: user.createdAt
       },
       token
     })

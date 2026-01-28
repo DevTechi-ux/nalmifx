@@ -257,6 +257,32 @@ const ProfilePage = () => {
   const [profileImage, setProfileImage] = useState(storedUser.profileImage || null)
   const [uploadingImage, setUploadingImage] = useState(false)
 
+  // Fetch fresh user data on mount to get latest profile image
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const token = localStorage.getItem('token')
+        if (!token) return
+        
+        const res = await fetch(`${API_URL}/auth/me`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        const data = await res.json()
+        if (data.user) {
+          // Update localStorage with fresh data
+          localStorage.setItem('user', JSON.stringify(data.user))
+          // Update profile image state
+          if (data.user.profileImage) {
+            setProfileImage(data.user.profileImage)
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error)
+      }
+    }
+    fetchUserData()
+  }, [])
+
   // Handle profile image upload
   const handleProfileImageUpload = async (e) => {
     const file = e.target.files[0]
