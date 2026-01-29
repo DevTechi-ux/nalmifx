@@ -988,6 +988,37 @@ class PropTradingEngine {
     const remainingMs = account.expiresAt - now
     const remainingDays = Math.max(0, Math.ceil(remainingMs / (1000 * 60 * 60 * 24)))
 
+    // Get open trades to calculate real-time floating PnL
+    const openTrades = await Trade.find({
+      tradingAccountId: challengeAccountId,
+      status: 'OPEN'
+    })
+    
+    // Calculate floating PnL from open trades
+    let floatingPnl = 0
+    openTrades.forEach(trade => {
+      floatingPnl += trade.floatingPnl || 0
+    })
+    
+    // Calculate real-time equity
+    const realTimeEquity = account.currentBalance + floatingPnl
+    
+    // Calculate real-time drawdown percentages
+    const initialBalance = account.initialBalance || account.phaseStartBalance
+    const dayStartEquity = account.dayStartEquity || initialBalance
+    
+    // Daily DD = (dayStartEquity - currentEquity) / dayStartEquity * 100
+    const dailyLoss = dayStartEquity - realTimeEquity
+    const realTimeDailyDD = dailyLoss > 0 ? (dailyLoss / dayStartEquity) * 100 : 0
+    
+    // Overall DD = (initialBalance - lowestEquity) / initialBalance * 100
+    const lowestEquity = Math.min(account.lowestEquityOverall || initialBalance, realTimeEquity)
+    const overallLoss = initialBalance - lowestEquity
+    const realTimeOverallDD = overallLoss > 0 ? (overallLoss / initialBalance) * 100 : 0
+    
+    // Profit = (currentEquity - initialBalance) / initialBalance * 100
+    const realTimeProfit = ((realTimeEquity - initialBalance) / initialBalance) * 100
+
     // Calculate target progress
     let targetPercent = 0
     if (account.currentPhase === 1) {
@@ -995,7 +1026,7 @@ class PropTradingEngine {
     } else if (account.currentPhase === 2) {
       targetPercent = rules.profitTargetPhase2Percent || 5
     }
-    const targetProgress = Math.min(100, (account.currentProfitPercent / targetPercent) * 100)
+    const targetProgress = Math.min(100, (realTimeProfit / targetPercent) * 100)
 
     return {
       account: {
@@ -1009,22 +1040,23 @@ class PropTradingEngine {
       balance: {
         initial: account.initialBalance,
         current: account.currentBalance,
-        equity: account.currentEquity,
-        profitLoss: account.totalProfitLoss
+        equity: realTimeEquity,
+        floatingPnl: floatingPnl,
+        profitLoss: account.totalProfitLoss + floatingPnl
       },
       drawdown: {
-        dailyUsed: account.currentDailyDrawdownPercent,
+        dailyUsed: realTimeDailyDD,
         dailyMax: rules.maxDailyDrawdownPercent,
-        dailyRemaining: Math.max(0, rules.maxDailyDrawdownPercent - account.currentDailyDrawdownPercent),
-        overallUsed: account.currentOverallDrawdownPercent,
+        dailyRemaining: Math.max(0, rules.maxDailyDrawdownPercent - realTimeDailyDD),
+        overallUsed: realTimeOverallDD,
         overallMax: rules.maxOverallDrawdownPercent,
-        overallRemaining: Math.max(0, rules.maxOverallDrawdownPercent - account.currentOverallDrawdownPercent)
+        overallRemaining: Math.max(0, rules.maxOverallDrawdownPercent - realTimeOverallDD)
       },
       profit: {
-        currentPercent: account.currentProfitPercent,
+        currentPercent: realTimeProfit,
         targetPercent,
         targetProgress,
-        amountToTarget: (targetPercent / 100) * account.phaseStartBalance - account.totalProfitLoss
+        amountToTarget: (targetPercent / 100) * account.phaseStartBalance - (account.totalProfitLoss + floatingPnl)
       },
       trades: {
         today: account.tradesToday,
