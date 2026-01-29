@@ -151,6 +151,7 @@ router.get('/my-accounts/:userId', async (req, res) => {
   try {
     const { userId } = req.params
     const { status } = req.query
+    const Trade = (await import('../models/Trade.js')).default
 
     let query = { userId }
     if (status) query.status = status
@@ -159,7 +160,52 @@ router.get('/my-accounts/:userId', async (req, res) => {
       .populate('challengeId')
       .sort({ createdAt: -1 })
 
-    res.json({ success: true, accounts })
+    // Calculate real-time values for each account based on open trades
+    const accountsWithRealTimeData = await Promise.all(accounts.map(async (account) => {
+      const accountObj = account.toObject()
+      
+      // Get open trades for this account
+      const openTrades = await Trade.find({
+        tradingAccountId: account._id,
+        status: 'OPEN'
+      })
+      
+      // Calculate floating PnL (use stored currentPnl or estimate from trade data)
+      let floatingPnl = 0
+      openTrades.forEach(trade => {
+        floatingPnl += trade.currentPnl || trade.floatingPnl || 0
+      })
+      
+      // Calculate real-time equity
+      const realTimeEquity = account.currentBalance + floatingPnl
+      
+      // Calculate real-time drawdown and profit percentages
+      const initialBalance = account.initialBalance || account.phaseStartBalance || 5000
+      const dayStartEquity = account.dayStartEquity || initialBalance
+      
+      // Daily DD = (dayStartEquity - currentEquity) / dayStartEquity * 100
+      const dailyLoss = dayStartEquity - realTimeEquity
+      const realTimeDailyDD = dailyLoss > 0 ? (dailyLoss / dayStartEquity) * 100 : 0
+      
+      // Overall DD = (initialBalance - lowestEquity) / initialBalance * 100
+      const lowestEquity = Math.min(account.lowestEquityOverall || initialBalance, realTimeEquity)
+      const overallLoss = initialBalance - lowestEquity
+      const realTimeOverallDD = overallLoss > 0 ? (overallLoss / initialBalance) * 100 : 0
+      
+      // Profit = (currentEquity - initialBalance) / initialBalance * 100
+      const realTimeProfit = ((realTimeEquity - initialBalance) / initialBalance) * 100
+      
+      return {
+        ...accountObj,
+        currentEquity: realTimeEquity,
+        currentDailyDrawdownPercent: Math.round(realTimeDailyDD * 100) / 100,
+        currentOverallDrawdownPercent: Math.round(realTimeOverallDD * 100) / 100,
+        currentProfitPercent: Math.round(realTimeProfit * 100) / 100,
+        floatingPnl: Math.round(floatingPnl * 100) / 100
+      }
+    }))
+
+    res.json({ success: true, accounts: accountsWithRealTimeData })
   } catch (error) {
     res.status(500).json({ success: false, message: error.message })
   }
