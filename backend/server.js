@@ -33,6 +33,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import copyTradingEngine from './services/copyTradingEngine.js'
 import tradeEngine from './services/tradeEngine.js'
+import propTradingEngine from './services/propTradingEngine.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -383,6 +384,36 @@ setInterval(async () => {
     // Silent fail - don't spam logs
   }
 }, 5000)
+
+// Background SL/TP check every 2 seconds
+// This ensures SL/TP triggers even if user closes the app
+setInterval(async () => {
+  try {
+    if (priceCache.size === 0) return // No prices yet
+    
+    // Convert priceCache to object format expected by tradeEngine
+    const currentPrices = {}
+    priceCache.forEach((data, symbol) => {
+      currentPrices[symbol] = { bid: data.bid, ask: data.ask }
+    })
+    
+    // Check SL/TP for regular trades
+    const closedRegularTrades = await tradeEngine.checkSlTpForAllTrades(currentPrices)
+    
+    // Check SL/TP for challenge trades
+    const closedChallengeTrades = await propTradingEngine.checkSlTpForAllTrades(currentPrices)
+    
+    const allClosed = [...closedRegularTrades, ...closedChallengeTrades]
+    if (allClosed.length > 0) {
+      console.log(`[SL/TP AUTO] ${allClosed.length} trades closed by SL/TP`)
+      allClosed.forEach(ct => {
+        console.log(`[SL/TP AUTO] ${ct.trade?.symbol || 'Unknown'} closed by ${ct.trigger || ct.reason} - PnL: ${ct.pnl?.toFixed(2) || 0}`)
+      })
+    }
+  } catch (error) {
+    // Silent fail - don't spam logs
+  }
+}, 2000)
 
 // Connect AllTick WebSocket on startup
 connectAllTickWebSocket()
