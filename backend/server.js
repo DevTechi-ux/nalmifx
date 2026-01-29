@@ -413,7 +413,7 @@ setInterval(async () => {
   } catch (error) {
     // Silent fail - don't spam logs
   }
-}, 2000)
+}, 1000)
 
 // Connect AllTick WebSocket on startup
 connectAllTickWebSocket()
