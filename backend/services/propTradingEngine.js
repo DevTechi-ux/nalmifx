@@ -815,25 +815,27 @@ class PropTradingEngine {
 
       if (trade.side === 'BUY') {
         // For BUY: SL triggers when bid <= SL, TP triggers when bid >= TP
+        // Close at exact SL/TP price, not market price
         if (sl && bid <= sl) {
           shouldClose = true
           closeReason = 'SL'
-          closePrice = bid
+          closePrice = sl  // Close at exact SL price
         } else if (tp && bid >= tp) {
           shouldClose = true
           closeReason = 'TP'
-          closePrice = bid
+          closePrice = tp  // Close at exact TP price
         }
       } else {
         // For SELL: SL triggers when ask >= SL, TP triggers when ask <= TP
+        // Close at exact SL/TP price, not market price
         if (sl && ask >= sl) {
           shouldClose = true
           closeReason = 'SL'
-          closePrice = ask
+          closePrice = sl  // Close at exact SL price
         } else if (tp && ask <= tp) {
           shouldClose = true
           closeReason = 'TP'
-          closePrice = ask
+          closePrice = tp  // Close at exact TP price
         }
       }
 

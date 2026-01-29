@@ -160,6 +160,23 @@ router.get('/my-accounts/:userId', async (req, res) => {
       .populate('challengeId')
       .sort({ createdAt: -1 })
 
+    // Fetch live prices from Binance for crypto and use cached prices
+    let livePrices = {}
+    try {
+      const binanceRes = await fetch('https://api.binance.com/api/v3/ticker/bookTicker')
+      const binanceData = await binanceRes.json()
+      binanceData.forEach(ticker => {
+        // Map Binance symbols to our format
+        const symbol = ticker.symbol.replace('USDT', 'USD')
+        livePrices[symbol] = {
+          bid: parseFloat(ticker.bidPrice),
+          ask: parseFloat(ticker.askPrice)
+        }
+      })
+    } catch (e) {
+      console.log('Could not fetch live prices for challenge accounts')
+    }
+
     // Calculate real-time values for each account based on open trades
     const accountsWithRealTimeData = await Promise.all(accounts.map(async (account) => {
       const accountObj = account.toObject()
@@ -170,10 +187,23 @@ router.get('/my-accounts/:userId', async (req, res) => {
         status: 'OPEN'
       })
       
-      // Calculate floating PnL (use stored currentPnl or estimate from trade data)
+      // Calculate floating PnL using live prices
       let floatingPnl = 0
       openTrades.forEach(trade => {
-        floatingPnl += trade.currentPnl || trade.floatingPnl || 0
+        const priceData = livePrices[trade.symbol]
+        if (priceData) {
+          const currentPrice = trade.side === 'BUY' ? priceData.bid : priceData.ask
+          const contractSize = trade.contractSize || 100000
+          if (trade.side === 'BUY') {
+            floatingPnl += (currentPrice - trade.openPrice) * trade.quantity * contractSize
+          } else {
+            floatingPnl += (trade.openPrice - currentPrice) * trade.quantity * contractSize
+          }
+          floatingPnl -= (trade.commission || 0) + (trade.swap || 0)
+        } else {
+          // Fallback to stored PnL if no live price
+          floatingPnl += trade.currentPnl || trade.floatingPnl || 0
+        }
       })
       
       // Calculate real-time equity

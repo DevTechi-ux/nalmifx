@@ -557,8 +557,28 @@ class TradeEngine {
 
       const trigger = trade.checkSlTp(bid, ask)
       if (trigger) {
-        console.log(`[Regular SL/TP] TRIGGERED! Trade ${trade.tradeId}: ${trigger} at bid=${prices.bid}, ask=${prices.ask}`)
-        const result = await this.closeTrade(trade._id, prices.bid, prices.ask, trigger)
+        // Close at the exact SL/TP price, not the current market price
+        let closeBid = bid
+        let closeAsk = ask
+        
+        if (trigger === 'SL') {
+          // For SL: BUY trades close at SL price (bid), SELL trades close at SL price (ask)
+          if (trade.side === 'BUY') {
+            closeBid = sl
+          } else {
+            closeAsk = sl
+          }
+        } else if (trigger === 'TP') {
+          // For TP: BUY trades close at TP price (bid), SELL trades close at TP price (ask)
+          if (trade.side === 'BUY') {
+            closeBid = tp
+          } else {
+            closeAsk = tp
+          }
+        }
+        
+        console.log(`[Regular SL/TP] TRIGGERED! Trade ${trade.tradeId}: ${trigger} at exact price=${trade.side === 'BUY' ? closeBid : closeAsk}`)
+        const result = await this.closeTrade(trade._id, closeBid, closeAsk, trigger)
         triggeredTrades.push({ trade: result.trade, trigger, pnl: result.realizedPnl })
       }
     }
