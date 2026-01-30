@@ -380,7 +380,7 @@ const AdminForexCharges = () => {
               {/* Step 2: Segment */}
               <div>
                 <label className="block text-gray-400 text-xs mb-1">2. Segment <span className="text-gray-600">(optional)</span></label>
-                <select value={form.segment} onChange={(e) => setForm({ ...form, segment: e.target.value, level: e.target.value ? 'SEGMENT' : form.level })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm">
+                <select value={form.segment} onChange={(e) => setForm({ ...form, segment: e.target.value, level: form.accountTypeId ? 'ACCOUNT_TYPE' : (e.target.value ? 'SEGMENT' : form.level) })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm">
                   <option value="">All Segments</option>
                   <option value="Forex">Forex</option>
                   <option value="Metals">Metals</option>
@@ -392,7 +392,7 @@ const AdminForexCharges = () => {
               {/* Step 3: Instrument - Filtered by Segment */}
               <div>
                 <label className="block text-gray-400 text-xs mb-1">3. Instrument <span className="text-gray-600">(optional{form.segment ? ` - showing ${form.segment} only` : ''})</span></label>
-                <select value={form.instrumentSymbol} onChange={(e) => setForm({ ...form, instrumentSymbol: e.target.value, level: e.target.value ? 'INSTRUMENT' : form.level })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm">
+                <select value={form.instrumentSymbol} onChange={(e) => setForm({ ...form, instrumentSymbol: e.target.value, level: e.target.value ? 'INSTRUMENT' : (form.accountTypeId ? 'ACCOUNT_TYPE' : (form.segment ? 'SEGMENT' : 'GLOBAL')) })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm">
                   <option value="">All Instruments</option>
                   {(!form.segment || form.segment === 'Forex') && (
                     <optgroup label="Forex">
@@ -563,7 +563,7 @@ const AdminForexCharges = () => {
               {/* Step 3: Instrument - Filtered by Segment */}
               <div>
                 <label className="block text-gray-400 text-xs mb-1">3. Instrument <span className="text-gray-600">(optional{form.segment ? ` - showing ${form.segment} only` : ''})</span></label>
-                <select value={form.instrumentSymbol} onChange={(e) => setForm({ ...form, instrumentSymbol: e.target.value, level: e.target.value ? 'INSTRUMENT' : form.level })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm">
+                <select value={form.instrumentSymbol} onChange={(e) => setForm({ ...form, instrumentSymbol: e.target.value, level: e.target.value ? 'INSTRUMENT' : (form.accountTypeId ? 'ACCOUNT_TYPE' : (form.segment ? 'SEGMENT' : 'GLOBAL')) })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm">
                   <option value="">All Instruments</option>
                   {(!form.segment || form.segment === 'Forex') && (
                     <optgroup label="Forex">
@@ -714,7 +714,7 @@ const AdminForexCharges = () => {
               {/* Step 3: Instrument - Filtered by Segment */}
               <div>
                 <label className="block text-gray-400 text-xs mb-1">3. Instrument <span className="text-gray-600">(optional{form.segment ? ` - showing ${form.segment} only` : ''})</span></label>
-                <select value={form.instrumentSymbol} onChange={(e) => setForm({ ...form, instrumentSymbol: e.target.value, level: e.target.value ? 'INSTRUMENT' : form.level })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm">
+                <select value={form.instrumentSymbol} onChange={(e) => setForm({ ...form, instrumentSymbol: e.target.value, level: e.target.value ? 'INSTRUMENT' : (form.accountTypeId ? 'ACCOUNT_TYPE' : (form.segment ? 'SEGMENT' : 'GLOBAL')) })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm">
                   <option value="">All Instruments</option>
                   {(!form.segment || form.segment === 'Forex') && (
                     <optgroup label="Forex">

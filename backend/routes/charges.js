@@ -1,5 +1,6 @@
 import express from 'express'
 import Charges from '../models/Charges.js'
+import AccountType from '../models/AccountType.js'
 
 const router = express.Router()
 
@@ -153,6 +154,15 @@ router.post('/', async (req, res) => {
       isActive: true
     })
 
+    // Sync spread to AccountType if this is an ACCOUNT_TYPE level charge
+    if (level === 'ACCOUNT_TYPE' && accountTypeId && spreadValue > 0) {
+      await AccountType.findByIdAndUpdate(accountTypeId, { 
+        minSpread: spreadValue,
+        commission: commissionValue || 0
+      })
+      console.log(`Synced spread ${spreadValue} and commission ${commissionValue || 0} to AccountType ${accountTypeId}`)
+    }
+
     res.json({ success: true, message: 'Charge created', charge })
   } catch (error) {
     console.error('Error creating charge:', error)
@@ -205,6 +215,18 @@ router.put('/:id', async (req, res) => {
     if (isActive !== undefined) charge.isActive = isActive
 
     await charge.save()
+
+    // Sync spread to AccountType if this is an ACCOUNT_TYPE level charge
+    if (charge.level === 'ACCOUNT_TYPE' && charge.accountTypeId) {
+      const updateData = {}
+      if (charge.spreadValue > 0) updateData.minSpread = charge.spreadValue
+      if (charge.commissionValue > 0) updateData.commission = charge.commissionValue
+      
+      if (Object.keys(updateData).length > 0) {
+        await AccountType.findByIdAndUpdate(charge.accountTypeId, updateData)
+        console.log(`Synced spread/commission to AccountType ${charge.accountTypeId}:`, updateData)
+      }
+    }
 
     res.json({ success: true, message: 'Charge updated', charge })
   } catch (error) {

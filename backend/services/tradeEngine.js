@@ -238,6 +238,18 @@ class TradeEngine {
 
     // Get charges for this trade
     const charges = await Charges.getChargesForTrade(userId, symbol, segment, account.accountTypeId?._id)
+    
+    // Fallback to AccountType's spread/commission if no charges found
+    if (charges.spreadValue === 0 && account.accountTypeId?.minSpread > 0) {
+      charges.spreadValue = account.accountTypeId.minSpread
+      console.log(`Using AccountType minSpread fallback: ${charges.spreadValue}`)
+    }
+    if (charges.commissionValue === 0 && account.accountTypeId?.commission > 0) {
+      charges.commissionValue = account.accountTypeId.commission
+      charges.commissionType = 'PER_LOT'
+      console.log(`Using AccountType commission fallback: ${charges.commissionValue}`)
+    }
+    
     console.log(`Charges retrieved: spread=${charges.spreadValue}, commission=${charges.commissionValue}, commissionType=${charges.commissionType}`)
 
     // Calculate execution price with spread
