@@ -799,36 +799,6 @@ const ProfilePage = () => {
               </div>
             </div>
 
-            {/* UPI Section */}
-            <div className={`${isDarkMode ? 'bg-dark-800 border-gray-800' : 'bg-white border-gray-200 shadow-sm'} rounded-xl p-6 border mt-6`}>
-              <h3 className={`font-semibold mb-6 flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                <Smartphone size={18} /> UPI Details
-              </h3>
-              
-              <div>
-                <label className="text-gray-400 text-sm mb-2 block">UPI ID</label>
-                {editing ? (
-                  <input
-                    type="text"
-                    value={profile.upiId || ''}
-                    onChange={(e) => setProfile({...profile, upiId: e.target.value})}
-                    placeholder="e.g., yourname@upi"
-                    className={`w-full rounded-lg px-4 py-2 border ${isDarkMode ? 'bg-dark-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'}`}
-                  />
-                ) : (
-                  <p className={isDarkMode ? 'text-white' : 'text-gray-900'}>{profile.upiId || '-'}</p>
-                )}
-              </div>
-
-              {!editing && (!profile.bankDetails?.accountNumber && !profile.upiId) && (
-                <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                  <p className="text-yellow-500 text-sm">
-                    ⚠️ Please add your bank details or UPI ID to receive withdrawals. Click "Edit Profile" to add.
-                  </p>
-                </div>
-              )}
-            </div>
-
             {/* Withdrawal Accounts Section */}
             <div className={`${isDarkMode ? 'bg-dark-800 border-gray-800' : 'bg-white border-gray-200 shadow-sm'} rounded-xl p-6 border mt-6`}>
               <div className="flex items-center justify-between mb-4">
