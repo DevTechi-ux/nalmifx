@@ -673,7 +673,9 @@ class TradeEngine {
       let swapAmount = 0
 
       if (charges.swapType === 'POINTS') {
-        swapAmount = trade.quantity * trade.contractSize * swapRate
+        // Swap points are expressed as $ per standard lot per day
+        // So for 0.01 lot with 10 points swap = 0.01 * 10 = $0.10
+        swapAmount = trade.quantity * swapRate
       } else {
         // Percentage of trade value
         const tradeValue = trade.quantity * trade.contractSize * trade.openPrice
