@@ -1720,25 +1720,6 @@ const TradingPage = () => {
             {orderTab === 'Market' ? (
               <>
                 <div className={`p-3 flex-1 overflow-y-auto ${!isDarkMode ? 'light-scrollbar' : ''}`}>
-                  {/* Leverage Selector */}
-                  <div className={`flex items-center justify-between rounded px-3 py-2 mb-3 border ${isDarkMode ? 'bg-[#1a1a1a] border-gray-700' : 'bg-gray-50 border-gray-300'}`}>
-                    <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Leverage</span>
-                    <select
-                      value={leverage}
-                      onChange={(e) => setLeverage(e.target.value)}
-                      className="bg-transparent text-yellow-500 font-semibold text-sm focus:outline-none cursor-pointer"
-                    >
-                      <option value="1:10" className={isDarkMode ? 'bg-dark-800' : 'bg-white'}>1:10</option>
-                      <option value="1:20" className={isDarkMode ? 'bg-dark-800' : 'bg-white'}>1:20</option>
-                      <option value="1:50" className={isDarkMode ? 'bg-dark-800' : 'bg-white'}>1:50</option>
-                      <option value="1:100" className={isDarkMode ? 'bg-dark-800' : 'bg-white'}>1:100</option>
-                      <option value="1:200" className={isDarkMode ? 'bg-dark-800' : 'bg-white'}>1:200</option>
-                      <option value="1:500" className={isDarkMode ? 'bg-dark-800' : 'bg-white'}>1:500</option>
-                      <option value="1:1000" className={isDarkMode ? 'bg-dark-800' : 'bg-white'}>1:1000</option>
-                      <option value="1:2000" className={isDarkMode ? 'bg-dark-800' : 'bg-white'}>1:2000</option>
-                    </select>
-                  </div>
-
                   {/* One-Click Buy/Sell Buttons */}
                   <div className="flex gap-2 mb-3">
                     <button 

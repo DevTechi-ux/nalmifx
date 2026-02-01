@@ -490,13 +490,11 @@ class TradeEngine {
     const settings = await TradeSettings.getSettings(account.accountTypeId?._id)
     const summary = await this.getAccountSummary(tradingAccountId, openTrades, currentPrices)
 
-    // CRITICAL: Check if equity is negative or zero - immediate stop out
-    // Also check if margin level is below stop-out level (default 20%)
-    const stopOutLevel = settings.stopOutLevel || 20
+    // CRITICAL: Stop out only when equity is zero/negative or free margin is negative
+    // Removed margin level check - only stop out when account can't sustain trades
     const shouldStopOut = 
       summary.equity <= 0 || 
-      summary.freeMargin < 0 ||
-      (summary.marginLevel > 0 && summary.marginLevel <= stopOutLevel)
+      summary.freeMargin < 0
 
     if (shouldStopOut) {
       console.log(`STOP OUT TRIGGERED for account ${tradingAccountId}: Equity=${summary.equity}, FreeMargin=${summary.freeMargin}, MarginLevel=${summary.marginLevel}%`)
@@ -525,7 +523,7 @@ class TradeEngine {
       return { 
         stopOutTriggered: true, 
         closedTrades,
-        reason: summary.equity <= 0 ? 'EQUITY_ZERO' : summary.freeMargin < 0 ? 'NEGATIVE_FREE_MARGIN' : 'MARGIN_LEVEL',
+        reason: summary.equity <= 0 ? 'EQUITY_ZERO' : 'NEGATIVE_FREE_MARGIN',
         finalEquity: summary.equity,
         finalMarginLevel: summary.marginLevel
       }
