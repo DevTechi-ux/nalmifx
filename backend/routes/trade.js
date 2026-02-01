@@ -562,7 +562,8 @@ router.get('/summary/:tradingAccountId', async (req, res) => {
     const balance = account.balance || 0
     const credit = account.credit || 0
     const equity = balance + credit + floatingPnl
-    const freeMargin = equity - usedMargin
+    // Free Margin = Balance - Used Margin (not equity based)
+    const freeMargin = balance - usedMargin
     const marginLevel = usedMargin > 0 ? (equity / usedMargin) * 100 : 0
 
     res.json({

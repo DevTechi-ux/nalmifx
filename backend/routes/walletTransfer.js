@@ -174,7 +174,8 @@ router.post('/from-trading', async (req, res) => {
 
     // Calculate equity and free margin
     const equity = tradingAccount.balance + tradingAccount.credit + floatingPnl
-    const freeMargin = equity - usedMargin
+    // Free Margin = Balance - Used Margin (not equity based)
+    const freeMargin = tradingAccount.balance - usedMargin
 
     // Check if withdrawal amount is available in free margin
     // Note: Credit cannot be withdrawn
@@ -256,7 +257,8 @@ router.get('/balances/:userId', async (req, res) => {
         const usedMargin = openTrades.reduce((sum, trade) => sum + trade.marginUsed, 0)
         const floatingPnl = openTrades.reduce((sum, trade) => sum + (trade.floatingPnl || 0), 0)
         const equity = account.balance + account.credit + floatingPnl
-        const freeMargin = equity - usedMargin
+        // Free Margin = Balance - Used Margin (not equity based)
+        const freeMargin = account.balance - usedMargin
 
         return {
           accountId: account._id,

@@ -118,8 +118,10 @@ class TradeEngine {
       }
     }
 
-    const equity = account.balance + account.credit + floatingPnl
-    const freeMargin = equity - usedMargin
+    // Equity = Balance + Credit + Floating PnL
+    const equity = account.balance + (account.credit || 0) + floatingPnl
+    // Free Margin = Balance - Used Margin (not equity based)
+    const freeMargin = account.balance - usedMargin
 
     return {
       balance: account.balance,
@@ -490,14 +492,12 @@ class TradeEngine {
     const settings = await TradeSettings.getSettings(account.accountTypeId?._id)
     const summary = await this.getAccountSummary(tradingAccountId, openTrades, currentPrices)
 
-    // CRITICAL: Stop out only when equity is zero/negative or free margin is negative
-    // Removed margin level check - only stop out when account can't sustain trades
-    const shouldStopOut = 
-      summary.equity <= 0 || 
-      summary.freeMargin < 0
+    // CRITICAL: Stop out ONLY when equity is zero or negative
+    // Removed free margin check - only equity based stop-out
+    const shouldStopOut = summary.equity <= 0
 
     if (shouldStopOut) {
-      console.log(`STOP OUT TRIGGERED for account ${tradingAccountId}: Equity=${summary.equity}, FreeMargin=${summary.freeMargin}, MarginLevel=${summary.marginLevel}%`)
+      console.log(`STOP OUT TRIGGERED for account ${tradingAccountId}: Equity=${summary.equity} (Balance=${summary.balance}, FloatingPnL=${summary.floatingPnl})`)
       
       // Force close all trades
       const closedTrades = []
@@ -513,19 +513,17 @@ class TradeEngine {
         }
       }
 
-      // Reset account balance if negative
+      // When equity is zero, balance should also be zero
       const finalAccount = await TradingAccount.findById(tradingAccountId)
-      if (finalAccount.balance < 0) {
-        finalAccount.balance = 0
-      }
+      finalAccount.balance = 0  // Set balance to zero when equity-based stop-out
       await finalAccount.save()
 
       return { 
         stopOutTriggered: true, 
         closedTrades,
-        reason: summary.equity <= 0 ? 'EQUITY_ZERO' : 'NEGATIVE_FREE_MARGIN',
+        reason: 'EQUITY_ZERO',
         finalEquity: summary.equity,
-        finalMarginLevel: summary.marginLevel
+        finalBalance: 0
       }
     }
 

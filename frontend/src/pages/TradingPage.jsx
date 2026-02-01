@@ -334,7 +334,8 @@ const TradingPage = () => {
     
     // Always update account summary with real-time values
     const newEquity = Math.round((accountSummary.balance + (accountSummary.credit || 0) + totalFloatingPnl) * 100) / 100
-    const newFreeMargin = Math.round((accountSummary.balance + (accountSummary.credit || 0) + totalFloatingPnl - totalUsedMargin) * 100) / 100
+    // Free Margin = Balance - Used Margin (not equity based)
+    const newFreeMargin = Math.round((accountSummary.balance - totalUsedMargin) * 100) / 100
     
     setAccountSummary(prev => ({
       ...prev,
