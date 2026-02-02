@@ -552,6 +552,23 @@ class TradeEngine {
       const bid = prices.bid
       const ask = prices.ask || prices.bid // Fallback to bid if ask not available
 
+      // Check margin-based stop-out: If floating PnL <= -marginUsed, close the trade
+      const currentPrice = trade.side === 'BUY' ? bid : ask
+      const floatingPnl = this.calculatePnl(trade.side, trade.openPrice, currentPrice, trade.quantity, trade.contractSize) - (trade.commission || 0) - (trade.swap || 0)
+      const marginUsed = trade.marginUsed || 0
+      
+      if (marginUsed > 0 && floatingPnl <= -marginUsed) {
+        console.log(`[Margin Stop-Out] Trade ${trade.tradeId}: FloatingPnL=${floatingPnl.toFixed(2)} <= -MarginUsed=${-marginUsed.toFixed(2)} | Closing trade`)
+        const result = await this.closeTrade(trade._id, bid, ask, 'MARGIN_STOP_OUT')
+        triggeredTrades.push({ 
+          trade: result.trade, 
+          trigger: 'MARGIN_STOP_OUT', 
+          pnl: result.realizedPnl,
+          reason: `Trade closed: Loss reached margin limit ($${marginUsed.toFixed(2)})`
+        })
+        continue // Skip SL/TP check since trade is already closed
+      }
+
       // Only log if SL or TP is actually set (not null)
       if (sl || tp) {
         // Minimal logging - only show when close to triggering

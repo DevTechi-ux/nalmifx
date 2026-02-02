@@ -460,6 +460,9 @@ const TradingPage = () => {
               fetchTradeHistory()
               // Show notification
               slTpData.closedTrades.forEach(ct => {
+                if (ct.reason === 'MARGIN_STOP_OUT') {
+                  alert(`⚠️ Trade Closed - Margin Limit Reached\n\n${ct.symbol} was automatically closed because the loss reached the margin limit.\n\nP/L: $${ct.pnl.toFixed(2)}`)
+                }
                 setTradeSuccess(`Trade ${ct.symbol} closed by ${ct.reason}: ${ct.pnl >= 0 ? '+' : ''}$${ct.pnl.toFixed(2)}`)
               })
             }
