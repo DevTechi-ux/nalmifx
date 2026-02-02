@@ -552,54 +552,25 @@ class TradeEngine {
       const bid = prices.bid
       const ask = prices.ask || prices.bid // Fallback to bid if ask not available
 
-      // Check free margin based stop-out
-      // Get account to check free margin
-      const accountId = trade.tradingAccountId?._id || trade.tradingAccountId
-      const account = await TradingAccount.findById(accountId)
+      // Check 100% Margin Level stop-out (per-trade)
+      // Trade closes when its loss reaches 100% of its used margin
+      const currentPrice = trade.side === 'BUY' ? bid : ask
+      const floatingPnl = this.calculatePnl(trade.side, trade.openPrice, currentPrice, trade.quantity, trade.contractSize) - (trade.commission || 0) - (trade.swap || 0)
+      const marginUsed = trade.marginUsed || 0
       
-      if (account) {
-        // Calculate total floating PnL and margin for all open trades of this account
-        const accountOpenTrades = openTrades.filter(t => {
-          const tAccountId = t.tradingAccountId?._id || t.tradingAccountId
-          return tAccountId?.toString() === accountId?.toString()
+      // Stop-out when loss >= 100% of margin used for this trade
+      // Example: Margin = $591, if PnL <= -$591, close the trade
+      if (marginUsed > 0 && floatingPnl <= -marginUsed) {
+        const marginLevel = marginUsed > 0 ? ((marginUsed + floatingPnl) / marginUsed) * 100 : 0
+        console.log(`[100% Margin Stop-Out] Trade ${trade.tradeId}: FloatingPnL=$${floatingPnl.toFixed(2)} | MarginUsed=$${marginUsed.toFixed(2)} | MarginLevel=${marginLevel.toFixed(2)}% | Closing trade`)
+        const result = await this.closeTrade(trade._id, bid, ask, 'MARGIN_STOP_OUT')
+        triggeredTrades.push({ 
+          trade: result.trade, 
+          trigger: 'MARGIN_STOP_OUT', 
+          pnl: result.realizedPnl,
+          reason: `Trade closed: Loss reached 100% of margin ($${marginUsed.toFixed(2)})`
         })
-        
-        let totalFloatingPnl = 0
-        let totalMarginUsed = 0
-        
-        for (const t of accountOpenTrades) {
-          const tPrices = currentPrices[t.symbol]
-          if (tPrices) {
-            const tCurrentPrice = t.side === 'BUY' ? tPrices.bid : tPrices.ask
-            const tPnl = this.calculatePnl(t.side, t.openPrice, tCurrentPrice, t.quantity, t.contractSize) - (t.commission || 0) - (t.swap || 0)
-            totalFloatingPnl += tPnl
-            totalMarginUsed += (t.marginUsed || 0)
-          }
-        }
-        
-        const balance = account.balance || 0
-        const credit = account.credit || 0
-        const equity = balance + credit + totalFloatingPnl
-        const freeMargin = equity - totalMarginUsed
-        
-        // Close THIS trade if free margin goes negative
-        if (freeMargin < 0) {
-          const currentPrice = trade.side === 'BUY' ? bid : ask
-          const thisTradeFloatingPnl = this.calculatePnl(trade.side, trade.openPrice, currentPrice, trade.quantity, trade.contractSize) - (trade.commission || 0) - (trade.swap || 0)
-          
-          // Only close if this trade is in loss (contributing to negative free margin)
-          if (thisTradeFloatingPnl < 0) {
-            console.log(`[Free Margin Stop-Out] Trade ${trade.tradeId}: FreeMargin=${freeMargin.toFixed(2)} < 0 | Equity=${equity.toFixed(2)} | TotalMargin=${totalMarginUsed.toFixed(2)} | Closing trade`)
-            const result = await this.closeTrade(trade._id, bid, ask, 'MARGIN_STOP_OUT')
-            triggeredTrades.push({ 
-              trade: result.trade, 
-              trigger: 'MARGIN_STOP_OUT', 
-              pnl: result.realizedPnl,
-              reason: `Trade closed: Free margin went negative ($${freeMargin.toFixed(2)})`
-            })
-            continue // Skip SL/TP check since trade is already closed
-          }
-        }
+        continue // Skip SL/TP check since trade is already closed
       }
 
       // Only log if SL or TP is actually set (not null)
