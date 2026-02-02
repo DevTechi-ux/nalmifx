@@ -22,7 +22,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
           script: |
-            cd /home/nalmifx/nalmi
+            cd /home/nalmifx/nalmifx
             
             # Pull latest changes
             git pull origin main
