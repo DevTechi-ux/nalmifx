@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Search, Star, X, Plus, Minus, Settings, Home, Wallet, LayoutGrid, BarChart3, Pencil, Trophy, AlertTriangle, Sun, Moon } from 'lucide-react'
+import { Search, Star, X, Plus, Minus, Settings, Home, Wallet, LayoutGrid, BarChart3, Pencil, Trophy, AlertTriangle, Sun, Moon, Grid2X2 } from 'lucide-react'
 import metaApiService from '../services/metaApi'
 import binanceApiService from '../services/binanceApi'
 import priceStreamService from '../services/priceStream'
@@ -32,6 +32,8 @@ const TradingPage = () => {
   const [selectedSide, setSelectedSide] = useState('BUY') // BUY or SELL
   const [openTabs, setOpenTabs] = useState([{ symbol: 'XAUUSD', name: 'CFDs on Gold (US$ / OZ)', bid: 0, ask: 0, spread: 0 }])
   const [activeTab, setActiveTab] = useState('XAUUSD')
+  const [showFourCharts, setShowFourCharts] = useState(false)
+  const [fourChartTimeframes, setFourChartTimeframes] = useState(['5', '15', '60', '240']) // 5m, 15m, 1h, 4h
   const [showTakeProfit, setShowTakeProfit] = useState(false)
   const [showStopLoss, setShowStopLoss] = useState(false)
   const [takeProfit, setTakeProfit] = useState('')
@@ -1430,17 +1432,49 @@ const TradingPage = () => {
             <button className={`ml-1 p-1.5 rounded ${isDarkMode ? 'text-gray-500 hover:text-white hover:bg-[#1a1a1a]' : 'text-gray-400 hover:text-gray-900 hover:bg-gray-100'}`}>
               <Plus size={16} />
             </button>
+            
+            {/* 4 Charts Toggle Button */}
+            {!isMobile && (
+              <button 
+                onClick={() => setShowFourCharts(!showFourCharts)}
+                className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded transition-colors ${
+                  showFourCharts 
+                    ? 'bg-blue-600 text-white' 
+                    : isDarkMode ? 'bg-[#1a1a1a] text-gray-400 hover:bg-[#252525] hover:text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <Grid2X2 size={16} />
+                <span className="text-sm font-medium">{showFourCharts ? 'Single' : '4 Charts'}</span>
+              </button>
+            )}
           </div>
 
-          {/* Chart - Always visible TradingView Advanced Chart with Side Toolbar */}
+          {/* Chart Area - Single or 4 Charts */}
           <div className={`flex-1 min-h-0 relative ${isDarkMode ? 'bg-[#0d0d0d]' : 'bg-white'}`}>
-            <iframe
-              key={`${selectedInstrument.symbol}-${isDarkMode}-${isMobile}`}
-              src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_chart&symbol=${getSymbolForTradingView(selectedInstrument.symbol)}&interval=5&hidesidetoolbar=0&hidetoptoolbar=0&symboledit=1&saveimage=1&toolbarbg=${isDarkMode ? '0d0d0d' : 'ffffff'}&studies=[]&theme=${isDarkMode ? 'dark' : 'light'}&style=1&timezone=Etc%2FUTC&withdateranges=1&showpopupbutton=1&studies_overrides={}&overrides={}&enabled_features=["left_toolbar","header_widget","drawing_templates"]&disabled_features=["hide_left_toolbar_by_default"]&locale=en&utm_source=localhost&utm_medium=widget_new&utm_campaign=chart&hide_side_toolbar=0&allow_symbol_change=1&details=1&calendar=0&hotlist=0`}
-              style={{ width: '100%', height: '100%', border: 'none' }}
-              allowFullScreen
-              title="TradingView Chart"
-            />
+            {showFourCharts && !isMobile ? (
+              /* 4 Charts Grid View */
+              <div className="w-full h-full grid grid-cols-2 grid-rows-2 gap-0.5">
+                {fourChartTimeframes.map((interval, index) => (
+                  <div key={`chart-${index}-${interval}`} className="relative">
+                    <iframe
+                      src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_chart_${index}&symbol=${getSymbolForTradingView(selectedInstrument.symbol)}&interval=${interval}&hidesidetoolbar=1&hidetoptoolbar=0&symboledit=0&saveimage=1&toolbarbg=${isDarkMode ? '0d0d0d' : 'ffffff'}&studies=[]&theme=${isDarkMode ? 'dark' : 'light'}&style=1&timezone=Etc%2FUTC&withdateranges=0&showpopupbutton=0&studies_overrides={}&overrides={}&enabled_features=[]&disabled_features=["left_toolbar","header_symbol_search","header_compare"]&locale=en&utm_source=localhost&utm_medium=widget_new&utm_campaign=chart&hide_side_toolbar=1&allow_symbol_change=0&details=0&calendar=0&hotlist=0`}
+                      style={{ width: '100%', height: '100%', border: 'none' }}
+                      allowFullScreen
+                      title={`TradingView Chart ${interval}`}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              /* Single Chart View */
+              <iframe
+                key={`${selectedInstrument.symbol}-${isDarkMode}-${isMobile}`}
+                src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_chart&symbol=${getSymbolForTradingView(selectedInstrument.symbol)}&interval=5&hidesidetoolbar=0&hidetoptoolbar=0&symboledit=1&saveimage=1&toolbarbg=${isDarkMode ? '0d0d0d' : 'ffffff'}&studies=[]&theme=${isDarkMode ? 'dark' : 'light'}&style=1&timezone=Etc%2FUTC&withdateranges=1&showpopupbutton=1&studies_overrides={}&overrides={}&enabled_features=["left_toolbar","header_widget","drawing_templates"]&disabled_features=["hide_left_toolbar_by_default"]&locale=en&utm_source=localhost&utm_medium=widget_new&utm_campaign=chart&hide_side_toolbar=0&allow_symbol_change=1&details=1&calendar=0&hotlist=0`}
+                style={{ width: '100%', height: '100%', border: 'none' }}
+                allowFullScreen
+                title="TradingView Chart"
+              />
+            )}
           </div>
 
           {/* Positions Panel */}
