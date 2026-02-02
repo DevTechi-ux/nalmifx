@@ -1,0 +1,45 @@
+name: Deploy NalmiFX
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          script: |
+            cd /home/nalmifx/nalmi
+            
+            # Pull latest changes
+            git pull origin main
+            
+            # Backend deployment
+            cd backend
+            npm install --production
+            
+            # Restart backend with PM2
+            pm2 restart nalmifx-backend || pm2 start server.js --name nalmifx-backend
+            
+            # Frontend deployment
+            cd ../frontend
+            npm install
+            npm run build
+            
+            # Restart frontend if using serve
+            pm2 restart nalmifx-frontend || echo "Frontend served via nginx"
+            
+            echo "✅ Deployment completed successfully!"
