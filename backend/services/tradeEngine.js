@@ -552,25 +552,55 @@ class TradeEngine {
       const bid = prices.bid
       const ask = prices.ask || prices.bid // Fallback to bid if ask not available
 
-      // Check 100% Margin Level stop-out (per-trade)
-      // Trade closes when its loss reaches 100% of its used margin
-      const currentPrice = trade.side === 'BUY' ? bid : ask
-      const floatingPnl = this.calculatePnl(trade.side, trade.openPrice, currentPrice, trade.quantity, trade.contractSize) - (trade.commission || 0) - (trade.swap || 0)
-      const marginUsed = trade.marginUsed || 0
+      // Check account-based stop-out (Option B)
+      // Trade can lose more if equity allows, closes when equity <= total margin used
+      const accountId = trade.tradingAccountId?._id || trade.tradingAccountId
+      const account = await TradingAccount.findById(accountId)
       
-      // Stop-out when loss >= 100% of margin used for this trade
-      // Example: Margin = $591, if PnL <= -$591, close the trade
-      if (marginUsed > 0 && floatingPnl <= -marginUsed) {
-        const marginLevel = marginUsed > 0 ? ((marginUsed + floatingPnl) / marginUsed) * 100 : 0
-        console.log(`[100% Margin Stop-Out] Trade ${trade.tradeId}: FloatingPnL=$${floatingPnl.toFixed(2)} | MarginUsed=$${marginUsed.toFixed(2)} | MarginLevel=${marginLevel.toFixed(2)}% | Closing trade`)
-        const result = await this.closeTrade(trade._id, bid, ask, 'MARGIN_STOP_OUT')
-        triggeredTrades.push({ 
-          trade: result.trade, 
-          trigger: 'MARGIN_STOP_OUT', 
-          pnl: result.realizedPnl,
-          reason: `Trade closed: Loss reached 100% of margin ($${marginUsed.toFixed(2)})`
+      if (account) {
+        // Calculate total floating PnL and margin for all open trades of this account
+        const accountOpenTrades = openTrades.filter(t => {
+          const tAccountId = t.tradingAccountId?._id || t.tradingAccountId
+          return tAccountId?.toString() === accountId?.toString()
         })
-        continue // Skip SL/TP check since trade is already closed
+        
+        let totalFloatingPnl = 0
+        let totalMarginUsed = 0
+        
+        for (const t of accountOpenTrades) {
+          const tPrices = currentPrices[t.symbol]
+          if (tPrices) {
+            const tCurrentPrice = t.side === 'BUY' ? tPrices.bid : tPrices.ask
+            const tPnl = this.calculatePnl(t.side, t.openPrice, tCurrentPrice, t.quantity, t.contractSize) - (t.commission || 0) - (t.swap || 0)
+            totalFloatingPnl += tPnl
+            totalMarginUsed += (t.marginUsed || 0)
+          }
+        }
+        
+        const balance = account.balance || 0
+        const credit = account.credit || 0
+        const equity = balance + credit + totalFloatingPnl
+        const marginLevel = totalMarginUsed > 0 ? (equity / totalMarginUsed) * 100 : 100
+        
+        // Stop-out when margin level <= 100% (equity <= total margin used)
+        // This means the account can no longer support the open positions
+        if (marginLevel <= 100 && totalMarginUsed > 0) {
+          const currentPrice = trade.side === 'BUY' ? bid : ask
+          const thisTradeFloatingPnl = this.calculatePnl(trade.side, trade.openPrice, currentPrice, trade.quantity, trade.contractSize) - (trade.commission || 0) - (trade.swap || 0)
+          
+          // Close the largest losing trade first
+          if (thisTradeFloatingPnl < 0) {
+            console.log(`[Account Stop-Out] Trade ${trade.tradeId}: Equity=$${equity.toFixed(2)} | TotalMargin=$${totalMarginUsed.toFixed(2)} | MarginLevel=${marginLevel.toFixed(2)}% | Closing losing trade`)
+            const result = await this.closeTrade(trade._id, bid, ask, 'MARGIN_STOP_OUT')
+            triggeredTrades.push({ 
+              trade: result.trade, 
+              trigger: 'MARGIN_STOP_OUT', 
+              pnl: result.realizedPnl,
+              reason: `Trade closed: Margin level dropped to ${marginLevel.toFixed(2)}% (Equity: $${equity.toFixed(2)})`
+            })
+            continue // Skip SL/TP check since trade is already closed
+          }
+        }
       }
 
       // Only log if SL or TP is actually set (not null)
