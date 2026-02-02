@@ -375,7 +375,17 @@ class TradeEngine {
     await trade.save()
 
     // Update account balance with proper credit handling
-    const account = await TradingAccount.findById(trade.tradingAccountId)
+    // Handle both populated and non-populated tradingAccountId
+    const accountId = trade.tradingAccountId?._id || trade.tradingAccountId
+    const account = await TradingAccount.findById(accountId)
+    
+    if (!account) {
+      console.error(`[Trade Close] Account not found for trade ${trade.tradeId}, accountId: ${accountId}`)
+      return { trade, realizedPnl }
+    }
+    
+    const balanceBefore = account.balance
+    const creditBefore = account.credit || 0
     
     if (realizedPnl >= 0) {
       // Profit: Add to balance only (credit stays the same)
@@ -400,6 +410,8 @@ class TradeEngine {
     }
     
     await account.save()
+    
+    console.log(`[Trade Close] Trade ${trade.tradeId}: RealizedPnL=$${realizedPnl.toFixed(2)} | Balance: $${balanceBefore.toFixed(2)} → $${account.balance.toFixed(2)} | Credit: $${creditBefore.toFixed(2)} → $${(account.credit || 0).toFixed(2)}`)
 
     // Log admin action if applicable
     if (adminId) {
