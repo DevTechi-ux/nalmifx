@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { API_URL } from '../config/api'
+import { API_URL, API_BASE_URL } from '../config/api'
 
 const BannerSlider = ({ isDarkMode = true }) => {
   const [banners, setBanners] = useState([])
@@ -54,7 +54,7 @@ const BannerSlider = ({ isDarkMode = true }) => {
     return null
   }
 
-  const baseUrl = API_URL.replace('/api', '')
+  const baseUrl = API_BASE_URL
 
   return (
     <div className="relative w-full overflow-hidden rounded-xl group">

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import AdminLayout from '../components/AdminLayout'
 import { Plus, Edit2, Trash2, Image, Eye, EyeOff, GripVertical, Link, Calendar } from 'lucide-react'
-import { API_URL } from '../config/api'
+import { API_URL, API_BASE_URL } from '../config/api'
 
 const AdminBannerManagement = () => {
   const [banners, setBanners] = useState([])
@@ -103,7 +103,7 @@ const AdminBannerManagement = () => {
       startDate: banner.startDate ? banner.startDate.split('T')[0] : '',
       endDate: banner.endDate ? banner.endDate.split('T')[0] : ''
     })
-    setImagePreview(banner.imageUrl ? `${API_URL.replace('/api', '')}${banner.imageUrl}` : null)
+    setImagePreview(banner.imageUrl ? `${API_BASE_URL}${banner.imageUrl}` : null)
     setShowModal(true)
   }
 
@@ -234,7 +234,7 @@ const AdminBannerManagement = () => {
                 <div key={banner._id} className="bg-[#0d0d0d] rounded-lg border border-gray-700 overflow-hidden">
                   <div className="relative aspect-[16/9] bg-gray-800">
                     <img
-                      src={`${API_URL.replace('/api', '')}${banner.imageUrl}`}
+                      src={`${API_BASE_URL}${banner.imageUrl}`}
                       alt={banner.title}
                       className="w-full h-full object-cover"
                       onError={(e) => {
