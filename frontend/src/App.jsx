@@ -40,6 +40,7 @@ import BrandedLogin from './pages/BrandedLogin'
 import BrandedSignup from './pages/BrandedSignup'
 import AdminEmailTemplates from './pages/AdminEmailTemplates'
 import AdminBonusManagement from './pages/AdminBonusManagement'
+import AdminBannerManagement from './pages/AdminBannerManagement'
 import LandingPage from './pages/LandingPage'
 
 function App() {
@@ -86,6 +87,7 @@ function App() {
         <Route path="/admin/theme" element={<AdminThemeSettings />} />
         <Route path="/admin/email-templates" element={<AdminEmailTemplates />} />
         <Route path="/admin/bonus-management" element={<AdminBonusManagement />} />
+        <Route path="/admin/banners" element={<AdminBannerManagement />} />
         <Route path="/buy-challenge" element={<BuyChallengePage />} />
         <Route path="/challenge-dashboard" element={<ChallengeDashboardPage />} />
         <Route path="/:slug/login" element={<BrandedLogin />} />

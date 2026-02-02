@@ -25,6 +25,7 @@ import {
 import { useTheme } from '../context/ThemeContext'
 import { API_URL } from '../config/api'
 import logoImage from '../assets/nalmifx.png'
+import BannerSlider from '../components/BannerSlider'
 
 const Dashboard = () => {
   const navigate = useNavigate()
@@ -445,6 +446,11 @@ const Dashboard = () => {
 
         {/* Dashboard Content */}
         <div className="p-6">
+          {/* Banner Slider */}
+          <div className="mb-6">
+            <BannerSlider isDarkMode={isDarkMode} />
+          </div>
+
           {/* Top Stats Boxes */}
           <div className="grid grid-cols-4 gap-4 mb-6">
             {/* Wallet Box */}

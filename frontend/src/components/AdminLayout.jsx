@@ -22,7 +22,8 @@ import {
   ChevronRight,
   Palette,
   Mail,
-  Gift
+  Gift,
+  Image
 } from 'lucide-react'
 import logoImage from '../assets/nalmifx.png'
 
@@ -48,6 +49,7 @@ const AdminLayout = ({ children, title, subtitle }) => {
     { name: 'Theme Settings', icon: Palette, path: '/admin/theme' },
     { name: 'Email Templates', icon: Mail, path: '/admin/email-templates' },
     { name: 'Bonus Management', icon: Gift, path: '/admin/bonus-management' },
+    { name: 'Banner Management', icon: Image, path: '/admin/banners' },
     { name: 'Admin Management', icon: Shield, path: '/admin/admin-management' },
     { name: 'KYC Verification', icon: FileCheck, path: '/admin/kyc' },
     { name: 'Support Tickets', icon: HeadphonesIcon, path: '/admin/support' },
