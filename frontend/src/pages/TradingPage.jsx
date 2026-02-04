@@ -1069,28 +1069,31 @@ const TradingPage = () => {
     return `OANDA:${symbol}`
   }
 
-  // Filter instruments: show all when "All" tab or searching, popular for specific categories
+  // Filter instruments: show all instruments for each category (only those with valid prices)
   const filteredInstruments = instruments.filter(inst => {
+    // Hide instruments without valid prices (bid must be > 0)
+    const hasValidPrice = inst.bid > 0
+    
     const matchesSearch = inst.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
       inst.name.toLowerCase().includes(searchTerm.toLowerCase())
     
-    // When searching, show all matching instruments across all categories
+    // When searching, show all matching instruments with valid prices
     if (searchTerm.length > 0) {
-      return matchesSearch
+      return matchesSearch && hasValidPrice
     }
     
-    // When viewing Starred, show all starred instruments
+    // When viewing Starred, show all starred instruments with valid prices
     if (activeCategory === 'Starred') {
-      return inst.starred
+      return inst.starred && hasValidPrice
     }
     
-    // When viewing "All", show ALL instruments
+    // When viewing "All", show ALL instruments with valid prices
     if (activeCategory === 'All') {
-      return true
+      return hasValidPrice
     }
     
-    // For specific categories (Forex, Metals, etc.), show only popular by default
-    return inst.category === activeCategory && inst.popular
+    // For specific categories (Forex, Metals, etc.), show ALL instruments with valid prices
+    return inst.category === activeCategory && hasValidPrice
   })
 
   const handleInstrumentClick = (inst) => {
@@ -1372,12 +1375,10 @@ const TradingPage = () => {
                         <div className={`text-[9px] ${isDarkMode ? 'text-gray-600' : 'text-gray-500'}`}>Bid</div>
                       </div>
                       <div className={`px-1.5 py-0.5 rounded text-[10px] font-medium min-w-[28px] text-center mx-2 ${isDarkMode ? 'bg-[#2a2a2a] text-cyan-400' : 'bg-blue-100 text-blue-600'}`}>
-                        {/* Show admin-set spread if available, otherwise show market spread */}
+                        {/* Show admin-set spread if available (already in pips), otherwise show market spread */}
                         {adminSpreads[inst.symbol]?.spread > 0 ? (
-                          // Convert admin spread to pips for display
-                          inst.symbol.includes('JPY') ? (adminSpreads[inst.symbol].spread * 100).toFixed(1) :
-                          inst.bid > 100 ? adminSpreads[inst.symbol].spread.toFixed(2) :
-                          (adminSpreads[inst.symbol].spread * 10000).toFixed(1)
+                          // Admin spread is already stored as pips - display directly
+                          adminSpreads[inst.symbol].spread.toFixed(1)
                         ) : inst.spread > 0 ? (
                           // Convert market spread to pips
                           inst.symbol.includes('JPY') ? (inst.spread * 100).toFixed(1) :
@@ -1397,8 +1398,7 @@ const TradingPage = () => {
               </div>
               
               {/* Footer */}
-              <div className={`px-3 py-2 border-t flex items-center justify-between shrink-0 ${isDarkMode ? 'border-gray-800' : 'border-gray-200'}`}>
-                <span className="text-gray-500 text-xs">{filteredInstruments.length} instruments</span>
+              <div className={`px-3 py-2 border-t flex items-center justify-end shrink-0 ${isDarkMode ? 'border-gray-800' : 'border-gray-200'}`}>
                 <div className="flex items-center gap-1">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                   <span className="text-green-500 text-xs">Live</span>

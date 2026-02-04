@@ -498,28 +498,31 @@ const MobileTradingApp = () => {
     }
   }
 
-  // Filter instruments: show all when "All" tab or searching, popular for specific categories
+  // Filter instruments: show all instruments for each category (only those with valid prices)
   const filteredInstruments = instruments.filter(inst => {
+    // Hide instruments without valid prices (bid must be > 0)
+    const hasValidPrice = inst.bid > 0
+    
     const matchesSearch = inst.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          inst.name.toLowerCase().includes(searchTerm.toLowerCase())
     
-    // When searching, show all matching instruments
+    // When searching, show all matching instruments with valid prices
     if (searchTerm.length > 0) {
-      return matchesSearch
+      return matchesSearch && hasValidPrice
     }
     
-    // When viewing Starred, show all starred instruments
+    // When viewing Starred, show all starred instruments with valid prices
     if (activeCategory === 'Starred') {
-      return inst.starred
+      return inst.starred && hasValidPrice
     }
     
-    // When viewing "All", show ALL instruments
+    // When viewing "All", show ALL instruments with valid prices
     if (activeCategory === 'All') {
-      return true
+      return hasValidPrice
     }
     
-    // For specific categories, show only popular by default
-    return inst.category === activeCategory && inst.popular
+    // For specific categories, show ALL instruments with valid prices
+    return inst.category === activeCategory && hasValidPrice
   })
 
   const moreMenuItems = [

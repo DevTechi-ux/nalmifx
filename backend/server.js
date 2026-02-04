@@ -59,70 +59,50 @@ const priceSubscribers = new Set()
 // Price cache for real-time streaming
 const priceCache = new Map()
 
-// Use Binance for ALL crypto (faster updates than AllTick for crypto)
-const BINANCE_CRYPTO_SYMBOLS = {
-  'BTCUSD': 'BTCUSDT', 'ETHUSD': 'ETHUSDT', 'BNBUSD': 'BNBUSDT', 'SOLUSD': 'SOLUSDT',
-  'XRPUSD': 'XRPUSDT', 'ADAUSD': 'ADAUSDT', 'DOGEUSD': 'DOGEUSDT', 'TRXUSD': 'TRXUSDT',
-  'LINKUSD': 'LINKUSDT', 'MATICUSD': 'MATICUSDT', 'DOTUSD': 'DOTUSDT',
-  'SHIBUSD': 'SHIBUSDT', 'LTCUSD': 'LTCUSDT', 'BCHUSD': 'BCHUSDT', 'AVAXUSD': 'AVAXUSDT',
-  'XLMUSD': 'XLMUSDT', 'UNIUSD': 'UNIUSDT', 'ATOMUSD': 'ATOMUSDT', 'ETCUSD': 'ETCUSDT',
-  'FILUSD': 'FILUSDT', 'ICPUSD': 'ICPUSDT', 'VETUSD': 'VETUSDT',
-  'NEARUSD': 'NEARUSDT', 'GRTUSD': 'GRTUSDT', 'AAVEUSD': 'AAVEUSDT', 'MKRUSD': 'MKRUSDT',
-  'ALGOUSD': 'ALGOUSDT', 'FTMUSD': 'FTMUSDT', 'SANDUSD': 'SANDUSDT', 'MANAUSD': 'MANAUSDT',
-  'AXSUSD': 'AXSUSDT', 'THETAUSD': 'THETAUSDT', 'FLOWUSD': 'FLOWUSDT',
-  'SNXUSD': 'SNXUSDT', 'EOSUSD': 'EOSUSDT', 'CHZUSD': 'CHZUSDT', 'ENJUSD': 'ENJUSDT',
-  'ZILUSD': 'ZILUSDT', 'BATUSD': 'BATUSDT', 'CRVUSD': 'CRVUSDT', 'COMPUSD': 'COMPUSDT',
-  'SUSHIUSD': 'SUSHIUSDT', 'ZRXUSD': 'ZRXUSDT', 'LRCUSD': 'LRCUSDT', 'ANKRUSD': 'ANKRUSDT',
-  'GALAUSD': 'GALAUSDT', 'APEUSD': 'APEUSDT', 'WAVESUSD': 'WAVESUSDT', 'ZECUSD': 'ZECUSDT',
-  'PEPEUSD': 'PEPEUSDT', 'ARBUSD': 'ARBUSDT', 'OPUSD': 'OPUSDT', 'SUIUSD': 'SUIUSDT',
-  'APTUSD': 'APTUSDT', 'INJUSD': 'INJUSDT', 'LDOUSD': 'LDOUSDT', 'IMXUSD': 'IMXUSDT',
-  'RUNEUSD': 'RUNEUSDT', 'KAVAUSD': 'KAVAUSDT', 'KSMUSD': 'KSMUSDT', 'NEOUSD': 'NEOUSDT',
-  'QNTUSD': 'QNTUSDT', 'FETUSD': 'FETUSDT', 'RNDRUSD': 'RNDRUSDT', 'OCEANUSD': 'OCEANUSDT',
-  'WLDUSD': 'WLDUSDT', 'SEIUSD': 'SEIUSDT', 'TIAUSD': 'TIAUSDT', 'BLURUSD': 'BLURUSDT',
-  'ROSEUSD': 'ROSEUSDT', 'MINAUSD': 'MINAUSDT', 'GMXUSD': 'GMXUSDT', 'DYDXUSD': 'DYDXUSDT',
-  'STXUSD': 'STXUSDT', 'CFXUSD': 'CFXUSDT', 'ACHUSD': 'ACHUSDT', 'DASHUSD': 'DASHUSDT',
-  'XTZUSD': 'XTZUSDT', 'CELOUSD': 'CELOUSDT', 'ONEUSD': 'ONEUSDT',
-  'HOTUSD': 'HOTUSDT', 'SKLUSD': 'SKLUSDT', 'STORJUSD': 'STORJUSDT', 'YFIUSD': 'YFIUSDT',
-  'UMAUSD': 'UMAUSDT', 'BANDUSD': 'BANDUSDT', 'RVNUSD': 'RVNUSDT', 'OXTUSD': 'OXTUSDT',
-  'NKNUSD': 'NKNUSDT', 'WOOUSD': 'WOOUSDT', 'JASMYUSD': 'JASMYUSDT',
-  'MASKUSD': 'MASKUSDT', 'DENTUSD': 'DENTUSDT', 'CELRUSD': 'CELRUSDT', 'COTIUSD': 'COTIUSDT',
-  'IOTXUSD': 'IOTXUSDT', 'KLAYUSD': 'KLAYUSDT', 'OGNUSD': 'OGNUSDT',
-  'RLCUSD': 'RLCUSDT', 'STMXUSD': 'STMXUSDT', 'SUNUSD': 'SUNUSDT', 'SXPUSD': 'SXPUSDT',
-  'AUDIOUSD': 'AUDIOUSDT', 'BONKUSD': 'BONKUSDT', 'FLOKIUSD': 'FLOKIUSDT', 'ORDIUSD': 'ORDIUSDT',
-  '1INCHUSD': '1INCHUSDT', 'HBARUSD': 'HBARUSDT', 'TONUSD': 'TONUSDT'
-}
-// AllTick API config
-const ALLTICK_API_TOKEN = process.env.ALLTICK_API_TOKEN || '1b2b3ad1b5c8c28b9d956652ecb4111d-c-app'
-const ALLTICK_WS_URL = `wss://quote.alltick.co/quote-b-ws-api?token=${ALLTICK_API_TOKEN}`
+// ============================================================
+// INFOWAY.IO API CONFIGURATION
+// Documentation: https://docs.infoway.io/en-docs/rest-api/websocket
+// ============================================================
 
-// AllTick symbol mapping (internal -> AllTick code) - ~120 symbols
-const ALLTICK_SYMBOL_MAP = {
-  // Forex Majors (7)
+const INFOWAY_API_KEY = process.env.INFOWAY_API_KEY || 'your_infoway_api_key_here'
+
+// Infoway.io WebSocket URLs by business type
+const INFOWAY_WS_CRYPTO = `wss://data.infoway.io/ws?business=crypto&apikey=${INFOWAY_API_KEY}`
+const INFOWAY_WS_COMMON = `wss://data.infoway.io/ws?business=common&apikey=${INFOWAY_API_KEY}`
+
+// Infoway.io HTTP API URLs
+const INFOWAY_HTTP_CRYPTO = 'https://data.infoway.io/crypto/batch_depth'
+const INFOWAY_HTTP_COMMON = 'https://data.infoway.io/common/batch_depth'
+
+// Infoway.io symbol mapping (internal -> Infoway code)
+// Crypto symbols use USDT suffix, Forex/Metals/Commodities use standard codes
+const INFOWAY_SYMBOL_MAP = {
+  // ========== FOREX MAJORS (7) ==========
   'EURUSD': 'EURUSD', 'GBPUSD': 'GBPUSD', 'USDJPY': 'USDJPY', 'USDCHF': 'USDCHF',
   'AUDUSD': 'AUDUSD', 'NZDUSD': 'NZDUSD', 'USDCAD': 'USDCAD',
-  // Forex Crosses (21)
+  
+  // ========== FOREX CROSSES (21) ==========
   'EURGBP': 'EURGBP', 'EURJPY': 'EURJPY', 'GBPJPY': 'GBPJPY', 'EURCHF': 'EURCHF',
   'EURAUD': 'EURAUD', 'EURCAD': 'EURCAD', 'GBPAUD': 'GBPAUD', 'GBPCAD': 'GBPCAD',
   'AUDCAD': 'AUDCAD', 'AUDJPY': 'AUDJPY', 'CADJPY': 'CADJPY', 'CHFJPY': 'CHFJPY',
   'NZDJPY': 'NZDJPY', 'AUDNZD': 'AUDNZD', 'CADCHF': 'CADCHF', 'GBPCHF': 'GBPCHF',
   'GBPNZD': 'GBPNZD', 'EURNZD': 'EURNZD', 'NZDCAD': 'NZDCAD', 'NZDCHF': 'NZDCHF',
   'AUDCHF': 'AUDCHF',
-  // Forex Exotics (30+)
+  
+  // ========== FOREX SUPPORTED BY INFOWAY.IO (12) ==========
+  // Only pairs actually supported by Infoway.io API
   'USDSGD': 'USDSGD', 'EURSGD': 'EURSGD', 'GBPSGD': 'GBPSGD', 'AUDSGD': 'AUDSGD',
-  'SGDJPY': 'SGDJPY', 'USDHKD': 'USDHKD', 'USDZAR': 'USDZAR', 'EURZAR': 'EURZAR',
-  'GBPZAR': 'GBPZAR', 'ZARJPY': 'ZARJPY', 'USDTRY': 'USDTRY', 'EURTRY': 'EURTRY',
-  'TRYJPY': 'TRYJPY', 'USDMXN': 'USDMXN', 'EURMXN': 'EURMXN', 'MXNJPY': 'MXNJPY',
-  'USDPLN': 'USDPLN', 'EURPLN': 'EURPLN', 'GBPPLN': 'GBPPLN', 'USDSEK': 'USDSEK',
-  'EURSEK': 'EURSEK', 'GBPSEK': 'GBPSEK', 'SEKJPY': 'SEKJPY', 'USDNOK': 'USDNOK',
-  'EURNOK': 'EURNOK', 'GBPNOK': 'GBPNOK', 'NOKJPY': 'NOKJPY', 'USDDKK': 'USDDKK',
-  'EURDKK': 'EURDKK', 'DKKJPY': 'DKKJPY', 'USDCNH': 'USDCNH', 'CNHJPY': 'CNHJPY',
-  'USDHUF': 'USDHUF', 'EURHUF': 'EURHUF', 'USDCZK': 'USDCZK', 'EURCZK': 'EURCZK',
-  // Metals (4)
-  'XAUUSD': 'GOLD', 'XAGUSD': 'Silver', 'XPTUSD': 'Platinum', 'XPDUSD': 'Palladium',
-  // Commodities (6)
-  'USOIL': 'USOIL', 'UKOIL': 'UKOIL', 'NGAS': 'NGAS', 'COPPER': 'COPPER',
-  'ALUMINUM': 'Aluminum', 'NICKEL': 'Nickel',
-  // Crypto (126 coins to reach 200 total)
+  'SGDJPY': 'SGDJPY', 'USDHKD': 'USDHKD', 'USDCNH': 'USDCNH', 'USDRUB': 'USDRUB',
+  'USDTHB': 'USDTHB', 'USDTWD': 'USDTWD', 'HKDJPY': 'HKDJPY', 'SGDCHF': 'SGDCHF',
+  
+  // ========== METALS (4) ==========
+  'XAUUSD': 'XAUUSD', 'XAGUSD': 'XAGUSD', 'XPTUSD': 'XPTUSD', 'XPDUSD': 'XPDUSD',
+  
+  // ========== COMMODITIES (6) - Using Infoway.io symbol codes ==========
+  'USOIL': 'USOIL', 'UKOIL': 'UKOIL', 'NGAS': 'NGAS', 
+  'COPPER': 'XCUUSD', 'ALUMINUM': 'XALUSD', 'NICKEL': 'XNIUSD',
+  
+  // ========== CRYPTO (100+ coins) ==========
   'BTCUSD': 'BTCUSDT', 'ETHUSD': 'ETHUSDT', 'BNBUSD': 'BNBUSDT', 'SOLUSD': 'SOLUSDT',
   'XRPUSD': 'XRPUSDT', 'ADAUSD': 'ADAUSDT', 'DOGEUSD': 'DOGEUSDT', 'TRXUSD': 'TRXUSDT',
   'LINKUSD': 'LINKUSDT', 'MATICUSD': 'MATICUSDT', 'DOTUSD': 'DOTUSDT',
@@ -136,7 +116,6 @@ const ALLTICK_SYMBOL_MAP = {
   'ZILUSD': 'ZILUSDT', 'BATUSD': 'BATUSDT', 'CRVUSD': 'CRVUSDT', 'COMPUSD': 'COMPUSDT',
   'SUSHIUSD': 'SUSHIUSDT', 'ZRXUSD': 'ZRXUSDT', 'LRCUSD': 'LRCUSDT', 'ANKRUSD': 'ANKRUSDT',
   'GALAUSD': 'GALAUSDT', 'APEUSD': 'APEUSDT', 'WAVESUSD': 'WAVESUSDT', 'ZECUSD': 'ZECUSDT',
-  // More crypto coins
   'PEPEUSD': 'PEPEUSDT', 'ARBUSD': 'ARBUSDT', 'OPUSD': 'OPUSDT', 'SUIUSD': 'SUIUSDT',
   'APTUSD': 'APTUSDT', 'INJUSD': 'INJUSDT', 'LDOUSD': 'LDOUSDT', 'IMXUSD': 'IMXUSDT',
   'RUNEUSD': 'RUNEUSDT', 'KAVAUSD': 'KAVAUSDT', 'KSMUSD': 'KSMUSDT', 'NEOUSD': 'NEOUSDT',
@@ -147,223 +126,321 @@ const ALLTICK_SYMBOL_MAP = {
   'XTZUSD': 'XTZUSDT', 'IOTUSD': 'IOTAUSDT', 'CELOUSD': 'CELOUSDT', 'ONEUSD': 'ONEUSDT',
   'HOTUSD': 'HOTUSDT', 'SKLUSD': 'SKLUSDT', 'STORJUSD': 'STORJUSDT', 'YFIUSD': 'YFIUSDT',
   'UMAUSD': 'UMAUSDT', 'BANDUSD': 'BANDUSDT', 'RVNUSD': 'RVNUSDT', 'OXTUSD': 'OXTUSDT',
-  'NKNUSD': 'NKNUSDT', 'WOOUSD': 'WOOUSDT', 'AABORUSD': 'AGIXUSDT', 'JASMYUSD': 'JASMYUSDT',
+  'NKNUSD': 'NKNUSDT', 'WOOUSD': 'WOOUSDT', 'JASMYUSD': 'JASMYUSDT',
   'MASKUSD': 'MASKUSDT', 'DENTUSD': 'DENTUSDT', 'CELRUSD': 'CELRUSDT', 'COTIUSD': 'COTIUSDT',
-  'CTSIUSD': 'CTSIUSDT', 'IOTXUSD': 'IOTXUSDT', 'KLAYUSD': 'KLAYUSDT', 'OGNUSD': 'OGNUSDT',
+  'IOTXUSD': 'IOTXUSDT', 'KLAYUSD': 'KLAYUSDT', 'OGNUSD': 'OGNUSDT',
   'RLCUSD': 'RLCUSDT', 'STMXUSD': 'STMXUSDT', 'SUNUSD': 'SUNUSDT', 'SXPUSD': 'SXPUSDT',
-  'WINUSD': 'WINUSDT', 'AKROUSD': 'AKROUSDT', 'AUDIOUSD': 'AUDIOUSDT', 'BELUSD': 'BELUSDT',
-  'BONKUSD': 'BONKUSDT', 'FLOKIUSD': 'FLOKIUSDT', 'JTUSD': 'JTOUSDT', 'ORDIUSD': 'ORDIUSDT',
-  'PENDUSD': 'PENDLEUSDT', 'RADUSD': 'RADUSDT', 'RDNTUSD': 'RDNTUSDT', 'RPLUSD': 'RPLUSDT',
-  'SSVUSD': 'SSVUSDT', 'TUSDUSD': 'TUSDT', 'WAXUSD': 'WAXPUSDT', 'XECUSD': 'XECUSDT',
-  'ZENUSD': 'ZENUSDT', 'ZILUSD': 'ZILUSDT', '1INCHUSD': '1INCHUSDT', 'HBARUSD': 'HBARUSDT',
-  'TONUSD': 'TONUSDT', 'EGLDUSDUSD': 'EGLDUSDT'
+  'AUDIOUSD': 'AUDIOUSDT', 'BONKUSD': 'BONKUSDT', 'FLOKIUSD': 'FLOKIUSDT', 'ORDIUSD': 'ORDIUSDT',
+  '1INCHUSD': '1INCHUSDT', 'HBARUSD': 'HBARUSDT', 'TONUSD': 'TONUSDT'
 }
 
-// Reverse mapping (AllTick code -> internal symbol)
-const ALLTICK_REVERSE_MAP = Object.fromEntries(
-  Object.entries(ALLTICK_SYMBOL_MAP).map(([k, v]) => [v, k])
+// Reverse mapping (Infoway code -> internal symbol)
+const INFOWAY_REVERSE_MAP = Object.fromEntries(
+  Object.entries(INFOWAY_SYMBOL_MAP).map(([k, v]) => [v, k])
 )
 
-// All symbols to subscribe via AllTick WebSocket (78 total)
-const ALLTICK_WS_SYMBOLS = Object.keys(ALLTICK_SYMBOL_MAP)
+// Categorize symbols by business type for Infoway WebSocket
+const CRYPTO_SYMBOLS = Object.keys(INFOWAY_SYMBOL_MAP).filter(s => 
+  INFOWAY_SYMBOL_MAP[s].endsWith('USDT')
+)
+const COMMON_SYMBOLS = Object.keys(INFOWAY_SYMBOL_MAP).filter(s => 
+  !INFOWAY_SYMBOL_MAP[s].endsWith('USDT')
+)
 
-// AllTick WebSocket connection
-let allTickWs = null
-let allTickReconnectTimer = null
-let allTickHeartbeatTimer = null
+// Infoway.io WebSocket connections (separate for crypto and common)
+let infowayWsCrypto = null
+let infowayWsCommon = null
+let infowayReconnectTimerCrypto = null
+let infowayReconnectTimerCommon = null
+let infowayHeartbeatTimerCrypto = null
+let infowayHeartbeatTimerCommon = null
 
-function connectAllTickWebSocket() {
-  if (allTickWs && allTickWs.readyState === WebSocket.OPEN) return
+// Connect to Infoway.io Crypto WebSocket
+function connectInfowayCryptoWebSocket() {
+  if (infowayWsCrypto && infowayWsCrypto.readyState === WebSocket.OPEN) return
   
-  console.log('Connecting to AllTick WebSocket...')
-  allTickWs = new WebSocket(ALLTICK_WS_URL)
+  console.log('[Infoway] Connecting to Crypto WebSocket...')
+  infowayWsCrypto = new WebSocket(INFOWAY_WS_CRYPTO)
   
-  allTickWs.on('open', () => {
-    console.log('AllTick WebSocket connected!')
+  infowayWsCrypto.on('open', () => {
+    console.log('[Infoway] Crypto WebSocket connected!')
     
-    // Subscribe to ALL symbols (forex, metals, commodities, crypto) - 78 total
-    const symbolList = ALLTICK_WS_SYMBOLS.map(s => ({
-      code: ALLTICK_SYMBOL_MAP[s] || s,
-      depth_level: 1
-    }))
+    const cryptoCodes = CRYPTO_SYMBOLS.map(s => INFOWAY_SYMBOL_MAP[s]).join(',')
     
-    const subscribeMsg = {
-      cmd_id: 22002,
-      seq_id: Date.now(),
-      trace: `sub-${Date.now()}`,
-      data: { symbol_list: symbolList }
+    // Subscribe to Latest Trade (protocol 10000) for tick-by-tick data
+    const tradeSubscribeMsg = {
+      code: 10000,
+      trace: `crypto-trade-${Date.now()}`,
+      data: { codes: cryptoCodes }
     }
+    infowayWsCrypto.send(JSON.stringify(tradeSubscribeMsg))
+    console.log(`[Infoway] Subscribed to ${CRYPTO_SYMBOLS.length} crypto tick-by-tick trades`)
     
-    allTickWs.send(JSON.stringify(subscribeMsg))
-    console.log(`Subscribed to ${symbolList.length} AllTick symbols (forex, metals, commodities, crypto)`)
+    // Also subscribe to depth data (protocol 10003) for order book
+    setTimeout(() => {
+      const depthSubscribeMsg = {
+        code: 10003,
+        trace: `crypto-depth-${Date.now()}`,
+        data: { codes: cryptoCodes }
+      }
+      infowayWsCrypto.send(JSON.stringify(depthSubscribeMsg))
+      console.log(`[Infoway] Subscribed to ${CRYPTO_SYMBOLS.length} crypto depth data`)
+    }, 1000)
     
-    // Start heartbeat every 10 seconds
-    if (allTickHeartbeatTimer) clearInterval(allTickHeartbeatTimer)
-    allTickHeartbeatTimer = setInterval(() => {
-      if (allTickWs && allTickWs.readyState === WebSocket.OPEN) {
-        allTickWs.send(JSON.stringify({ cmd_id: 22000, seq_id: Date.now(), trace: 'heartbeat' }))
+    // Start heartbeat every 30 seconds (Infoway requirement)
+    if (infowayHeartbeatTimerCrypto) clearInterval(infowayHeartbeatTimerCrypto)
+    infowayHeartbeatTimerCrypto = setInterval(() => {
+      if (infowayWsCrypto && infowayWsCrypto.readyState === WebSocket.OPEN) {
+        infowayWsCrypto.send(JSON.stringify({ code: 10010, trace: `ping-${Date.now()}` }))
       }
-    }, 10000)
+    }, 30000)
   })
   
-  allTickWs.on('message', (data) => {
-    try {
-      const msg = JSON.parse(data.toString())
-      
-      // Log subscription response
-      if (msg.cmd_id === 22002) {
-        console.log('AllTick subscription response:', msg.ret === 200 ? 'SUCCESS' : `FAILED (${msg.msg || msg.ret})`)
-      }
-      
-      // Handle price push (cmd_id 22999)
-      if (msg.cmd_id === 22999 && msg.data) {
-        const code = msg.data.code
-        const internalSymbol = ALLTICK_REVERSE_MAP[code] || code
-        
-        const bid = msg.data.bids?.[0]?.price ? parseFloat(msg.data.bids[0].price) : null
-        const ask = msg.data.asks?.[0]?.price ? parseFloat(msg.data.asks[0].price) : null
-        
-        if (bid && ask) {
-          const price = { bid, ask, time: Date.now() }
-          priceCache.set(internalSymbol, price)
-          
-          // Broadcast to subscribers
-          if (priceSubscribers.size > 0) {
-            io.to('prices').emit('priceUpdate', { symbol: internalSymbol, price })
-          }
-        }
-      }
-    } catch (e) {
-      // Ignore parse errors
-    }
+  infowayWsCrypto.on('message', (data) => {
+    handleInfowayMessage(data, 'crypto')
   })
   
-  allTickWs.on('error', (err) => {
-    console.error('AllTick WebSocket error:', err.message)
+  infowayWsCrypto.on('error', (err) => {
+    console.error('[Infoway] Crypto WebSocket error:', err.message)
   })
   
-  allTickWs.on('close', () => {
-    console.log('AllTick WebSocket disconnected, reconnecting in 5s...')
-    if (allTickHeartbeatTimer) clearInterval(allTickHeartbeatTimer)
-    if (allTickReconnectTimer) clearTimeout(allTickReconnectTimer)
-    allTickReconnectTimer = setTimeout(connectAllTickWebSocket, 5000)
+  infowayWsCrypto.on('close', () => {
+    console.log('[Infoway] Crypto WebSocket disconnected, reconnecting in 5s...')
+    if (infowayHeartbeatTimerCrypto) clearInterval(infowayHeartbeatTimerCrypto)
+    if (infowayReconnectTimerCrypto) clearTimeout(infowayReconnectTimerCrypto)
+    infowayReconnectTimerCrypto = setTimeout(connectInfowayCryptoWebSocket, 5000)
   })
 }
 
-// ALL forex/metals/commodities symbols to fetch via HTTP fallback
-const FOREX_ALL_SYMBOLS = [
-  // Majors
-  'EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD',
-  // Crosses
-  'EURGBP', 'EURJPY', 'GBPJPY', 'EURCHF', 'EURAUD', 'EURCAD', 'GBPAUD', 'GBPCAD',
-  'AUDCAD', 'AUDJPY', 'CADJPY', 'CHFJPY', 'NZDJPY', 'AUDNZD', 'CADCHF', 'GBPCHF',
-  'GBPNZD', 'EURNZD', 'NZDCAD', 'NZDCHF', 'AUDCHF',
-  // Exotics
-  'USDSGD', 'EURSGD', 'GBPSGD', 'AUDSGD', 'SGDJPY', 'USDHKD', 'USDZAR', 'EURZAR',
-  'GBPZAR', 'ZARJPY', 'USDTRY', 'EURTRY', 'TRYJPY', 'USDMXN', 'EURMXN', 'MXNJPY',
-  'USDPLN', 'EURPLN', 'GBPPLN', 'USDSEK', 'EURSEK', 'GBPSEK', 'SEKJPY', 'USDNOK',
-  'EURNOK', 'GBPNOK', 'NOKJPY', 'USDDKK', 'EURDKK', 'DKKJPY', 'USDCNH', 'CNHJPY',
-  'USDHUF', 'EURHUF', 'USDCZK', 'EURCZK',
-  // Metals & Commodities
-  'XAUUSD', 'XAGUSD', 'XPTUSD', 'XPDUSD', 'USOIL', 'UKOIL', 'NGAS', 'COPPER'
-]
+// Connect to Infoway.io Common (Forex/Commodities) WebSocket
+function connectInfowayCommonWebSocket() {
+  if (infowayWsCommon && infowayWsCommon.readyState === WebSocket.OPEN) return
+  
+  console.log('[Infoway] Connecting to Common (Forex/Commodities) WebSocket...')
+  infowayWsCommon = new WebSocket(INFOWAY_WS_COMMON)
+  
+  infowayWsCommon.on('open', () => {
+    console.log('[Infoway] Common WebSocket connected!')
+    
+    const commonCodes = COMMON_SYMBOLS.map(s => INFOWAY_SYMBOL_MAP[s]).join(',')
+    
+    // Subscribe to Latest Trade (protocol 10000) for tick-by-tick forex/commodities data
+    const tradeSubscribeMsg = {
+      code: 10000,
+      trace: `common-trade-${Date.now()}`,
+      data: { codes: commonCodes }
+    }
+    infowayWsCommon.send(JSON.stringify(tradeSubscribeMsg))
+    console.log(`[Infoway] Subscribed to ${COMMON_SYMBOLS.length} forex/commodities tick-by-tick trades`)
+    
+    // Also subscribe to depth data (protocol 10003) for order book
+    setTimeout(() => {
+      const depthSubscribeMsg = {
+        code: 10003,
+        trace: `common-depth-${Date.now()}`,
+        data: { codes: commonCodes }
+      }
+      infowayWsCommon.send(JSON.stringify(depthSubscribeMsg))
+      console.log(`[Infoway] Subscribed to ${COMMON_SYMBOLS.length} forex/commodities depth data`)
+    }, 1000)
+    
+    // Start heartbeat every 30 seconds
+    if (infowayHeartbeatTimerCommon) clearInterval(infowayHeartbeatTimerCommon)
+    infowayHeartbeatTimerCommon = setInterval(() => {
+      if (infowayWsCommon && infowayWsCommon.readyState === WebSocket.OPEN) {
+        infowayWsCommon.send(JSON.stringify({ code: 10010, trace: `ping-${Date.now()}` }))
+      }
+    }, 30000)
+  })
+  
+  infowayWsCommon.on('message', (data) => {
+    handleInfowayMessage(data, 'common')
+  })
+  
+  infowayWsCommon.on('error', (err) => {
+    console.error('[Infoway] Common WebSocket error:', err.message)
+  })
+  
+  infowayWsCommon.on('close', () => {
+    console.log('[Infoway] Common WebSocket disconnected, reconnecting in 5s...')
+    if (infowayHeartbeatTimerCommon) clearInterval(infowayHeartbeatTimerCommon)
+    if (infowayReconnectTimerCommon) clearTimeout(infowayReconnectTimerCommon)
+    infowayReconnectTimerCommon = setTimeout(connectInfowayCommonWebSocket, 5000)
+  })
+}
 
-// Fetch forex prices via AllTick HTTP API as fallback - split into chunks
-let lastForexLogTime = 0
-async function fetchForexPricesHTTP() {
-  const CHUNK_SIZE = 15 // Batch 15 symbols at a time
+// Handle incoming Infoway WebSocket messages
+function handleInfowayMessage(data, type) {
+  try {
+    const msg = JSON.parse(data.toString())
+    
+    // Handle subscription response (protocol 10004)
+    if (msg.code === 10004) {
+      console.log(`[Infoway] ${type} subscription response:`, msg.msg === 'ok' ? 'SUCCESS' : `FAILED (${msg.msg})`)
+    }
+    
+    // Handle Latest Trade push data (protocol 10001) - TICK-BY-TICK DATA
+    if (msg.code === 10001 && msg.data) {
+      const infowaySymbol = msg.data.s
+      const internalSymbol = INFOWAY_REVERSE_MAP[infowaySymbol] || infowaySymbol
+      
+      // Latest trade data: p = price, v = volume, t = timestamp
+      const tradePrice = msg.data.p ? parseFloat(msg.data.p) : null
+      
+      if (tradePrice && tradePrice > 0) {
+        // Get existing price data to preserve bid/ask spread
+        const existingPrice = priceCache.get(internalSymbol) || {}
+        const spread = existingPrice.ask && existingPrice.bid 
+          ? (existingPrice.ask - existingPrice.bid) / 2 
+          : tradePrice * 0.0001 // Default small spread
+        
+        const price = { 
+          bid: tradePrice - spread, 
+          ask: tradePrice + spread, 
+          last: tradePrice,
+          volume: msg.data.v ? parseFloat(msg.data.v) : 0,
+          time: msg.data.t || Date.now() 
+        }
+        priceCache.set(internalSymbol, price)
+        
+        // Broadcast tick-by-tick update to subscribers
+        if (priceSubscribers.size > 0) {
+          io.to('prices').emit('priceUpdate', { symbol: internalSymbol, price })
+        }
+      }
+    }
+    
+    // Handle depth push data (protocol 10005) - ORDER BOOK DATA
+    if (msg.code === 10005 && msg.data) {
+      const infowaySymbol = msg.data.s
+      const internalSymbol = INFOWAY_REVERSE_MAP[infowaySymbol] || infowaySymbol
+      
+      // Extract bid and ask from depth data
+      // b = buy orders (bids): b[0] = prices array, b[1] = volumes array
+      // a = sell orders (asks): a[0] = prices array, a[1] = volumes array
+      const bidPrice = msg.data.b?.[0]?.[0] ? parseFloat(msg.data.b[0][0]) : null
+      const askPrice = msg.data.a?.[0]?.[0] ? parseFloat(msg.data.a[0][0]) : null
+      
+      if (bidPrice && askPrice) {
+        const existingPrice = priceCache.get(internalSymbol) || {}
+        const price = { 
+          bid: bidPrice, 
+          ask: askPrice, 
+          last: existingPrice.last || (bidPrice + askPrice) / 2,
+          time: msg.data.t || Date.now() 
+        }
+        priceCache.set(internalSymbol, price)
+        
+        // Broadcast to subscribers
+        if (priceSubscribers.size > 0) {
+          io.to('prices').emit('priceUpdate', { symbol: internalSymbol, price })
+        }
+      }
+    }
+  } catch (e) {
+    // Ignore parse errors
+  }
+}
+
+// Connect both Infoway WebSockets
+function connectInfowayWebSockets() {
+  connectInfowayCryptoWebSocket()
+  connectInfowayCommonWebSocket()
+}
+
+// Fetch prices via Infoway.io HTTP API as fallback
+let lastInfowayLogTime = 0
+
+async function fetchInfowayPricesHTTP() {
   const now = Date.now()
   let fetchedCount = 0
   
-  for (let i = 0; i < FOREX_ALL_SYMBOLS.length; i += CHUNK_SIZE) {
-    try {
-      const chunk = FOREX_ALL_SYMBOLS.slice(i, i + CHUNK_SIZE)
-      const symbolList = chunk.map(s => ({ code: ALLTICK_SYMBOL_MAP[s] || s }))
-      const query = {
-        trace: `forex-${Date.now()}-${i}`,
-        data: { symbol_list: symbolList }
-      }
-      const encodedQuery = encodeURIComponent(JSON.stringify(query))
-      const url = `https://quote.alltick.co/quote-b-api/depth-tick?token=${ALLTICK_API_TOKEN}&query=${encodedQuery}`
-      
-      const response = await fetch(url)
-      if (response.ok) {
-        const data = await response.json()
-        if (data.ret === 200 && data.data?.tick_list) {
-          for (const tick of data.data.tick_list) {
-            const internalSymbol = ALLTICK_REVERSE_MAP[tick.code] || tick.code
-            const bid = tick.bids?.[0]?.price ? parseFloat(tick.bids[0].price) : null
-            const ask = tick.asks?.[0]?.price ? parseFloat(tick.asks[0].price) : null
-            if (bid && ask) {
-              priceCache.set(internalSymbol, { bid, ask, time: now })
-              fetchedCount++
-            }
+  try {
+    // Fetch forex/commodities prices (common business)
+    const commonCodes = COMMON_SYMBOLS.map(s => INFOWAY_SYMBOL_MAP[s]).join(',')
+    const commonUrl = `${INFOWAY_HTTP_COMMON}/${commonCodes}`
+    
+    const commonResponse = await fetch(commonUrl, {
+      headers: { 'apiKey': INFOWAY_API_KEY }
+    })
+    
+    if (commonResponse.ok) {
+      const data = await commonResponse.json()
+      if (data.ret === 200 && data.data) {
+        for (const item of data.data) {
+          const internalSymbol = INFOWAY_REVERSE_MAP[item.s] || item.s
+          const bidPrice = item.b?.[0]?.[0] ? parseFloat(item.b[0][0]) : null
+          const askPrice = item.a?.[0]?.[0] ? parseFloat(item.a[0][0]) : null
+          if (bidPrice && askPrice) {
+            priceCache.set(internalSymbol, { bid: bidPrice, ask: askPrice, time: now })
+            fetchedCount++
           }
-        } else if (data.ret !== 200) {
-          console.error(`AllTick HTTP error for chunk ${i}: ${data.msg || data.ret}`)
         }
       }
-      // Small delay between chunks
-      if (i + CHUNK_SIZE < FOREX_ALL_SYMBOLS.length) {
-        await new Promise(r => setTimeout(r, 200))
-      }
-    } catch (e) {
-      console.error(`AllTick HTTP chunk ${i} error:`, e.message)
     }
+  } catch (e) {
+    console.error('[Infoway] HTTP common error:', e.message)
+  }
+  
+  try {
+    // Fetch crypto prices (crypto business)
+    const cryptoCodes = CRYPTO_SYMBOLS.map(s => INFOWAY_SYMBOL_MAP[s]).join(',')
+    const cryptoUrl = `${INFOWAY_HTTP_CRYPTO}/${cryptoCodes}`
+    
+    const cryptoResponse = await fetch(cryptoUrl, {
+      headers: { 'apiKey': INFOWAY_API_KEY }
+    })
+    
+    if (cryptoResponse.ok) {
+      const data = await cryptoResponse.json()
+      if (data.ret === 200 && data.data) {
+        for (const item of data.data) {
+          const internalSymbol = INFOWAY_REVERSE_MAP[item.s] || item.s
+          const bidPrice = item.b?.[0]?.[0] ? parseFloat(item.b[0][0]) : null
+          const askPrice = item.a?.[0]?.[0] ? parseFloat(item.a[0][0]) : null
+          if (bidPrice && askPrice) {
+            priceCache.set(internalSymbol, { bid: bidPrice, ask: askPrice, time: now })
+            fetchedCount++
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[Infoway] HTTP crypto error:', e.message)
   }
   
   // Log every 30 seconds
-  if (now - lastForexLogTime > 30000) {
-    console.log(`AllTick HTTP: Fetched ${fetchedCount} forex prices, cache has ${priceCache.size} total symbols`)
-    lastForexLogTime = now
+  if (now - lastInfowayLogTime > 30000) {
+    console.log(`[Infoway] HTTP: Fetched ${fetchedCount} prices, cache has ${priceCache.size} total symbols`)
+    lastInfowayLogTime = now
   }
 }
 
-// Background price streaming - Binance polling + AllTick WebSocket
+// Background price streaming - broadcasts cached prices to all subscribers
 async function streamPrices() {
   if (priceSubscribers.size === 0) return
   
   const now = Date.now()
-  const updatedPrices = {}
   
-  // Binance - fast refresh for crypto (every call)
-  try {
-    const response = await fetch('https://api.binance.com/api/v3/ticker/bookTicker')
-    if (response.ok) {
-      const tickers = await response.json()
-      const tickerMap = {}
-      tickers.forEach(t => { tickerMap[t.symbol] = t })
-      
-      Object.keys(BINANCE_CRYPTO_SYMBOLS).forEach(symbol => {
-        const ticker = tickerMap[BINANCE_CRYPTO_SYMBOLS[symbol]]
-        if (ticker) {
-          const price = { bid: parseFloat(ticker.bidPrice), ask: parseFloat(ticker.askPrice), time: now }
-          priceCache.set(symbol, price)
-          updatedPrices[symbol] = price
-        }
-      })
-    }
-  } catch (e) {}
-  
-  // AllTick prices come via WebSocket (connectAllTickWebSocket)
+  // Infoway prices come via WebSocket (connectInfowayWebSockets)
   // Just broadcast the full cache periodically
   io.to('prices').emit('priceStream', {
     prices: Object.fromEntries(priceCache),
-    updated: updatedPrices,
+    updated: {},
     timestamp: now
   })
 }
 
-// Forex HTTP fallback - poll every 3 seconds for all forex pairs
-setInterval(fetchForexPricesHTTP, 3000)
+// HTTP fallback - poll every 5 seconds for all symbols
+setInterval(fetchInfowayPricesHTTP, 5000)
 
-// Fetch forex prices immediately on startup
-fetchForexPricesHTTP().then(() => {
-  console.log(`Initial forex prices loaded: ${priceCache.size} symbols in cache`)
+// Fetch prices immediately on startup
+fetchInfowayPricesHTTP().then(() => {
+  console.log(`[Infoway] Initial prices loaded: ${priceCache.size} symbols in cache`)
 })
 
-// Start price streaming interval (500ms for Binance crypto)
-setInterval(streamPrices, 500)
+// Start price streaming interval (10ms for near real-time updates)
+setInterval(streamPrices, 10)
 
 // Background stop-out check every 5 seconds
 // This ensures trades are closed even if user closes browser
@@ -416,8 +493,8 @@ setInterval(async () => {
   }
 }, 1000)
 
-// Connect AllTick WebSocket on startup
-connectAllTickWebSocket()
+// Connect Infoway.io WebSockets on startup
+connectInfowayWebSockets()
 
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id)

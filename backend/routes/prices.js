@@ -4,16 +4,20 @@ import express from 'express'
 
 const router = express.Router()
 
-// AllTick API credentials - loaded from .env file
-const ALLTICK_API_TOKEN = process.env.ALLTICK_API_TOKEN || '1b2b3ad1b5c8c28b9d956652ecb4111d-c-app'
+// ============================================================
+// INFOWAY.IO API CONFIGURATION
+// Documentation: https://docs.infoway.io/en-docs/rest-api/market-data
+// ============================================================
 
-// AllTick API endpoints
-const ALLTICK_FOREX_API = 'https://quote.alltick.co/quote-b-api/depth-tick'
-const ALLTICK_STOCK_API = 'https://quote.alltick.co/quote-stock-b-api/depth-tick'
+const INFOWAY_API_KEY = process.env.INFOWAY_API_KEY || 'your_infoway_api_key_here'
 
-// Symbol mapping for AllTick API - ~120 symbols
-// Based on official AllTick documentation
-const ALLTICK_SYMBOL_MAP = {
+// Infoway.io HTTP API endpoints
+const INFOWAY_HTTP_CRYPTO = 'https://data.infoway.io/crypto/batch_depth'
+const INFOWAY_HTTP_COMMON = 'https://data.infoway.io/common/batch_depth'
+
+// Infoway.io symbol mapping (internal -> Infoway code)
+// Crypto symbols use USDT suffix, Forex/Metals/Commodities use standard codes
+const INFOWAY_SYMBOL_MAP = {
   // ========== FOREX MAJORS (7) ==========
   'EURUSD': 'EURUSD', 'GBPUSD': 'GBPUSD', 'USDJPY': 'USDJPY', 'USDCHF': 'USDCHF',
   'AUDUSD': 'AUDUSD', 'NZDUSD': 'NZDUSD', 'USDCAD': 'USDCAD',
@@ -26,25 +30,20 @@ const ALLTICK_SYMBOL_MAP = {
   'GBPNZD': 'GBPNZD', 'EURNZD': 'EURNZD', 'NZDCAD': 'NZDCAD', 'NZDCHF': 'NZDCHF',
   'AUDCHF': 'AUDCHF',
   
-  // ========== FOREX EXOTICS (36) ==========
+  // ========== FOREX SUPPORTED BY INFOWAY.IO (12) ==========
+  // Only pairs actually supported by Infoway.io API
   'USDSGD': 'USDSGD', 'EURSGD': 'EURSGD', 'GBPSGD': 'GBPSGD', 'AUDSGD': 'AUDSGD',
-  'SGDJPY': 'SGDJPY', 'USDHKD': 'USDHKD', 'USDZAR': 'USDZAR', 'EURZAR': 'EURZAR',
-  'GBPZAR': 'GBPZAR', 'ZARJPY': 'ZARJPY', 'USDTRY': 'USDTRY', 'EURTRY': 'EURTRY',
-  'TRYJPY': 'TRYJPY', 'USDMXN': 'USDMXN', 'EURMXN': 'EURMXN', 'MXNJPY': 'MXNJPY',
-  'USDPLN': 'USDPLN', 'EURPLN': 'EURPLN', 'GBPPLN': 'GBPPLN', 'USDSEK': 'USDSEK',
-  'EURSEK': 'EURSEK', 'GBPSEK': 'GBPSEK', 'SEKJPY': 'SEKJPY', 'USDNOK': 'USDNOK',
-  'EURNOK': 'EURNOK', 'GBPNOK': 'GBPNOK', 'NOKJPY': 'NOKJPY', 'USDDKK': 'USDDKK',
-  'EURDKK': 'EURDKK', 'DKKJPY': 'DKKJPY', 'USDCNH': 'USDCNH', 'CNHJPY': 'CNHJPY',
-  'USDHUF': 'USDHUF', 'EURHUF': 'EURHUF', 'USDCZK': 'USDCZK', 'EURCZK': 'EURCZK',
+  'SGDJPY': 'SGDJPY', 'USDHKD': 'USDHKD', 'USDCNH': 'USDCNH', 'USDRUB': 'USDRUB',
+  'USDTHB': 'USDTHB', 'USDTWD': 'USDTWD', 'HKDJPY': 'HKDJPY', 'SGDCHF': 'SGDCHF',
   
   // ========== METALS (4) ==========
-  'XAUUSD': 'GOLD', 'XAGUSD': 'Silver', 'XPTUSD': 'Platinum', 'XPDUSD': 'Palladium',
+  'XAUUSD': 'XAUUSD', 'XAGUSD': 'XAGUSD', 'XPTUSD': 'XPTUSD', 'XPDUSD': 'XPDUSD',
   
-  // ========== COMMODITIES (6) ==========
-  'USOIL': 'USOIL', 'UKOIL': 'UKOIL', 'NGAS': 'NGAS', 'COPPER': 'COPPER',
-  'ALUMINUM': 'Aluminum', 'NICKEL': 'Nickel',
+  // ========== COMMODITIES (6) - Using Infoway.io symbol codes ==========
+  'USOIL': 'USOIL', 'UKOIL': 'UKOIL', 'NGAS': 'NGAS', 
+  'COPPER': 'XCUUSD', 'ALUMINUM': 'XALUSD', 'NICKEL': 'XNIUSD',
   
-  // ========== CRYPTO (126 coins) ==========
+  // ========== CRYPTO (100+ coins) ==========
   'BTCUSD': 'BTCUSDT', 'ETHUSD': 'ETHUSDT', 'BNBUSD': 'BNBUSDT', 'SOLUSD': 'SOLUSDT',
   'XRPUSD': 'XRPUSDT', 'ADAUSD': 'ADAUSDT', 'DOGEUSD': 'DOGEUSDT', 'TRXUSD': 'TRXUSDT',
   'LINKUSD': 'LINKUSDT', 'MATICUSD': 'MATICUSDT', 'DOTUSD': 'DOTUSDT',
@@ -58,7 +57,6 @@ const ALLTICK_SYMBOL_MAP = {
   'ZILUSD': 'ZILUSDT', 'BATUSD': 'BATUSDT', 'CRVUSD': 'CRVUSDT', 'COMPUSD': 'COMPUSDT',
   'SUSHIUSD': 'SUSHIUSDT', 'ZRXUSD': 'ZRXUSDT', 'LRCUSD': 'LRCUSDT', 'ANKRUSD': 'ANKRUSDT',
   'GALAUSD': 'GALAUSDT', 'APEUSD': 'APEUSDT', 'WAVESUSD': 'WAVESUSDT', 'ZECUSD': 'ZECUSDT',
-  // More crypto
   'PEPEUSD': 'PEPEUSDT', 'ARBUSD': 'ARBUSDT', 'OPUSD': 'OPUSDT', 'SUIUSD': 'SUIUSDT',
   'APTUSD': 'APTUSDT', 'INJUSD': 'INJUSDT', 'LDOUSD': 'LDOUSDT', 'IMXUSD': 'IMXUSDT',
   'RUNEUSD': 'RUNEUSDT', 'KAVAUSD': 'KAVAUSDT', 'KSMUSD': 'KSMUSDT', 'NEOUSD': 'NEOUSDT',
@@ -69,16 +67,12 @@ const ALLTICK_SYMBOL_MAP = {
   'XTZUSD': 'XTZUSDT', 'IOTUSD': 'IOTAUSDT', 'CELOUSD': 'CELOUSDT', 'ONEUSD': 'ONEUSDT',
   'HOTUSD': 'HOTUSDT', 'SKLUSD': 'SKLUSDT', 'STORJUSD': 'STORJUSDT', 'YFIUSD': 'YFIUSDT',
   'UMAUSD': 'UMAUSDT', 'BANDUSD': 'BANDUSDT', 'RVNUSD': 'RVNUSDT', 'OXTUSD': 'OXTUSDT',
-  'NKNUSD': 'NKNUSDT', 'WOOUSD': 'WOOUSDT', 'AABORUSD': 'AGIXUSDT', 'JASMYUSD': 'JASMYUSDT',
+  'NKNUSD': 'NKNUSDT', 'WOOUSD': 'WOOUSDT', 'JASMYUSD': 'JASMYUSDT',
   'MASKUSD': 'MASKUSDT', 'DENTUSD': 'DENTUSDT', 'CELRUSD': 'CELRUSDT', 'COTIUSD': 'COTIUSDT',
-  'CTSIUSD': 'CTSIUSDT', 'IOTXUSD': 'IOTXUSDT', 'KLAYUSD': 'KLAYUSDT', 'OGNUSD': 'OGNUSDT',
+  'IOTXUSD': 'IOTXUSDT', 'KLAYUSD': 'KLAYUSDT', 'OGNUSD': 'OGNUSDT',
   'RLCUSD': 'RLCUSDT', 'STMXUSD': 'STMXUSDT', 'SUNUSD': 'SUNUSDT', 'SXPUSD': 'SXPUSDT',
-  'WINUSD': 'WINUSDT', 'AKROUSD': 'AKROUSDT', 'AUDIOUSD': 'AUDIOUSDT', 'BELUSD': 'BELUSDT',
-  'BONKUSD': 'BONKUSDT', 'FLOKIUSD': 'FLOKIUSDT', 'JTUSD': 'JTOUSDT', 'ORDIUSD': 'ORDIUSDT',
-  'PENDUSD': 'PENDLEUSDT', 'RADUSD': 'RADUSDT', 'RDNTUSD': 'RDNTUSDT', 'RPLUSD': 'RPLUSDT',
-  'SSVUSD': 'SSVUSDT', 'TUSDUSD': 'TUSDT', 'WAXUSD': 'WAXPUSDT', 'XECUSD': 'XECUSDT',
-  'ZENUSD': 'ZENUSDT', '1INCHUSD': '1INCHUSDT', 'HBARUSD': 'HBARUSDT',
-  'TONUSD': 'TONUSDT', 'EGLDUSDUSD': 'EGLDUSDT'
+  'AUDIOUSD': 'AUDIOUSDT', 'BONKUSD': 'BONKUSDT', 'FLOKIUSD': 'FLOKIUSDT', 'ORDIUSD': 'ORDIUSDT',
+  '1INCHUSD': '1INCHUSDT', 'HBARUSD': 'HBARUSDT', 'TONUSD': 'TONUSDT'
 }
 
 // Popular instruments per category (shown by default - 15 max)
@@ -89,51 +83,55 @@ const POPULAR_INSTRUMENTS = {
   Crypto: ['BTCUSD', 'ETHUSD', 'BNBUSD', 'SOLUSD', 'XRPUSD', 'ADAUSD', 'DOGEUSD', 'DOTUSD', 'MATICUSD', 'LTCUSD', 'AVAXUSD', 'LINKUSD', 'SHIBUSD', 'UNIUSD', 'ATOMUSD']
 }
 
-// Reverse mapping for AllTick to internal symbols
-const ALLTICK_REVERSE_MAP = Object.fromEntries(
-  Object.entries(ALLTICK_SYMBOL_MAP).map(([k, v]) => [v, k])
+// Reverse mapping (Infoway code -> internal symbol)
+const INFOWAY_REVERSE_MAP = Object.fromEntries(
+  Object.entries(INFOWAY_SYMBOL_MAP).map(([k, v]) => [v, k])
 )
 
-// Crypto symbols
-const CRYPTO_SYMBOLS = Object.keys(ALLTICK_SYMBOL_MAP).filter(s => s.endsWith('USD') && ALLTICK_SYMBOL_MAP[s].endsWith('USDT'))
+// Categorize symbols
+const CRYPTO_SYMBOLS = Object.keys(INFOWAY_SYMBOL_MAP).filter(s => 
+  INFOWAY_SYMBOL_MAP[s].endsWith('USDT')
+)
+const COMMON_SYMBOLS = Object.keys(INFOWAY_SYMBOL_MAP).filter(s => 
+  !INFOWAY_SYMBOL_MAP[s].endsWith('USDT')
+)
 
 // All supported symbols
-const ALLTICK_SYMBOLS = Object.keys(ALLTICK_SYMBOL_MAP)
+const INFOWAY_SYMBOLS = Object.keys(INFOWAY_SYMBOL_MAP)
 
-// Fetch price from AllTick API
-async function getAllTickPrice(symbol) {
+// Fetch single price from Infoway.io API
+async function getInfowayPrice(symbol) {
   try {
-    const alltickCode = ALLTICK_SYMBOL_MAP[symbol]
-    if (!alltickCode) {
-      console.error(`No AllTick mapping for symbol: ${symbol}`)
+    const infowayCode = INFOWAY_SYMBOL_MAP[symbol]
+    if (!infowayCode) {
+      console.error(`No Infoway mapping for symbol: ${symbol}`)
       return null
     }
 
-    const query = {
-      trace: `price-${Date.now()}`,
-      data: {
-        symbol_list: [{ code: alltickCode }]
-      }
-    }
+    // Determine which endpoint to use based on symbol type
+    const isCrypto = infowayCode.endsWith('USDT')
+    const baseUrl = isCrypto ? INFOWAY_HTTP_CRYPTO : INFOWAY_HTTP_COMMON
+    const url = `${baseUrl}/${infowayCode}`
     
-    const encodedQuery = encodeURIComponent(JSON.stringify(query))
-    const url = `${ALLTICK_FOREX_API}?token=${ALLTICK_API_TOKEN}&query=${encodedQuery}`
+    const response = await fetch(url, {
+      headers: { 'apiKey': INFOWAY_API_KEY }
+    })
     
-    const response = await fetch(url)
     if (!response.ok) {
-      console.error(`AllTick error for ${symbol}: ${response.status}`)
+      console.error(`Infoway error for ${symbol}: ${response.status}`)
       return null
     }
     
     const data = await response.json()
-    if (data.ret !== 200 || !data.data?.tick_list?.[0]) {
-      console.error(`AllTick invalid response for ${symbol}:`, data.msg || 'No data')
+    if (data.ret !== 200 || !data.data?.[0]) {
+      console.error(`Infoway invalid response for ${symbol}:`, data.msg || 'No data')
       return null
     }
     
-    const tick = data.data.tick_list[0]
-    const bid = tick.bids?.[0]?.price ? parseFloat(tick.bids[0].price) : null
-    const ask = tick.asks?.[0]?.price ? parseFloat(tick.asks[0].price) : null
+    const item = data.data[0]
+    // b[0][0] = best bid price, a[0][0] = best ask price
+    const bid = item.b?.[0]?.[0] ? parseFloat(item.b[0][0]) : null
+    const ask = item.a?.[0]?.[0] ? parseFloat(item.a[0][0]) : null
     
     if (bid && ask) {
       return { bid, ask }
@@ -142,72 +140,92 @@ async function getAllTickPrice(symbol) {
     }
     return null
   } catch (e) {
-    console.error(`AllTick error for ${symbol}:`, e.message)
+    console.error(`Infoway error for ${symbol}:`, e.message)
     return null
   }
 }
 
-// Fetch multiple prices from AllTick API - split into chunks to avoid rate limits
-async function getAllTickBatchPrices(symbols) {
+// Fetch multiple prices from Infoway.io API
+async function getInfowayBatchPrices(symbols) {
   const prices = {}
-  const CHUNK_SIZE = 10 // AllTick free tier may limit batch size
   
   try {
     // Filter to only symbols we have mappings for
-    const validSymbols = symbols.filter(s => ALLTICK_SYMBOL_MAP[s])
+    const validSymbols = symbols.filter(s => INFOWAY_SYMBOL_MAP[s])
     
-    // Split into chunks
-    for (let i = 0; i < validSymbols.length; i += CHUNK_SIZE) {
-      const chunk = validSymbols.slice(i, i + CHUNK_SIZE)
-      const symbolList = chunk.map(s => ({ code: ALLTICK_SYMBOL_MAP[s] }))
-      
-      const query = {
-        trace: `batch-${Date.now()}-${i}`,
-        data: { symbol_list: symbolList }
-      }
-      
-      const encodedQuery = encodeURIComponent(JSON.stringify(query))
-      const url = `${ALLTICK_FOREX_API}?token=${ALLTICK_API_TOKEN}&query=${encodedQuery}`
-      
+    // Separate crypto and common symbols
+    const cryptoSymbols = validSymbols.filter(s => INFOWAY_SYMBOL_MAP[s].endsWith('USDT'))
+    const commonSymbols = validSymbols.filter(s => !INFOWAY_SYMBOL_MAP[s].endsWith('USDT'))
+    
+    // Fetch crypto prices
+    if (cryptoSymbols.length > 0) {
       try {
-        const response = await fetch(url)
-        if (!response.ok) {
-          console.error(`AllTick batch error chunk ${i}: ${response.status}`)
-          continue
-        }
+        const cryptoCodes = cryptoSymbols.map(s => INFOWAY_SYMBOL_MAP[s]).join(',')
+        const url = `${INFOWAY_HTTP_CRYPTO}/${cryptoCodes}`
         
-        const data = await response.json()
-        if (data.ret !== 200 || !data.data?.tick_list) {
-          console.error(`AllTick batch invalid response chunk ${i}:`, data.msg || data.ret)
-          continue
-        }
+        const response = await fetch(url, {
+          headers: { 'apiKey': INFOWAY_API_KEY }
+        })
         
-        for (const tick of data.data.tick_list) {
-          const internalSymbol = ALLTICK_REVERSE_MAP[tick.code]
-          if (!internalSymbol) continue
-          
-          const bid = tick.bids?.[0]?.price ? parseFloat(tick.bids[0].price) : null
-          const ask = tick.asks?.[0]?.price ? parseFloat(tick.asks[0].price) : null
-          
-          if (bid && ask) {
-            prices[internalSymbol] = { bid, ask }
-          } else if (bid) {
-            prices[internalSymbol] = { bid, ask: bid }
+        if (response.ok) {
+          const data = await response.json()
+          if (data.ret === 200 && data.data) {
+            for (const item of data.data) {
+              const internalSymbol = INFOWAY_REVERSE_MAP[item.s]
+              if (!internalSymbol) continue
+              
+              const bid = item.b?.[0]?.[0] ? parseFloat(item.b[0][0]) : null
+              const ask = item.a?.[0]?.[0] ? parseFloat(item.a[0][0]) : null
+              
+              if (bid && ask) {
+                prices[internalSymbol] = { bid, ask }
+              } else if (bid) {
+                prices[internalSymbol] = { bid, ask: bid }
+              }
+            }
           }
         }
-      } catch (chunkError) {
-        console.error(`AllTick chunk ${i} error:`, chunkError.message)
+      } catch (e) {
+        console.error('Infoway crypto batch error:', e.message)
       }
-      
-      // Small delay between chunks to avoid rate limiting
-      if (i + CHUNK_SIZE < validSymbols.length) {
-        await new Promise(r => setTimeout(r, 100))
+    }
+    
+    // Fetch common (forex/metals/commodities) prices
+    if (commonSymbols.length > 0) {
+      try {
+        const commonCodes = commonSymbols.map(s => INFOWAY_SYMBOL_MAP[s]).join(',')
+        const url = `${INFOWAY_HTTP_COMMON}/${commonCodes}`
+        
+        const response = await fetch(url, {
+          headers: { 'apiKey': INFOWAY_API_KEY }
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          if (data.ret === 200 && data.data) {
+            for (const item of data.data) {
+              const internalSymbol = INFOWAY_REVERSE_MAP[item.s]
+              if (!internalSymbol) continue
+              
+              const bid = item.b?.[0]?.[0] ? parseFloat(item.b[0][0]) : null
+              const ask = item.a?.[0]?.[0] ? parseFloat(item.a[0][0]) : null
+              
+              if (bid && ask) {
+                prices[internalSymbol] = { bid, ask }
+              } else if (bid) {
+                prices[internalSymbol] = { bid, ask: bid }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Infoway common batch error:', e.message)
       }
     }
     
     return prices
   } catch (e) {
-    console.error(`AllTick batch error:`, e.message)
+    console.error('Infoway batch error:', e.message)
     return prices
   }
 }
@@ -270,9 +288,9 @@ function getDefaultInstruments() {
 // GET /api/prices/instruments - Get all available instruments (MUST be before /:symbol)
 router.get('/instruments', async (req, res) => {
   try {
-    console.log('Returning AllTick supported instruments')
+    console.log('Returning Infoway.io supported instruments')
     
-    const instruments = ALLTICK_SYMBOLS.map(symbol => {
+    const instruments = INFOWAY_SYMBOLS.map(symbol => {
       const category = categorizeSymbol(symbol)
       const isPopular = POPULAR_INSTRUMENTS[category]?.includes(symbol) || false
       return {
@@ -288,7 +306,7 @@ router.get('/instruments', async (req, res) => {
       }
     })
     
-    console.log('Returning', instruments.length, 'AllTick instruments')
+    console.log('Returning', instruments.length, 'Infoway instruments')
     res.json({ success: true, instruments })
   } catch (error) {
     console.error('Error fetching instruments:', error)
@@ -381,12 +399,12 @@ router.get('/:symbol', async (req, res) => {
     const { symbol } = req.params
     
     // Check if symbol is supported
-    if (!ALLTICK_SYMBOL_MAP[symbol]) {
+    if (!INFOWAY_SYMBOL_MAP[symbol]) {
       return res.status(404).json({ success: false, message: `Symbol ${symbol} not supported` })
     }
     
-    // Use AllTick API for all symbols
-    const price = await getAllTickPrice(symbol)
+    // Use Infoway.io API for all symbols
+    const price = await getInfowayPrice(symbol)
     
     if (price) {
       res.json({ success: true, price })
@@ -403,7 +421,7 @@ router.get('/:symbol', async (req, res) => {
 const priceCache = new Map()
 const CACHE_TTL = 2000 // 2 second cache for real-time updates
 
-// POST /api/prices/batch - Get multiple symbol prices using AllTick API
+// POST /api/prices/batch - Get multiple symbol prices using Infoway.io API
 router.post('/batch', async (req, res) => {
   try {
     const { symbols } = req.body
@@ -420,14 +438,14 @@ router.post('/batch', async (req, res) => {
       const cached = priceCache.get(symbol)
       if (cached && (now - cached.time) < CACHE_TTL) {
         prices[symbol] = cached.price
-      } else if (ALLTICK_SYMBOL_MAP[symbol]) {
+      } else if (INFOWAY_SYMBOL_MAP[symbol]) {
         missingSymbols.push(symbol)
       }
     }
     
-    // Fetch missing prices from AllTick API in batch
+    // Fetch missing prices from Infoway.io API in batch
     if (missingSymbols.length > 0) {
-      const batchPrices = await getAllTickBatchPrices(missingSymbols)
+      const batchPrices = await getInfowayBatchPrices(missingSymbols)
       for (const [symbol, price] of Object.entries(batchPrices)) {
         prices[symbol] = price
         priceCache.set(symbol, { price, time: now })
