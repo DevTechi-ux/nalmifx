@@ -80,7 +80,6 @@ const AdminMyAccount = () => {
       if (data.success) {
         setSuccessMsg('Profile updated successfully')
         setAdmin(data.admin)
-        // Update localStorage
         const stored = JSON.parse(localStorage.getItem('adminUser') || '{}')
         localStorage.setItem('adminUser', JSON.stringify({ ...stored, ...data.admin }))
         setTimeout(() => setSuccessMsg(''), 3000)
