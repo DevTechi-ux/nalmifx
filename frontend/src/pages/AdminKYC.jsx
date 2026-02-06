@@ -371,7 +371,7 @@ const AdminKYC = () => {
                   <div>
                     <p className="text-gray-400 text-sm mb-2">Front Side</p>
                     <img 
-                      src={selectedKyc.frontImage.startsWith('http') ? selectedKyc.frontImage : `${API_URL.replace('/api', '')}${selectedKyc.frontImage}`} 
+                      src={selectedKyc.frontImage.startsWith('data:') ? selectedKyc.frontImage : selectedKyc.frontImage.startsWith('http') ? selectedKyc.frontImage : `${API_URL.replace('/api', '')}${selectedKyc.frontImage}`} 
                       alt="Front" 
                       className="max-w-full rounded-lg border border-gray-700" 
                     />
@@ -381,7 +381,7 @@ const AdminKYC = () => {
                   <div>
                     <p className="text-gray-400 text-sm mb-2">Back Side</p>
                     <img 
-                      src={selectedKyc.backImage.startsWith('http') ? selectedKyc.backImage : `${API_URL.replace('/api', '')}${selectedKyc.backImage}`} 
+                      src={selectedKyc.backImage.startsWith('data:') ? selectedKyc.backImage : selectedKyc.backImage.startsWith('http') ? selectedKyc.backImage : `${API_URL.replace('/api', '')}${selectedKyc.backImage}`} 
                       alt="Back" 
                       className="max-w-full rounded-lg border border-gray-700" 
                     />
@@ -391,7 +391,7 @@ const AdminKYC = () => {
                   <div>
                     <p className="text-gray-400 text-sm mb-2">Selfie with Document</p>
                     <img 
-                      src={selectedKyc.selfieImage.startsWith('http') ? selectedKyc.selfieImage : `${API_URL.replace('/api', '')}${selectedKyc.selfieImage}`} 
+                      src={selectedKyc.selfieImage.startsWith('data:') ? selectedKyc.selfieImage : selectedKyc.selfieImage.startsWith('http') ? selectedKyc.selfieImage : `${API_URL.replace('/api', '')}${selectedKyc.selfieImage}`} 
                       alt="Selfie" 
                       className="max-w-full rounded-lg border border-gray-700" 
                     />

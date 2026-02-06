@@ -146,6 +146,23 @@ router.post('/submit-files', kycUpload.fields([
   }
 })
 
+// Helper: Save base64 image to file and return the file path
+const saveBase64Image = (base64Data, fieldName) => {
+  if (!base64Data || !base64Data.startsWith('data:image')) return base64Data
+  
+  const matches = base64Data.match(/^data:image\/(\w+);base64,(.+)$/)
+  if (!matches) return base64Data
+  
+  const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1]
+  const buffer = Buffer.from(matches[2], 'base64')
+  const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+  const filename = `kyc-${fieldName}-${uniqueSuffix}.${ext}`
+  const filePath = path.join(kycUploadsDir, filename)
+  
+  fs.writeFileSync(filePath, buffer)
+  return `/uploads/kyc/${filename}`
+}
+
 // POST /api/kyc/submit - Submit KYC documents
 router.post('/submit', async (req, res) => {
   try {
@@ -177,13 +194,18 @@ router.post('/submit', async (req, res) => {
       })
     }
 
+    // Save base64 images as files instead of storing in DB
+    const frontImagePath = saveBase64Image(frontImage, 'frontImage')
+    const backImagePath = backImage ? saveBase64Image(backImage, 'backImage') : null
+    const selfieImagePath = selfieImage ? saveBase64Image(selfieImage, 'selfieImage') : null
+
     const kyc = new KYC({
       userId,
       documentType,
       documentNumber,
-      frontImage,
-      backImage,
-      selfieImage,
+      frontImage: frontImagePath,
+      backImage: backImagePath,
+      selfieImage: selfieImagePath,
       status: 'pending',
       submittedAt: new Date()
     })
