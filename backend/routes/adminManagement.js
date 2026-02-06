@@ -69,15 +69,25 @@ router.post('/login', async (req, res) => {
 // GET /api/admin-mgmt/me - Get current admin profile
 router.get('/me', async (req, res) => {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '')
+    const authHeader = req.headers.authorization
+    if (!authHeader) return res.status(401).json({ message: 'No token provided' })
+    
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader
     if (!token) return res.status(401).json({ message: 'No token provided' })
     
-    const decoded = jwt.verify(token, JWT_SECRET)
+    let decoded
+    try {
+      decoded = jwt.verify(token, JWT_SECRET)
+    } catch (jwtError) {
+      return res.status(401).json({ message: 'Invalid or expired token' })
+    }
+    
     const admin = await Admin.findById(decoded.adminId).select('-password')
     if (!admin) return res.status(404).json({ message: 'Admin not found' })
     
     res.json({ success: true, admin })
   } catch (error) {
+    console.error('[Admin /me] Error:', error.message)
     res.status(500).json({ message: 'Failed to fetch profile', error: error.message })
   }
 })
