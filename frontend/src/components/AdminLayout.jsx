@@ -23,7 +23,8 @@ import {
   Palette,
   Mail,
   Gift,
-  Image
+  Image,
+  UserCircle
 } from 'lucide-react'
 import logoImage from '../assets/nalmifx.png'
 
@@ -141,8 +142,20 @@ const AdminLayout = ({ children, title, subtitle }) => {
           ))}
         </nav>
 
-        {/* Logout */}
-        <div className="p-2 border-t border-gray-800">
+        {/* My Account & Logout */}
+        <div className="p-2 border-t border-gray-800 space-y-1">
+          <button 
+            onClick={() => { navigate('/admin/my-account'); setMobileMenuOpen(false); }}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 transition-colors rounded-lg ${
+              isActive('/admin/my-account')
+                ? 'bg-red-500 text-white'
+                : 'text-gray-400 hover:text-white hover:bg-dark-700'
+            }`}
+            title={!sidebarExpanded ? 'My Account' : ''}
+          >
+            <UserCircle size={18} className="flex-shrink-0" />
+            {sidebarExpanded && <span className="text-sm font-medium whitespace-nowrap">My Account</span>}
+          </button>
           <button 
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-3 py-2.5 text-gray-400 hover:text-white hover:bg-dark-700 transition-colors rounded-lg"

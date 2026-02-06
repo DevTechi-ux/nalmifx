@@ -64,6 +64,103 @@ router.post('/login', async (req, res) => {
   }
 })
 
+// ==================== MY ACCOUNT (Self-update) ====================
+
+// GET /api/admin-mgmt/me - Get current admin profile
+router.get('/me', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '')
+    if (!token) return res.status(401).json({ message: 'No token provided' })
+    
+    const decoded = jwt.verify(token, JWT_SECRET)
+    const admin = await Admin.findById(decoded.adminId).select('-password')
+    if (!admin) return res.status(404).json({ message: 'Admin not found' })
+    
+    res.json({ success: true, admin })
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch profile', error: error.message })
+  }
+})
+
+// PUT /api/admin-mgmt/me - Update current admin profile (name, email)
+router.put('/me', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '')
+    if (!token) return res.status(401).json({ message: 'No token provided' })
+    
+    const decoded = jwt.verify(token, JWT_SECRET)
+    const admin = await Admin.findById(decoded.adminId)
+    if (!admin) return res.status(404).json({ message: 'Admin not found' })
+    
+    const { firstName, lastName, email } = req.body
+    
+    // Check if email is being changed and if it's already taken
+    if (email && email.toLowerCase() !== admin.email) {
+      const existing = await Admin.findOne({ email: email.toLowerCase(), _id: { $ne: admin._id } })
+      if (existing) {
+        return res.status(400).json({ message: 'Email already in use by another admin' })
+      }
+      admin.email = email.toLowerCase()
+    }
+    
+    if (firstName !== undefined) admin.firstName = firstName
+    if (lastName !== undefined) admin.lastName = lastName
+    
+    await admin.save()
+    
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      admin: {
+        _id: admin._id,
+        email: admin.email,
+        firstName: admin.firstName,
+        lastName: admin.lastName,
+        role: admin.role,
+        urlSlug: admin.urlSlug,
+        brandName: admin.brandName,
+        permissions: admin.permissions
+      }
+    })
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to update profile', error: error.message })
+  }
+})
+
+// PUT /api/admin-mgmt/me/password - Change current admin password
+router.put('/me/password', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '')
+    if (!token) return res.status(401).json({ message: 'No token provided' })
+    
+    const decoded = jwt.verify(token, JWT_SECRET)
+    const admin = await Admin.findById(decoded.adminId)
+    if (!admin) return res.status(404).json({ message: 'Admin not found' })
+    
+    const { currentPassword, newPassword } = req.body
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current password and new password are required' })
+    }
+    
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters' })
+    }
+    
+    const isMatch = await bcrypt.compare(currentPassword, admin.password)
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Current password is incorrect' })
+    }
+    
+    admin.password = await bcrypt.hash(newPassword, 10)
+    await admin.save()
+    
+    res.json({ success: true, message: 'Password changed successfully' })
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to change password', error: error.message })
+  }
+})
+
 // ==================== SUPER ADMIN - ADMIN MANAGEMENT ====================
 
 // GET /api/admin-mgmt/admins - Get all admins (super admin only)
