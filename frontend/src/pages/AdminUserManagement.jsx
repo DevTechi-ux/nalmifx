@@ -25,7 +25,9 @@ import {
   CreditCard,
   Plus,
   Minus,
-  Key
+  Key,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react'
 
 const AdminUserManagement = () => {
@@ -58,6 +60,8 @@ const AdminUserManagement = () => {
   const [accountFundAmount, setAccountFundAmount] = useState('')
   const [accountFundReason, setAccountFundReason] = useState('')
   const [userWalletBalance, setUserWalletBalance] = useState(0)
+  const [currentPage, setCurrentPage] = useState(1)
+  const usersPerPage = 20
   
   const adminUser = JSON.parse(localStorage.getItem('adminUser') || '{}')
 
@@ -130,6 +134,14 @@ const AdminUserManagement = () => {
     user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.phone?.includes(searchTerm)
   )
+
+  const totalPages = Math.ceil(filteredUsers.length / usersPerPage)
+  const paginatedUsers = filteredUsers.slice((currentPage - 1) * usersPerPage, currentPage * usersPerPage)
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm])
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -1469,7 +1481,7 @@ const AdminUserManagement = () => {
               {searchTerm ? 'No users found matching your search' : 'No users registered yet'}
             </div>
           ) : (
-            filteredUsers.map((user) => (
+            paginatedUsers.map((user) => (
               <div 
                 key={user._id} 
                 className="bg-dark-700 rounded-xl p-4 border border-gray-700"
@@ -1571,7 +1583,7 @@ const AdminUserManagement = () => {
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((user) => (
+                paginatedUsers.map((user) => (
                   <tr key={user._id} className="border-b border-gray-800 hover:bg-dark-700/50">
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-3">
@@ -1664,6 +1676,63 @@ const AdminUserManagement = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-gray-800">
+            <p className="text-gray-500 text-sm">
+              Showing {((currentPage - 1) * usersPerPage) + 1}-{Math.min(currentPage * usersPerPage, filteredUsers.length)} of {filteredUsers.length} users
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="p-2 rounded-lg bg-dark-700 text-gray-400 hover:text-white hover:bg-dark-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(page => {
+                  if (totalPages <= 7) return true
+                  if (page === 1 || page === totalPages) return true
+                  if (Math.abs(page - currentPage) <= 1) return true
+                  return false
+                })
+                .reduce((acc, page, idx, arr) => {
+                  if (idx > 0 && page - arr[idx - 1] > 1) {
+                    acc.push('...')
+                  }
+                  acc.push(page)
+                  return acc
+                }, [])
+                .map((page, idx) => (
+                  page === '...' ? (
+                    <span key={`dots-${idx}`} className="px-2 text-gray-500">...</span>
+                  ) : (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${
+                        currentPage === page
+                          ? 'bg-red-500 text-white'
+                          : 'bg-dark-700 text-gray-400 hover:text-white hover:bg-dark-600'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  )
+                ))
+              }
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-lg bg-dark-700 text-gray-400 hover:text-white hover:bg-dark-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
       )}
 
