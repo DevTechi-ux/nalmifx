@@ -310,17 +310,17 @@ const Footer = () => {
               <div>
                 <h4 className="font-semibold text-[14px] mb-4">Company</h4>
                 <ul className="space-y-3 text-[14px]">
-                  {['About us', 'Blog', 'Support', 'Terms'].map((item) => (
-                    <li key={item}><a href="#" className="hover:underline">{item}</a></li>
-                  ))}
+                  <li><a href="#" className="hover:underline">About us</a></li>
+                  <li><a href="/support" className="hover:underline">Support</a></li>
+                  <li><a href="/terms" className="hover:underline">Terms of Service</a></li>
                 </ul>
               </div>
               <div>
                 <h4 className="font-semibold text-[14px] mb-4">Legal</h4>
                 <ul className="space-y-3 text-[14px]">
-                  {['Disclosures', 'Privacy', 'Cookie Policy'].map((item) => (
-                    <li key={item}><a href="#" className="hover:underline">{item}</a></li>
-                  ))}
+                  <li><a href="/privacy" className="hover:underline">Privacy Policy</a></li>
+                  <li><a href="/terms" className="hover:underline">Terms of Service</a></li>
+                  <li><a href="/data-deletion" className="hover:underline">Data Deletion</a></li>
                 </ul>
               </div>
             </div>
