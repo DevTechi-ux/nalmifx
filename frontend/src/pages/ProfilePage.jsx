@@ -37,7 +37,7 @@ import {
   FileCheck
 } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
-import { API_URL } from '../config/api'
+import { API_URL, API_BASE_URL } from '../config/api'
 import logoImage from '../assets/nalmifx.png'
 
 const ProfilePage = () => {
@@ -277,7 +277,7 @@ const ProfilePage = () => {
             console.log('Setting profile image:', data.user.profileImage)
             const fullUrl = data.user.profileImage.startsWith('http') 
               ? data.user.profileImage 
-              : `${API_URL.replace('/api', '')}${data.user.profileImage}`
+              : `${API_BASE_URL}${data.user.profileImage}`
             console.log('Full profile image URL:', fullUrl)
             setProfileImage(data.user.profileImage)
           }
@@ -537,7 +537,7 @@ const ProfilePage = () => {
                 <div className="relative">
                   {profileImage ? (
                     <img 
-                      src={`${profileImage.startsWith('http') ? profileImage : `${API_URL.replace('/api', '')}${profileImage}`}?t=${Date.now()}`}
+                      src={`${profileImage.startsWith('http') ? profileImage : `${API_BASE_URL}${profileImage}`}?t=${Date.now()}`}
                       alt="Profile"
                       className={`${isMobile ? 'w-16 h-16' : 'w-24 h-24'} rounded-full object-cover border-2 border-accent-green bg-gray-700`}
                       onError={(e) => {

@@ -14,7 +14,7 @@ import {
   Building2,
   Smartphone
 } from 'lucide-react'
-import { API_URL } from '../config/api'
+import { API_URL, API_BASE_URL } from '../config/api'
 
 const AdminFundManagement = () => {
   const [searchTerm, setSearchTerm] = useState('')
@@ -440,10 +440,10 @@ const AdminFundManagement = () => {
                   <h3 className="text-white font-semibold mb-3">Payment Screenshot</h3>
                   <div className="bg-dark-700 rounded-lg p-2">
                     <img 
-                      src={selectedTxn.screenshot.startsWith('http') ? selectedTxn.screenshot : `${API_URL.replace('/api', '')}${selectedTxn.screenshot}`} 
+                      src={selectedTxn.screenshot.startsWith('http') ? selectedTxn.screenshot : `${API_BASE_URL}${selectedTxn.screenshot}`} 
                       alt="Payment proof" 
                       className="w-full rounded-lg max-h-64 object-contain cursor-pointer"
-                      onClick={() => window.open(selectedTxn.screenshot.startsWith('http') ? selectedTxn.screenshot : `${API_URL.replace('/api', '')}${selectedTxn.screenshot}`, '_blank')}
+                      onClick={() => window.open(selectedTxn.screenshot.startsWith('http') ? selectedTxn.screenshot : `${API_BASE_URL}${selectedTxn.screenshot}`, '_blank')}
                     />
                     <p className="text-gray-500 text-xs text-center mt-2">Click to view full image</p>
                   </div>
