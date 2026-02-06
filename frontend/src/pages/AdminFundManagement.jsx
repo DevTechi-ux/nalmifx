@@ -12,7 +12,9 @@ import {
   X,
   Clock,
   Building2,
-  Smartphone
+  Smartphone,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react'
 import { API_URL, API_BASE_URL } from '../config/api'
 
@@ -25,6 +27,8 @@ const AdminFundManagement = () => {
   const [selectedTxn, setSelectedTxn] = useState(null)
   const [userDetails, setUserDetails] = useState(null)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 20
 
   useEffect(() => {
     fetchTransactions()
@@ -109,6 +113,13 @@ const AdminFundManagement = () => {
       txn.userId?.email?.toLowerCase().includes(searchTerm.toLowerCase())
     return matchesSearch
   })
+
+  const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage)
+  const paginatedTransactions = filteredTransactions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, filterType])
 
   const getStatusColor = (status) => {
     const s = status?.toLowerCase()
@@ -211,7 +222,7 @@ const AdminFundManagement = () => {
           <>
             {/* Mobile Card View */}
             <div className="block lg:hidden p-4 space-y-3">
-              {filteredTransactions.map((txn) => (
+              {paginatedTransactions.map((txn) => (
                 <div key={txn._id} className="bg-dark-700 rounded-xl p-4 border border-gray-700">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
@@ -291,7 +302,7 @@ const AdminFundManagement = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredTransactions.map((txn) => (
+                  {paginatedTransactions.map((txn) => (
                     <tr key={txn._id} className="border-b border-gray-800 hover:bg-dark-700/50">
                       <td className="py-4 px-4 text-white font-mono text-sm">{txn.transactionRef || txn._id?.slice(-8)}</td>
                       <td className="py-4 px-4 text-white">{txn.userId?.firstName || txn.userId?.email}</td>
@@ -357,6 +368,63 @@ const AdminFundManagement = () => {
               </table>
             </div>
           </>
+        )}
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-gray-800">
+            <p className="text-gray-500 text-sm">
+              Showing {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, filteredTransactions.length)} of {filteredTransactions.length} transactions
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="p-2 rounded-lg bg-dark-700 text-gray-400 hover:text-white hover:bg-dark-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(page => {
+                  if (totalPages <= 7) return true
+                  if (page === 1 || page === totalPages) return true
+                  if (Math.abs(page - currentPage) <= 1) return true
+                  return false
+                })
+                .reduce((acc, page, idx, arr) => {
+                  if (idx > 0 && page - arr[idx - 1] > 1) {
+                    acc.push('...')
+                  }
+                  acc.push(page)
+                  return acc
+                }, [])
+                .map((page, idx) => (
+                  page === '...' ? (
+                    <span key={`dots-${idx}`} className="px-2 text-gray-500">...</span>
+                  ) : (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${
+                        currentPage === page
+                          ? 'bg-red-500 text-white'
+                          : 'bg-dark-700 text-gray-400 hover:text-white hover:bg-dark-600'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  )
+                ))
+              }
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-lg bg-dark-700 text-gray-400 hover:text-white hover:bg-dark-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
