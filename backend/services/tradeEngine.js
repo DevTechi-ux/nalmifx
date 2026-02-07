@@ -86,6 +86,28 @@ class TradeEngine {
     }
   }
 
+  // MT5-style SL/TP validation
+  // BUY: SL must be below current bid, TP must be above current bid
+  // SELL: SL must be above current ask, TP must be below current ask
+  validateSlTp(side, sl, tp, currentBid, currentAsk) {
+    if (side === 'BUY') {
+      if (sl && sl >= currentBid) {
+        return { valid: false, error: `Invalid Stop Loss. For BUY trades, SL (${sl}) must be below current price (${currentBid})` }
+      }
+      if (tp && tp <= currentBid) {
+        return { valid: false, error: `Invalid Take Profit. For BUY trades, TP (${tp}) must be above current price (${currentBid})` }
+      }
+    } else {
+      if (sl && sl <= currentAsk) {
+        return { valid: false, error: `Invalid Stop Loss. For SELL trades, SL (${sl}) must be above current price (${currentAsk})` }
+      }
+      if (tp && tp >= currentAsk) {
+        return { valid: false, error: `Invalid Take Profit. For SELL trades, TP (${tp}) must be below current price (${currentAsk})` }
+      }
+    }
+    return { valid: true }
+  }
+
   // Calculate PnL for a trade
   calculatePnl(side, openPrice, currentPrice, quantity, contractSize = this.CONTRACT_SIZE) {
     if (side === 'BUY') {
@@ -236,6 +258,14 @@ class TradeEngine {
     // Validate bid/ask prices are valid
     if (!bid || !ask || bid <= 0 || ask <= 0) {
       throw new Error('Invalid market prices. Please try again.')
+    }
+
+    // MT5-style SL/TP validation
+    if (sl || tp) {
+      const slTpValidation = this.validateSlTp(side, sl, tp, bid, ask)
+      if (!slTpValidation.valid) {
+        throw new Error(slTpValidation.error)
+      }
     }
 
     // Get charges for this trade
@@ -452,10 +482,22 @@ class TradeEngine {
   }
 
   // Modify trade SL/TP
-  async modifyTrade(tradeId, sl = null, tp = null, adminId = null) {
+  async modifyTrade(tradeId, sl = null, tp = null, adminId = null, currentBid = null, currentAsk = null) {
     const trade = await Trade.findById(tradeId)
     if (!trade) throw new Error('Trade not found')
     if (trade.status !== 'OPEN') throw new Error('Trade is not open')
+
+    // MT5-style SL/TP validation (skip if no bid/ask provided, e.g. admin override)
+    if (currentBid && currentAsk) {
+      const slToValidate = (sl !== null && !isNaN(sl)) ? sl : null
+      const tpToValidate = (tp !== null && !isNaN(tp)) ? tp : null
+      if (slToValidate || tpToValidate) {
+        const validation = this.validateSlTp(trade.side, slToValidate, tpToValidate, currentBid, currentAsk)
+        if (!validation.valid) {
+          throw new Error(validation.error)
+        }
+      }
+    }
 
     const previousValue = { stopLoss: trade.stopLoss, takeProfit: trade.takeProfit }
 

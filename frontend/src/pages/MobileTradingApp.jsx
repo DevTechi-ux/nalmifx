@@ -455,13 +455,16 @@ const MobileTradingApp = () => {
     setIsModifying(true)
 
     try {
+      const livePrice = livePrices[selectedTradeForModify.symbol]
       const res = await fetch(`${API_URL}/trade/modify`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tradeId: selectedTradeForModify._id,
           sl: modifySL ? parseFloat(modifySL) : null,
-          tp: modifyTP ? parseFloat(modifyTP) : null
+          tp: modifyTP ? parseFloat(modifyTP) : null,
+          bid: livePrice?.bid || null,
+          ask: livePrice?.ask || null
         })
       })
       const data = await res.json()

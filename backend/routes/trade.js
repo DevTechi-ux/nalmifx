@@ -353,8 +353,8 @@ router.post('/close', async (req, res) => {
 // PUT /api/trade/modify - Modify trade SL/TP
 router.put('/modify', async (req, res) => {
   try {
-    const { tradeId, sl, tp } = req.body
-    console.log('Modify trade request:', { tradeId, sl, tp })
+    const { tradeId, sl, tp, bid, ask } = req.body
+    console.log('Modify trade request:', { tradeId, sl, tp, bid, ask })
 
     if (!tradeId) {
       return res.status(400).json({ 
@@ -377,11 +377,16 @@ router.put('/modify', async (req, res) => {
     // Parse values and handle NaN
     const parsedSl = sl !== undefined && sl !== null && sl !== '' ? parseFloat(sl) : null
     const parsedTp = tp !== undefined && tp !== null && tp !== '' ? parseFloat(tp) : null
+    const currentBid = bid ? parseFloat(bid) : null
+    const currentAsk = ask ? parseFloat(ask) : null
     
     const trade = await tradeEngine.modifyTrade(
       tradeId,
       parsedSl !== null && !isNaN(parsedSl) ? parsedSl : null,
-      parsedTp !== null && !isNaN(parsedTp) ? parsedTp : null
+      parsedTp !== null && !isNaN(parsedTp) ? parsedTp : null,
+      null,
+      currentBid,
+      currentAsk
     )
 
     // Mirror SL/TP modification to follower trades

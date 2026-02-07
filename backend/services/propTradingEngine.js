@@ -262,6 +262,25 @@ class PropTradingEngine {
 
     const { symbol, segment, side, orderType, quantity, bid, ask, sl, tp } = tradeParams
 
+    // MT5-style SL/TP validation
+    if (sl || tp) {
+      if (side === 'BUY') {
+        if (sl && sl >= bid) {
+          throw new Error(`Invalid Stop Loss. For BUY trades, SL (${sl}) must be below current price (${bid})`)
+        }
+        if (tp && tp <= bid) {
+          throw new Error(`Invalid Take Profit. For BUY trades, TP (${tp}) must be above current price (${bid})`)
+        }
+      } else {
+        if (sl && sl <= ask) {
+          throw new Error(`Invalid Stop Loss. For SELL trades, SL (${sl}) must be above current price (${ask})`)
+        }
+        if (tp && tp >= ask) {
+          throw new Error(`Invalid Take Profit. For SELL trades, TP (${tp}) must be below current price (${ask})`)
+        }
+      }
+    }
+
     // Get charges for this trade (use default charges for challenge accounts)
     const charges = await Charges.getChargesForTrade(userId, symbol, segment || 'Forex', null)
     
