@@ -811,38 +811,35 @@ class PropTradingEngine {
 
       let shouldClose = false
       let closeReason = null
-      let closePrice = null
 
       if (trade.side === 'BUY') {
         // For BUY: SL triggers when bid <= SL, TP triggers when bid >= TP
-        // Close at exact SL/TP price, not market price
         if (sl && bid <= sl) {
           shouldClose = true
           closeReason = 'SL'
-          closePrice = sl  // Close at exact SL price
         } else if (tp && bid >= tp) {
           shouldClose = true
           closeReason = 'TP'
-          closePrice = tp  // Close at exact TP price
         }
       } else {
         // For SELL: SL triggers when ask >= SL, TP triggers when ask <= TP
-        // Close at exact SL/TP price, not market price
         if (sl && ask >= sl) {
           shouldClose = true
           closeReason = 'SL'
-          closePrice = sl  // Close at exact SL price
         } else if (tp && ask <= tp) {
           shouldClose = true
           closeReason = 'TP'
-          closePrice = tp  // Close at exact TP price
         }
       }
 
       if (shouldClose) {
-        console.log(`Challenge trade ${trade.tradeId} ${closeReason} triggered: ${trade.side} ${trade.symbol} at ${closePrice}`)
+        // MT5-style: Close at current market price (with slippage), not exact SL/TP price
+        // BUY trades close at bid, SELL trades close at ask
+        const closePrice = trade.side === 'BUY' ? bid : ask
         
-        // Calculate PnL
+        console.log(`[Challenge SL/TP] TRIGGERED! Trade ${trade.tradeId}: ${closeReason} | ${trade.side} ${trade.symbol} | SL=${sl || 'none'} TP=${tp || 'none'} | Market fill: ${closePrice} (bid=${bid}, ask=${ask})`)
+        
+        // Calculate PnL at market fill price
         const pnl = trade.side === 'BUY'
           ? (closePrice - trade.openPrice) * trade.quantity * trade.contractSize
           : (trade.openPrice - closePrice) * trade.quantity * trade.contractSize

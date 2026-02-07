@@ -564,12 +564,15 @@ class TradeEngine {
       const bid = prices.bid
       const ask = prices.ask || prices.bid // Fallback to bid if ask not available
 
-      // Check account-based stop-out (Option B)
-      // Trade can lose more if equity allows, closes when equity <= total margin used
+      // MT5-style account-based stop-out
+      // Stop-out level is configurable per account type (default 50%)
       const accountId = trade.tradingAccountId?._id || trade.tradingAccountId
-      const account = await TradingAccount.findById(accountId)
+      const account = await TradingAccount.findById(accountId).populate('accountTypeId')
       
       if (account) {
+        // Get stop-out level from account type (default 50% like MT5 brokers)
+        const stopOutLevel = account.accountTypeId?.stopOutLevel ?? 100
+        
         // Calculate total floating PnL and margin for all open trades of this account
         const accountOpenTrades = openTrades.filter(t => {
           const tAccountId = t.tradingAccountId?._id || t.tradingAccountId
@@ -582,7 +585,7 @@ class TradeEngine {
         for (const t of accountOpenTrades) {
           const tPrices = currentPrices[t.symbol]
           if (tPrices) {
-            const tCurrentPrice = t.side === 'BUY' ? tPrices.bid : tPrices.ask
+            const tCurrentPrice = t.side === 'BUY' ? tPrices.bid : (tPrices.ask || tPrices.bid)
             const tPnl = this.calculatePnl(t.side, t.openPrice, tCurrentPrice, t.quantity, t.contractSize) - (t.commission || 0) - (t.swap || 0)
             totalFloatingPnl += tPnl
             totalMarginUsed += (t.marginUsed || 0)
@@ -592,23 +595,23 @@ class TradeEngine {
         const balance = account.balance || 0
         const credit = account.credit || 0
         const equity = balance + credit + totalFloatingPnl
-        const marginLevel = totalMarginUsed > 0 ? (equity / totalMarginUsed) * 100 : 100
+        const marginLevel = totalMarginUsed > 0 ? (equity / totalMarginUsed) * 100 : Infinity
         
-        // Stop-out when margin level <= 100% (equity <= total margin used)
-        // This means the account can no longer support the open positions
-        if (marginLevel <= 100 && totalMarginUsed > 0) {
+        // MT5-style stop-out: when margin level drops to or below the stop-out level
+        // e.g., stopOutLevel=50 means close when equity <= 50% of margin used
+        if (marginLevel <= stopOutLevel && totalMarginUsed > 0) {
           const currentPrice = trade.side === 'BUY' ? bid : ask
           const thisTradeFloatingPnl = this.calculatePnl(trade.side, trade.openPrice, currentPrice, trade.quantity, trade.contractSize) - (trade.commission || 0) - (trade.swap || 0)
           
-          // Close the largest losing trade first
+          // MT5 closes the largest losing trade first to try to recover margin level
           if (thisTradeFloatingPnl < 0) {
-            console.log(`[Account Stop-Out] Trade ${trade.tradeId}: Equity=$${equity.toFixed(2)} | TotalMargin=$${totalMarginUsed.toFixed(2)} | MarginLevel=${marginLevel.toFixed(2)}% | Closing losing trade`)
+            console.log(`[Account Stop-Out] Trade ${trade.tradeId}: Equity=$${equity.toFixed(2)} | TotalMargin=$${totalMarginUsed.toFixed(2)} | MarginLevel=${marginLevel.toFixed(2)}% <= StopOut=${stopOutLevel}% | Closing losing trade`)
             const result = await this.closeTrade(trade._id, bid, ask, 'MARGIN_STOP_OUT')
             triggeredTrades.push({ 
               trade: result.trade, 
               trigger: 'MARGIN_STOP_OUT', 
               pnl: result.realizedPnl,
-              reason: `Trade closed: Margin level dropped to ${marginLevel.toFixed(2)}% (Equity: $${equity.toFixed(2)})`
+              reason: `Trade closed: Margin level ${marginLevel.toFixed(2)}% hit stop-out level ${stopOutLevel}% (Equity: $${equity.toFixed(2)})`
             })
             continue // Skip SL/TP check since trade is already closed
           }
@@ -628,28 +631,13 @@ class TradeEngine {
 
       const trigger = trade.checkSlTp(bid, ask)
       if (trigger) {
-        // Close at the exact SL/TP price, not the current market price
-        let closeBid = bid
-        let closeAsk = ask
+        // MT5-style: Close at current market price (with slippage), not exact SL/TP price
+        // In real markets, price can gap past SL/TP, so the fill price is the actual market price
+        // BUY trades close at bid, SELL trades close at ask
+        const fillPrice = trade.side === 'BUY' ? bid : ask
         
-        if (trigger === 'SL') {
-          // For SL: BUY trades close at SL price (bid), SELL trades close at SL price (ask)
-          if (trade.side === 'BUY') {
-            closeBid = sl
-          } else {
-            closeAsk = sl
-          }
-        } else if (trigger === 'TP') {
-          // For TP: BUY trades close at TP price (bid), SELL trades close at TP price (ask)
-          if (trade.side === 'BUY') {
-            closeBid = tp
-          } else {
-            closeAsk = tp
-          }
-        }
-        
-        console.log(`[Regular SL/TP] TRIGGERED! Trade ${trade.tradeId}: ${trigger} at exact price=${trade.side === 'BUY' ? closeBid : closeAsk}`)
-        const result = await this.closeTrade(trade._id, closeBid, closeAsk, trigger)
+        console.log(`[Regular SL/TP] TRIGGERED! Trade ${trade.tradeId}: ${trigger} | SL=${sl || 'none'} TP=${tp || 'none'} | Market fill: ${fillPrice} (bid=${bid}, ask=${ask})`)
+        const result = await this.closeTrade(trade._id, bid, ask, trigger)
         triggeredTrades.push({ trade: result.trade, trigger, pnl: result.realizedPnl })
       }
     }

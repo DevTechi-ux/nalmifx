@@ -43,6 +43,12 @@ const accountTypeSchema = new mongoose.Schema({
   demoBalance: {
     type: Number,
     default: 10000
+  },
+  stopOutLevel: {
+    type: Number,
+    default: 100,
+    min: 0,
+    max: 100
   }
 }, { timestamps: true })
 

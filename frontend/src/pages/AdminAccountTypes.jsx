@@ -28,7 +28,8 @@ const AdminAccountTypes = () => {
     commission: '0',
     isActive: true,
     isDemo: false,
-    demoBalance: '10000'
+    demoBalance: '10000',
+    stopOutLevel: '100'
   })
 
   useEffect(() => {
@@ -68,7 +69,8 @@ const AdminAccountTypes = () => {
           minSpread: parseFloat(formData.minSpread) || 0,
           commission: parseFloat(formData.commission) || 0,
           isDemo: formData.isDemo,
-          demoBalance: formData.isDemo ? parseFloat(formData.demoBalance) : 0
+          demoBalance: formData.isDemo ? parseFloat(formData.demoBalance) : 0,
+          stopOutLevel: parseFloat(formData.stopOutLevel) || 100
         })
       })
       const data = await res.json()
@@ -132,7 +134,8 @@ const AdminAccountTypes = () => {
       commission: '0',
       isActive: true,
       isDemo: false,
-      demoBalance: '10000'
+      demoBalance: '10000',
+      stopOutLevel: '100'
     })
     setEditingType(null)
     setError('')
@@ -150,7 +153,8 @@ const AdminAccountTypes = () => {
       commission: type.commission?.toString() || '0',
       isActive: type.isActive,
       isDemo: type.isDemo || false,
-      demoBalance: type.demoBalance?.toString() || '10000'
+      demoBalance: type.demoBalance?.toString() || '10000',
+      stopOutLevel: type.stopOutLevel?.toString() || '100'
     })
     setShowModal(true)
     setError('')
@@ -217,6 +221,10 @@ const AdminAccountTypes = () => {
                     <div className="flex justify-between">
                       <span className="text-gray-500">Commission</span>
                       <span className="text-white">{type.commission > 0 ? `$${type.commission}` : 'NO COMM'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Stop Out</span>
+                      <span className="text-orange-400">{type.stopOutLevel ?? 100}%</span>
                     </div>
                     {type.isDemo && (
                       <div className="flex justify-between">
@@ -374,6 +382,20 @@ const AdminAccountTypes = () => {
                   </button>
                 </div>
                 
+                <div className="mt-4 pt-4 border-t border-gray-600">
+                  <label className="block text-gray-400 text-sm mb-2">Stop Out Level (%)</label>
+                  <input
+                    type="number"
+                    value={formData.stopOutLevel}
+                    onChange={(e) => setFormData({ ...formData, stopOutLevel: e.target.value })}
+                    placeholder="100"
+                    min="0"
+                    max="100"
+                    className="w-full bg-dark-600 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-yellow-500"
+                  />
+                  <p className="text-gray-500 text-xs mt-1">MT5-style: Trades auto-close when margin level drops to this % (default 100%)</p>
+                </div>
+
                 {formData.isDemo && (
                   <div className="mt-4 pt-4 border-t border-gray-600">
                     <label className="block text-gray-400 text-sm mb-2">Demo Balance ($)</label>
