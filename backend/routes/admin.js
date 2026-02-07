@@ -128,6 +128,17 @@ router.post('/users/:id/deduct', async (req, res) => {
     wallet.balance = (wallet.balance || 0) - parseFloat(amount)
     await wallet.save()
     
+    // Create transaction record for fund history
+    await Transaction.create({
+      userId: req.params.id,
+      walletId: wallet._id,
+      type: 'Admin_Debit',
+      amount: parseFloat(amount),
+      paymentMethod: 'System',
+      description: reason || 'Admin fund deduction',
+      status: 'Completed'
+    })
+    
     console.log(`[Admin] Deducted $${amount} from user ${user.email} wallet. New balance: $${wallet.balance}`)
     
     res.json({ 
@@ -165,6 +176,17 @@ router.post('/users/:id/add-fund', async (req, res) => {
     wallet.balance = previousBalance + parseFloat(amount)
     await wallet.save()
     
+    // Create transaction record for fund history
+    await Transaction.create({
+      userId: req.params.id,
+      walletId: wallet._id,
+      type: 'Admin_Credit',
+      amount: parseFloat(amount),
+      paymentMethod: 'System',
+      description: reason || 'Admin fund addition',
+      status: 'Completed'
+    })
+    
     console.log(`[Admin] Added $${amount} to user ${user.email} wallet. Balance: $${previousBalance} -> $${wallet.balance}`)
     
     res.json({ 
@@ -197,6 +219,18 @@ router.post('/trading-account/:id/add-fund', async (req, res) => {
     account.balance = (account.balance || 0) + parseFloat(amount)
     await account.save()
     
+    // Create transaction record for fund history
+    await Transaction.create({
+      userId: account.userId,
+      type: 'Admin_Credit',
+      amount: parseFloat(amount),
+      paymentMethod: 'System',
+      description: reason || `Admin fund addition to account ${account.accountId}`,
+      tradingAccountId: account._id,
+      tradingAccountName: account.accountId,
+      status: 'Completed'
+    })
+    
     res.json({ 
       success: true,
       message: 'Funds added to trading account successfully',
@@ -228,6 +262,18 @@ router.post('/trading-account/:id/deduct', async (req, res) => {
     
     account.balance = (account.balance || 0) - parseFloat(amount)
     await account.save()
+    
+    // Create transaction record for fund history
+    await Transaction.create({
+      userId: account.userId,
+      type: 'Admin_Debit',
+      amount: parseFloat(amount),
+      paymentMethod: 'System',
+      description: reason || `Admin fund deduction from account ${account.accountId}`,
+      tradingAccountId: account._id,
+      tradingAccountName: account.accountId,
+      status: 'Completed'
+    })
     
     res.json({ 
       success: true,

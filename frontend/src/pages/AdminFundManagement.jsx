@@ -41,23 +41,31 @@ const AdminFundManagement = () => {
       const data = await res.json()
       if (data.transactions) {
         let filtered = data.transactions
-        if (filterType !== 'all') {
-          filtered = data.transactions.filter(t => t.type?.toLowerCase() === filterType)
+        if (filterType === 'deposit') {
+          filtered = data.transactions.filter(t => t.type?.toUpperCase() === 'DEPOSIT')
+        } else if (filterType === 'withdrawal') {
+          filtered = data.transactions.filter(t => t.type?.toUpperCase() === 'WITHDRAWAL')
+        } else if (filterType === 'admin') {
+          filtered = data.transactions.filter(t => t.type === 'Admin_Credit' || t.type === 'Admin_Debit')
         }
         setTransactions(filtered)
         
         // Calculate stats
         const deposits = data.transactions.filter(t => t.type?.toUpperCase() === 'DEPOSIT' && t.status?.toUpperCase() === 'APPROVED')
           .reduce((sum, t) => sum + (t.amount || 0), 0)
+        const adminCredits = data.transactions.filter(t => t.type === 'Admin_Credit')
+          .reduce((sum, t) => sum + (t.amount || 0), 0)
         const withdrawals = data.transactions.filter(t => t.type?.toUpperCase() === 'WITHDRAWAL' && t.status?.toUpperCase() === 'APPROVED')
+          .reduce((sum, t) => sum + (t.amount || 0), 0)
+        const adminDebits = data.transactions.filter(t => t.type === 'Admin_Debit')
           .reduce((sum, t) => sum + (t.amount || 0), 0)
         const pending = data.transactions.filter(t => t.status?.toUpperCase() === 'PENDING').length
         
         setStats({
-          deposits,
-          withdrawals,
+          deposits: deposits + adminCredits,
+          withdrawals: withdrawals + adminDebits,
           pending,
-          net: deposits - withdrawals
+          net: (deposits + adminCredits) - (withdrawals + adminDebits)
         })
       }
     } catch (error) {
@@ -123,13 +131,30 @@ const AdminFundManagement = () => {
 
   const getStatusColor = (status) => {
     const s = status?.toLowerCase()
-    if (s === 'approved') return 'bg-green-500/20 text-green-500'
+    if (s === 'approved' || s === 'completed') return 'bg-green-500/20 text-green-500'
     if (s === 'pending') return 'bg-yellow-500/20 text-yellow-500'
     if (s === 'rejected') return 'bg-red-500/20 text-red-500'
     return 'bg-gray-500/20 text-gray-400'
   }
 
   const isPending = (status) => status?.toLowerCase() === 'pending'
+
+  // Helper to determine if a transaction is a credit (money in) type
+  const isCreditType = (type) => type === 'Deposit' || type === 'Admin_Credit'
+  const isAdminType = (type) => type === 'Admin_Credit' || type === 'Admin_Debit'
+
+  const getTypeLabel = (type) => {
+    if (type === 'Admin_Credit') return 'Admin Credit'
+    if (type === 'Admin_Debit') return 'Admin Debit'
+    return type
+  }
+
+  const getTypeColor = (type) => {
+    if (type === 'Admin_Credit') return 'text-purple-400'
+    if (type === 'Admin_Debit') return 'text-orange-400'
+    if (type === 'Deposit') return 'text-green-500'
+    return 'text-red-500'
+  }
 
   const viewTransactionDetails = async (txn) => {
     setSelectedTxn(txn)
@@ -210,6 +235,7 @@ const AdminFundManagement = () => {
               <option value="all">All Types</option>
               <option value="deposit">Deposits</option>
               <option value="withdrawal">Withdrawals</option>
+              <option value="admin">Admin Fund</option>
             </select>
           </div>
         </div>
@@ -227,12 +253,12 @@ const AdminFundManagement = () => {
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                        txn.type?.toUpperCase() === 'DEPOSIT' ? 'bg-green-500/20' : 'bg-red-500/20'
+                        isCreditType(txn.type) ? 'bg-green-500/20' : isAdminType(txn.type) ? 'bg-orange-500/20' : 'bg-red-500/20'
                       }`}>
-                        {txn.type?.toUpperCase() === 'DEPOSIT' ? (
-                          <ArrowDownRight size={16} className="text-green-500" />
+                        {isCreditType(txn.type) ? (
+                          <ArrowDownRight size={16} className={txn.type === 'Admin_Credit' ? 'text-purple-400' : 'text-green-500'} />
                         ) : (
-                          <ArrowUpRight size={16} className="text-red-500" />
+                          <ArrowUpRight size={16} className={txn.type === 'Admin_Debit' ? 'text-orange-400' : 'text-red-500'} />
                         )}
                       </div>
                       <div>
@@ -246,29 +272,37 @@ const AdminFundManagement = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
+                      <p className="text-gray-500">Type</p>
+                      <p className={`font-medium ${getTypeColor(txn.type)}`}>{getTypeLabel(txn.type)}</p>
+                    </div>
+                    <div>
                       <p className="text-gray-500">Amount</p>
-                      <p className={txn.type?.toUpperCase() === 'DEPOSIT' ? 'text-green-500 font-medium' : 'text-red-500 font-medium'}>
-                        {txn.type?.toUpperCase() === 'DEPOSIT' ? '+' : '-'}${(txn.amount || 0).toLocaleString()}
+                      <p className={`font-medium ${isCreditType(txn.type) ? 'text-green-500' : 'text-red-500'}`}>
+                        {isCreditType(txn.type) ? '+' : '-'}${(txn.amount || 0).toLocaleString()}
                       </p>
                     </div>
-                    <div>
-                      <p className="text-gray-500">Bonus</p>
-                      <p className="text-green-500 font-medium">
-                        {txn.type?.toUpperCase() === 'DEPOSIT' ? (
-                          txn.bonusAmount && txn.bonusAmount > 0 ? `+$${txn.bonusAmount.toLocaleString()}` : '$0'
-                        ) : '-'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500">Total</p>
-                      <p className="text-white font-medium">
-                        {txn.type?.toUpperCase() === 'DEPOSIT' ? `$${(txn.totalAmount || (txn.amount + (txn.bonusAmount || 0))).toLocaleString()}` : '-'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500">Method</p>
-                      <p className="text-white">{txn.paymentMethod || '-'}</p>
-                    </div>
+                    {isAdminType(txn.type) && txn.description && (
+                      <div className="col-span-2">
+                        <p className="text-gray-500">Reason</p>
+                        <p className="text-white">{txn.description}</p>
+                      </div>
+                    )}
+                    {!isAdminType(txn.type) && (
+                      <>
+                        <div>
+                          <p className="text-gray-500">Bonus</p>
+                          <p className="text-green-500 font-medium">
+                            {txn.type?.toUpperCase() === 'DEPOSIT' ? (
+                              txn.bonusAmount && txn.bonusAmount > 0 ? `+$${txn.bonusAmount.toLocaleString()}` : '$0'
+                            ) : '-'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Method</p>
+                          <p className="text-white">{txn.paymentMethod || '-'}</p>
+                        </div>
+                      </>
+                    )}
                   </div>
                   {isPending(txn.status) && (
                     <div className="flex gap-2 mt-3 pt-3 border-t border-gray-600">
@@ -307,16 +341,18 @@ const AdminFundManagement = () => {
                       <td className="py-4 px-4 text-white font-mono text-sm">{txn.transactionRef || txn._id?.slice(-8)}</td>
                       <td className="py-4 px-4 text-white">{txn.userId?.firstName || txn.userId?.email}</td>
                       <td className="py-4 px-4">
-                        <span className={`flex items-center gap-1 ${txn.type?.toUpperCase() === 'DEPOSIT' ? 'text-green-500' : 'text-red-500'}`}>
-                          {txn.type?.toUpperCase() === 'DEPOSIT' ? <ArrowDownRight size={14} /> : <ArrowUpRight size={14} />}
-                          {txn.type}
+                        <span className={`flex items-center gap-1 ${getTypeColor(txn.type)}`}>
+                          {isCreditType(txn.type) ? <ArrowDownRight size={14} /> : <ArrowUpRight size={14} />}
+                          {getTypeLabel(txn.type)}
                         </span>
                       </td>
-                      <td className={`py-4 px-4 font-medium ${txn.type?.toUpperCase() === 'DEPOSIT' ? 'text-green-500' : 'text-red-500'}`}>
-                        {txn.type?.toUpperCase() === 'DEPOSIT' ? '+' : '-'}${(txn.amount || 0).toLocaleString()}
+                      <td className={`py-4 px-4 font-medium ${isCreditType(txn.type) ? 'text-green-500' : 'text-red-500'}`}>
+                        {isCreditType(txn.type) ? '+' : '-'}${(txn.amount || 0).toLocaleString()}
                       </td>
                       <td className="py-4 px-4">
-                        {txn.type?.toUpperCase() === 'DEPOSIT' ? (
+                        {isAdminType(txn.type) ? (
+                          <span className="text-gray-400 text-xs max-w-[150px] truncate block" title={txn.description}>{txn.description || '-'}</span>
+                        ) : txn.type?.toUpperCase() === 'DEPOSIT' ? (
                           txn.bonusAmount && txn.bonusAmount > 0 ? (
                             <span className="text-green-500 font-medium">+${txn.bonusAmount.toLocaleString()}</span>
                           ) : (
@@ -327,7 +363,13 @@ const AdminFundManagement = () => {
                         )}
                       </td>
                       <td className="py-4 px-4">
-                        {txn.type?.toUpperCase() === 'DEPOSIT' ? (
+                        {isAdminType(txn.type) ? (
+                          txn.tradingAccountName ? (
+                            <span className="text-blue-400 text-sm">Acc: {txn.tradingAccountName}</span>
+                          ) : (
+                            <span className="text-purple-400 text-sm">Wallet</span>
+                          )
+                        ) : txn.type?.toUpperCase() === 'DEPOSIT' ? (
                           <span className="text-white font-medium">
                             ${(txn.totalAmount || (txn.amount + (txn.bonusAmount || 0))).toLocaleString()}
                           </span>
