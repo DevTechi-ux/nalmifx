@@ -430,7 +430,7 @@ router.get('/open/:tradingAccountId', async (req, res) => {
     const trades = await Trade.find({ 
       tradingAccountId, 
       status: 'OPEN' 
-    }).sort({ openedAt: -1 })
+    }).sort({ openedAt: -1 }).lean()
 
     res.json({
       success: true,
@@ -453,7 +453,7 @@ router.get('/pending/:tradingAccountId', async (req, res) => {
     const trades = await Trade.find({ 
       tradingAccountId, 
       status: 'PENDING' 
-    }).sort({ createdAt: -1 })
+    }).sort({ createdAt: -1 }).lean()
 
     res.json({
       success: true,
@@ -474,18 +474,17 @@ router.get('/history/:tradingAccountId', async (req, res) => {
     const { tradingAccountId } = req.params
     const { limit = 50, offset = 0 } = req.query
 
-    const trades = await Trade.find({ 
-      tradingAccountId, 
-      status: 'CLOSED' 
-    })
-      .sort({ closedAt: -1 })
-      .skip(parseInt(offset))
-      .limit(parseInt(limit))
+    const filter = { tradingAccountId, status: 'CLOSED' }
 
-    const total = await Trade.countDocuments({ 
-      tradingAccountId, 
-      status: 'CLOSED' 
-    })
+    // Run both queries in parallel + use .lean() for faster serialization
+    const [trades, total] = await Promise.all([
+      Trade.find(filter)
+        .sort({ closedAt: -1 })
+        .skip(parseInt(offset))
+        .limit(parseInt(limit))
+        .lean(),
+      Trade.countDocuments(filter)
+    ])
 
     res.json({
       success: true,

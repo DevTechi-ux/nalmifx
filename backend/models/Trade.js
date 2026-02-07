@@ -146,6 +146,12 @@ const tradeSchema = new mongoose.Schema({
   }
 }, { timestamps: true })
 
+// Indexes for fast queries
+tradeSchema.index({ tradingAccountId: 1, status: 1, closedAt: -1 }) // History query
+tradeSchema.index({ tradingAccountId: 1, status: 1 }) // Open trades query
+tradeSchema.index({ status: 1, isChallengeAccount: 1 }) // SL/TP check query
+tradeSchema.index({ userId: 1, status: 1 }) // User trades query
+
 // Generate unique trade ID
 tradeSchema.statics.generateTradeId = async function() {
   const prefix = 'T'

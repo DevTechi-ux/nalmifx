@@ -796,7 +796,7 @@ class PropTradingEngine {
     const openTrades = await Trade.find({ 
       isChallengeAccount: true, 
       status: 'OPEN' 
-    })
+    }).lean()
 
     if (openTrades.length > 0) {
       console.log(`[Challenge SL/TP] Checking ${openTrades.length} open challenge trades`)
@@ -806,49 +806,22 @@ class PropTradingEngine {
 
     for (const trade of openTrades) {
       const priceData = prices[trade.symbol]
-      if (!priceData) {
-        console.log(`[Challenge SL/TP] No price data for ${trade.symbol}`)
-        continue
-      }
+      if (!priceData) continue
 
       const bid = priceData.bid
-      const ask = priceData.ask || priceData.bid // Fallback to bid if ask not available
+      const ask = priceData.ask || priceData.bid
       const sl = trade.sl || trade.stopLoss
       const tp = trade.tp || trade.takeProfit
-
-      // Debug log for each trade with SL/TP
-      if (sl || tp) {
-        console.log(`[Challenge SL/TP] Trade ${trade.tradeId}: ${trade.side} ${trade.symbol} | bid=${bid} ask=${ask} | SL=${sl} TP=${tp}`)
-        
-        // Check if SL/TP would trigger
-        if (trade.side === 'SELL') {
-          console.log(`[Challenge SL/TP] SELL check: ask(${ask}) >= sl(${sl}) = ${ask >= sl}, ask(${ask}) <= tp(${tp}) = ${ask <= tp}`)
-        } else {
-          console.log(`[Challenge SL/TP] BUY check: bid(${bid}) <= sl(${sl}) = ${bid <= sl}, bid(${bid}) >= tp(${tp}) = ${bid >= tp}`)
-        }
-      }
 
       let shouldClose = false
       let closeReason = null
 
       if (trade.side === 'BUY') {
-        // For BUY: SL triggers when bid <= SL, TP triggers when bid >= TP
-        if (sl && bid <= sl) {
-          shouldClose = true
-          closeReason = 'SL'
-        } else if (tp && bid >= tp) {
-          shouldClose = true
-          closeReason = 'TP'
-        }
+        if (sl && bid <= sl) { shouldClose = true; closeReason = 'SL' }
+        else if (tp && bid >= tp) { shouldClose = true; closeReason = 'TP' }
       } else {
-        // For SELL: SL triggers when ask >= SL, TP triggers when ask <= TP
-        if (sl && ask >= sl) {
-          shouldClose = true
-          closeReason = 'SL'
-        } else if (tp && ask <= tp) {
-          shouldClose = true
-          closeReason = 'TP'
-        }
+        if (sl && ask >= sl) { shouldClose = true; closeReason = 'SL' }
+        else if (tp && ask <= tp) { shouldClose = true; closeReason = 'TP' }
       }
 
       if (shouldClose) {
@@ -863,18 +836,19 @@ class PropTradingEngine {
           ? (closePrice - trade.openPrice) * trade.quantity * trade.contractSize
           : (trade.openPrice - closePrice) * trade.quantity * trade.contractSize
 
-        // Update trade
-        trade.status = 'CLOSED'
-        trade.closePrice = closePrice
-        trade.closedAt = new Date()
-        trade.realizedPnl = pnl
-        trade.closedBy = closeReason
-        await trade.save()
+        // Update trade (use findByIdAndUpdate since .lean() returns plain objects)
+        const closedTrade = await Trade.findByIdAndUpdate(trade._id, {
+          status: 'CLOSED',
+          closePrice,
+          closedAt: new Date(),
+          realizedPnl: pnl,
+          closedBy: closeReason
+        }, { new: true })
 
         // Update challenge account
-        await this.onTradeClosed(trade.tradingAccountId, trade, pnl)
+        await this.onTradeClosed(trade.tradingAccountId, closedTrade, pnl)
 
-        closedTrades.push({ trade, reason: closeReason, pnl })
+        closedTrades.push({ trade: closedTrade, reason: closeReason, pnl })
         console.log(`Challenge trade closed with PnL: $${pnl.toFixed(2)}`)
       }
     }
