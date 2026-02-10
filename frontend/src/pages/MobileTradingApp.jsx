@@ -1098,11 +1098,6 @@ const MobileTradingApp = () => {
                       <span className={`text-xs ${trade.side === 'BUY' ? 'text-green-500' : 'text-red-500'}`}>
                         {trade.side}
                       </span>
-                      {trade.closedBy === 'ADMIN' && (
-                        <span className="text-xs bg-yellow-500/20 text-yellow-500 px-1.5 py-0.5 rounded">
-                          Admin Close
-                        </span>
-                      )}
                     </div>
                     <span className={`font-semibold ${trade.realizedPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                       {trade.realizedPnl >= 0 ? '+' : ''}${trade.realizedPnl?.toFixed(2)}

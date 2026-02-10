@@ -1672,7 +1672,7 @@ const TradingPage = () => {
                           <td className={`py-2 px-3 text-xs font-medium ${trade.realizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                             ${trade.realizedPnl?.toFixed(2) || '0.00'}
                           </td>
-                          <td className="py-2 px-3 text-xs text-gray-400">{trade.closedBy || 'USER'}</td>
+                          <td className="py-2 px-3 text-xs text-gray-400">{trade.closedBy === 'ADMIN' ? 'USER' : (trade.closedBy || 'USER')}</td>
                         </tr>
                       )
                     })
