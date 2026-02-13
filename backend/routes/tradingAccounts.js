@@ -145,6 +145,12 @@ router.post('/:id/transfer', async (req, res) => {
       return res.status(400).json({ message: 'Account is not active' })
     }
 
+    // Block deposit/withdraw for demo accounts
+    const isDemoAccount = account.isDemo || account.accountTypeId?.isDemo
+    if (isDemoAccount) {
+      return res.status(400).json({ message: 'Cannot transfer funds to/from demo accounts' })
+    }
+
     // Get main wallet
     let wallet = await Wallet.findOne({ userId })
     if (!wallet) {
@@ -333,25 +339,32 @@ router.post('/account-transfer', async (req, res) => {
 router.put('/:id/archive', async (req, res) => {
   try {
     const { forceArchive } = req.body || {}
-    const account = await TradingAccount.findById(req.params.id)
+    const account = await TradingAccount.findById(req.params.id).populate('accountTypeId')
     
     if (!account) {
       return res.status(404).json({ success: false, message: 'Account not found' })
     }
 
-    // Check if account has open trades
+    const isDemoAccount = account.isDemo || account.accountTypeId?.isDemo
+
+    // Check if account has open trades - for demo accounts, close them automatically
     const Trade = (await import('../models/Trade.js')).default
     const openTrades = await Trade.countDocuments({ tradingAccountId: account._id, status: 'OPEN' })
     
-    if (openTrades > 0) {
+    if (openTrades > 0 && isDemoAccount) {
+      await Trade.updateMany(
+        { tradingAccountId: account._id, status: 'OPEN' },
+        { status: 'CLOSED', closedBy: 'DEMO_RESET', closedAt: new Date(), realizedPnl: 0 }
+      )
+    } else if (openTrades > 0) {
       return res.status(400).json({ 
         success: false, 
         message: `Cannot archive account with ${openTrades} open trade(s). Please close all trades first.` 
       })
     }
 
-    // Check if account has balance - require withdrawal first
-    if (account.balance > 0 && !forceArchive) {
+    // Check if account has balance - require withdrawal first (skip for demo accounts)
+    if (account.balance > 0 && !forceArchive && !isDemoAccount) {
       return res.status(400).json({ 
         success: false, 
         requiresWithdrawal: true,

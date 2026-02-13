@@ -321,6 +321,9 @@ const Account = () => {
   }
 
   const handleArchiveAccount = async (accountId) => {
+    const account = userAccounts.find(acc => acc._id === accountId)
+    const isDemoAccount = account?.isDemo || account?.accountTypeId?.isDemo
+
     try {
       const res = await fetch(`${API_URL}/trading-accounts/${accountId}/archive`, {
         method: 'PUT',
@@ -329,14 +332,19 @@ const Account = () => {
       const data = await res.json()
       
       if (data.success) {
+        if (isDemoAccount) {
+          // For demo accounts, auto-delete after archiving
+          setShowArchiveConfirm(null)
+          await handleDeleteAccount(accountId)
+          return
+        }
         setSuccess('Account archived successfully!')
         setShowArchiveConfirm(null)
         fetchUserAccounts()
         setTimeout(() => setSuccess(''), 3000)
-      } else if (data.requiresWithdrawal) {
-        // Account has balance - prompt user to withdraw first
+      } else if (data.requiresWithdrawal && !isDemoAccount) {
+        // Account has balance - prompt user to withdraw first (only for real accounts)
         setShowArchiveConfirm(null)
-        const account = userAccounts.find(acc => acc._id === accountId)
         if (account) {
           setSelectedAccount(account)
           setShowWithdrawModal(true)
@@ -382,8 +390,9 @@ const Account = () => {
       const data = await res.json()
       
       if (data.success) {
-        setSuccess('Account deleted permanently!')
+        setSuccess('Demo account deleted successfully!')
         setShowDeleteConfirm(null)
+        setShowArchiveConfirm(null)
         fetchUserAccounts()
         setTimeout(() => setSuccess(''), 3000)
       } else {
@@ -462,6 +471,10 @@ const Account = () => {
   }
 
   const handleWithdrawFromAccount = async () => {
+    if (selectedAccount?.isDemo || selectedAccount?.accountTypeId?.isDemo) {
+      setError('Cannot withdraw from demo accounts')
+      return
+    }
     if (!transferAmount || parseFloat(transferAmount) <= 0) {
       setError('Please enter a valid amount')
       return
@@ -879,7 +892,7 @@ const Account = () => {
                                 }}
                                 className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-dark-600 rounded-lg flex items-center gap-2"
                               >
-                                <X size={14} /> Archive Account
+                                <X size={14} /> {account.isDemo || account.accountTypeId?.isDemo ? 'Delete Account' : 'Archive Account'}
                               </button>
                             )}
                           </div>
@@ -1676,10 +1689,15 @@ const Account = () => {
               <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <X size={32} className="text-red-500" />
               </div>
-              <h3 className="text-white font-semibold text-lg mb-2">Archive Account?</h3>
+              <h3 className="text-white font-semibold text-lg mb-2">
+                {showArchiveConfirm.isDemo || showArchiveConfirm.accountTypeId?.isDemo ? 'Delete Demo Account?' : 'Archive Account?'}
+              </h3>
               <p className="text-gray-400 text-sm">
-                Are you sure you want to archive <span className="text-white font-medium">{showArchiveConfirm.accountId}</span>? 
-                The account will be moved to archived and you won't be able to trade on it.
+                {showArchiveConfirm.isDemo || showArchiveConfirm.accountTypeId?.isDemo ? (
+                  <>Are you sure you want to delete <span className="text-white font-medium">{showArchiveConfirm.accountId}</span>? This demo account will be permanently removed.</>
+                ) : (
+                  <>Are you sure you want to archive <span className="text-white font-medium">{showArchiveConfirm.accountId}</span>? The account will be moved to archived and you won't be able to trade on it.</>
+                )}
               </p>
             </div>
             <div className="flex gap-3">
@@ -1693,7 +1711,7 @@ const Account = () => {
                 onClick={() => handleArchiveAccount(showArchiveConfirm._id)}
                 className="flex-1 py-3 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors"
               >
-                Archive
+                {showArchiveConfirm.isDemo || showArchiveConfirm.accountTypeId?.isDemo ? 'Delete' : 'Archive'}
               </button>
             </div>
           </div>
