@@ -280,15 +280,19 @@ const AdminUserManagement = () => {
       setMessage({ type: 'error', text: 'Please enter a valid amount' })
       return
     }
+    if (!addFundReason.trim()) {
+      setMessage({ type: 'error', text: 'Please enter a reason for adding funds' })
+      return
+    }
 
     setActionLoading(true)
     try {
       const response = await fetch(`${API_URL}/admin/users/${selectedUser._id}/add-fund`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           amount: parseFloat(addFundAmount),
-          reason: addFundReason || 'Admin fund addition'
+          reason: addFundReason
         })
       })
       
@@ -871,12 +875,13 @@ const AdminUserManagement = () => {
                   />
                 </div>
                 <div>
-                  <label className="text-gray-400 text-sm mb-1 block">Reason (Optional)</label>
+                  <label className="text-gray-400 text-sm mb-1 block">Reason <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     value={addFundReason}
                     onChange={(e) => setAddFundReason(e.target.value)}
                     placeholder="Enter reason for adding funds"
+                    required
                     className="w-full bg-dark-700 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500"
                   />
                 </div>
@@ -1112,12 +1117,13 @@ const AdminUserManagement = () => {
                   />
                 </div>
                 <div>
-                  <label className="text-gray-400 text-sm mb-1 block">Reason (Optional)</label>
+                  <label className="text-gray-400 text-sm mb-1 block">Reason <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     value={addFundReason}
                     onChange={(e) => setAddFundReason(e.target.value)}
                     placeholder="Enter reason"
+                    required
                     className="w-full bg-dark-700 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500"
                   />
                 </div>

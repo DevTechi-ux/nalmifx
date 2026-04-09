@@ -192,6 +192,9 @@ router.post('/users/:id/add-fund', async (req, res) => {
     if (!amount || amount <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid amount' })
     }
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ success: false, message: 'Reason is required' })
+    }
     
     const user = await User.findById(req.params.id)
     if (!user) {
