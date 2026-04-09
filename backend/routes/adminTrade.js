@@ -15,10 +15,19 @@ const router = express.Router()
 // GET /api/admin/trade/all - Get all trades with pagination (for admin dashboard)
 router.get('/all', async (req, res) => {
   try {
-    const { status, limit = 20, offset = 0 } = req.query
+    const { status, limit = 20, offset = 0, dateFrom, dateTo } = req.query
 
     let query = {}
     if (status) query.status = status
+    if (dateFrom || dateTo) {
+      query.openedAt = {}
+      if (dateFrom) query.openedAt.$gte = new Date(dateFrom)
+      if (dateTo) {
+        const end = new Date(dateTo)
+        end.setHours(23, 59, 59, 999)
+        query.openedAt.$lte = end
+      }
+    }
 
     const total = await Trade.countDocuments(query)
     const trades = await Trade.find(query)

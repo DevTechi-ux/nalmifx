@@ -89,6 +89,12 @@ const AdminOverview = () => {
       color: 'purple'
     },
     { 
+      title: 'Total Comissions', 
+      value: `$${stats.totalDeposits.toLocaleString()}`, 
+      icon: Wallet, 
+      color: 'purple'
+    },
+    { 
       title: 'Total Withdrawals', 
       value: `$${stats.totalWithdrawals.toLocaleString()}`, 
       icon: CreditCard, 

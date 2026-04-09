@@ -3,10 +3,44 @@ import bcrypt from 'bcryptjs'
 import User from '../models/User.js'
 import Transaction from '../models/Transaction.js'
 import Trade from '../models/Trade.js'
+import KYC from '../models/KYC.js'
+import IBUser from '../models/IBUser.js'
+import MasterTrader from '../models/MasterTrader.js'
+import SupportTicket from '../models/SupportTicket.js'
 import { sendTemplateEmail } from '../services/emailService.js'
 import EmailSettings from '../models/EmailSettings.js'
 
 const router = express.Router()
+
+// GET /api/admin/pending-counts - Get pending item counts for sidebar badges
+router.get('/pending-counts', async (req, res) => {
+  try {
+    const [pendingDeposits, pendingWithdrawals, pendingKYC, pendingIB, pendingMasters, openTickets] = await Promise.all([
+      Transaction.countDocuments({ type: 'Deposit', status: 'Pending' }),
+      Transaction.countDocuments({ type: 'Withdrawal', status: 'Pending' }),
+      KYC.countDocuments({ status: 'pending' }),
+      IBUser.countDocuments({ status: 'PENDING' }),
+      MasterTrader.countDocuments({ status: 'PENDING' }),
+      SupportTicket.countDocuments({ status: { $in: ['OPEN', 'IN_PROGRESS'] } })
+    ])
+
+    res.json({
+      success: true,
+      counts: {
+        funds: pendingDeposits + pendingWithdrawals,
+        deposits: pendingDeposits,
+        withdrawals: pendingWithdrawals,
+        kyc: pendingKYC,
+        ib: pendingIB,
+        copyTrade: pendingMasters,
+        support: openTickets
+      }
+    })
+  } catch (error) {
+    console.error('Error fetching pending counts:', error)
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
 
 // GET /api/admin/dashboard-stats - Get dashboard statistics
 router.get('/dashboard-stats', async (req, res) => {

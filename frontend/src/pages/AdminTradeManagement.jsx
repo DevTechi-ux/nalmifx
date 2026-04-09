@@ -56,6 +56,9 @@ const AdminTradeManagement = () => {
   const [closeFormPrice, setCloseFormPrice] = useState(0)
   const [livePrices, setLivePrices] = useState({})
   
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
   const [totalTrades, setTotalTrades] = useState(0)
@@ -64,7 +67,7 @@ const AdminTradeManagement = () => {
   useEffect(() => {
     fetchTrades()
     fetchUsers()
-  }, [filterStatus, currentPage])
+  }, [filterStatus, currentPage, dateFrom, dateTo])
 
   // Fetch live prices for open trades via WebSocket for institutional-grade streaming
   useEffect(() => {
@@ -371,7 +374,9 @@ const AdminTradeManagement = () => {
     try {
       const offset = (currentPage - 1) * tradesPerPage
       const statusParam = filterStatus !== 'all' ? `&status=${filterStatus.toUpperCase()}` : ''
-      const res = await fetch(`${API_URL}/admin/trade/all?limit=${tradesPerPage}&offset=${offset}${statusParam}`)
+      const dateFromParam = dateFrom ? `&dateFrom=${dateFrom}` : ''
+      const dateToParam = dateTo ? `&dateTo=${dateTo}` : ''
+      const res = await fetch(`${API_URL}/admin/trade/all?limit=${tradesPerPage}&offset=${offset}${statusParam}${dateFromParam}${dateToParam}`)
       const data = await res.json()
       if (data.trades) {
         setTrades(data.trades)
@@ -449,7 +454,7 @@ const AdminTradeManagement = () => {
       <div className="bg-dark-800 rounded-xl border border-gray-800 overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 border-b border-gray-800">
           <h2 className="text-white font-semibold text-lg">All Trades</h2>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-wrap">
             <button
               onClick={() => {
                 setShowCreateModal(true)
@@ -471,7 +476,7 @@ const AdminTradeManagement = () => {
             </div>
             <select
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
+              onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1) }}
               className="bg-dark-700 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-gray-600"
             >
               <option value="all">All Status</option>
@@ -479,6 +484,32 @@ const AdminTradeManagement = () => {
               <option value="closed">Closed</option>
               <option value="pending">Pending</option>
             </select>
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => { setDateFrom(e.target.value); setCurrentPage(1) }}
+                className="bg-dark-700 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-gray-600 text-sm"
+                title="From date"
+              />
+              <span className="text-gray-500 text-sm">to</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => { setDateTo(e.target.value); setCurrentPage(1) }}
+                className="bg-dark-700 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-gray-600 text-sm"
+                title="To date"
+              />
+              {(dateFrom || dateTo) && (
+                <button
+                  onClick={() => { setDateFrom(''); setDateTo(''); setCurrentPage(1) }}
+                  className="p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white"
+                  title="Clear date filter"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -524,6 +555,14 @@ const AdminTradeManagement = () => {
                       <p className="text-white">${trade.openPrice?.toFixed(5)}</p>
                     </div>
                     <div>
+                      <p className="text-gray-500">Opened At</p>
+                      <p className="text-white text-xs">{trade.openedAt ? new Date(trade.openedAt).toLocaleString() : '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Closed At</p>
+                      <p className="text-white text-xs">{trade.closedAt ? new Date(trade.closedAt).toLocaleString() : '—'}</p>
+                    </div>
+                    <div>
                       <p className="text-gray-500">Live P&L</p>
                       <p className={`font-semibold ${calculateFloatingPnl(trade) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                         {calculateFloatingPnl(trade) >= 0 ? '+' : ''}${calculateFloatingPnl(trade).toFixed(2)}
@@ -562,6 +601,8 @@ const AdminTradeManagement = () => {
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Side</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Lots</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Open Price</th>
+                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Opened At</th>
+                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Closed At</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">P&L</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Status</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Actions</th>
@@ -584,6 +625,26 @@ const AdminTradeManagement = () => {
                       </td>
                       <td className="py-4 px-4 text-white">{trade.quantity}</td>
                       <td className="py-4 px-4 text-gray-400">${trade.openPrice?.toFixed(5)}</td>
+                      <td className="py-4 px-4 text-gray-400 text-xs">
+                        {trade.openedAt ? (
+                          <>
+                            <p>{new Date(trade.openedAt).toLocaleDateString()}</p>
+                            <p className="text-gray-500">{new Date(trade.openedAt).toLocaleTimeString()}</p>
+                          </>
+                        ) : (
+                          <span className="text-gray-600">—</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-4 text-gray-400 text-xs">
+                        {trade.closedAt ? (
+                          <>
+                            <p>{new Date(trade.closedAt).toLocaleDateString()}</p>
+                            <p className="text-gray-500">{new Date(trade.closedAt).toLocaleTimeString()}</p>
+                          </>
+                        ) : (
+                          <span className="text-gray-600">—</span>
+                        )}
+                      </td>
                       <td className={`py-4 px-4 font-medium ${calculateFloatingPnl(trade) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                         {calculateFloatingPnl(trade) >= 0 ? '+' : ''}${calculateFloatingPnl(trade).toFixed(2)}
                       </td>

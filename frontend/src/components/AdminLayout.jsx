@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { 
-  LayoutDashboard, 
+import {
+  LayoutDashboard,
   Users,
   LogOut,
   TrendingUp,
@@ -27,6 +27,7 @@ import {
   UserCircle
 } from 'lucide-react'
 import logoImage from '../assets/nalmifx.png'
+import { API_URL } from '../config/api'
 
 const AdminLayout = ({ children, title, subtitle }) => {
   const navigate = useNavigate()
@@ -34,17 +35,41 @@ const AdminLayout = ({ children, title, subtitle }) => {
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [expandedSections, setExpandedSections] = useState({})
+  const [pendingCounts, setPendingCounts] = useState({
+    funds: 0, kyc: 0, ib: 0, copyTrade: 0, support: 0
+  })
+
+  const fetchPendingCounts = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/admin/pending-counts`)
+      const data = await res.json()
+      if (data.success) setPendingCounts(data.counts)
+    } catch (e) {
+      // silently fail — badges just won't show
+    }
+  }, [])
+
+  useEffect(() => {
+    const adminToken = localStorage.getItem('adminToken')
+    if (!adminToken) {
+      navigate('/admin')
+      return
+    }
+    fetchPendingCounts()
+    const interval = setInterval(fetchPendingCounts, 30000)
+    return () => clearInterval(interval)
+  }, [navigate, fetchPendingCounts])
 
   const menuItems = [
     { name: 'Overview Dashboard', icon: LayoutDashboard, path: '/admin/dashboard' },
     { name: 'User Management', icon: Users, path: '/admin/users' },
     { name: 'Trade Management', icon: TrendingUp, path: '/admin/trades' },
-    { name: 'Fund Management', icon: Wallet, path: '/admin/funds' },
+    { name: 'Fund Management', icon: Wallet, path: '/admin/funds', badge: pendingCounts.funds },
     { name: 'Bank Settings', icon: Building2, path: '/admin/bank-settings' },
-    { name: 'IB Management', icon: UserCog, path: '/admin/ib-management' },
+    { name: 'IB Management', icon: UserCog, path: '/admin/ib-management', badge: pendingCounts.ib },
     { name: 'Forex Charges', icon: DollarSign, path: '/admin/forex-charges' },
     { name: 'Earnings Report', icon: TrendingUp, path: '/admin/earnings' },
-    { name: 'Copy Trade Management', icon: Copy, path: '/admin/copy-trade' },
+    { name: 'Copy Trade Management', icon: Copy, path: '/admin/copy-trade', badge: pendingCounts.copyTrade },
     { name: 'Prop Firm Challenges', icon: Trophy, path: '/admin/prop-firm' },
     { name: 'Account Types', icon: CreditCard, path: '/admin/account-types' },
     { name: 'Theme Settings', icon: Palette, path: '/admin/theme' },
@@ -52,16 +77,9 @@ const AdminLayout = ({ children, title, subtitle }) => {
     { name: 'Bonus Management', icon: Gift, path: '/admin/bonus-management' },
     { name: 'Banner Management', icon: Image, path: '/admin/banners' },
     { name: 'Admin Management', icon: Shield, path: '/admin/admin-management' },
-    { name: 'KYC Verification', icon: FileCheck, path: '/admin/kyc' },
-    { name: 'Support Tickets', icon: HeadphonesIcon, path: '/admin/support' },
+    { name: 'KYC Verification', icon: FileCheck, path: '/admin/kyc', badge: pendingCounts.kyc },
+    { name: 'Support Tickets', icon: HeadphonesIcon, path: '/admin/support', badge: pendingCounts.support },
   ]
-
-  useEffect(() => {
-    const adminToken = localStorage.getItem('adminToken')
-    if (!adminToken) {
-      navigate('/admin')
-    }
-  }, [navigate])
 
   const handleLogout = () => {
     localStorage.removeItem('adminToken')
@@ -129,14 +147,28 @@ const AdminLayout = ({ children, title, subtitle }) => {
               }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 transition-colors ${
                 isActive(item.path)
-                  ? 'bg-red-500 text-white' 
+                  ? 'bg-red-500 text-white'
                   : 'text-gray-400 hover:text-white hover:bg-dark-700'
               }`}
               title={!sidebarExpanded ? item.name : ''}
             >
-              <item.icon size={18} className="flex-shrink-0" />
+              <div className="relative flex-shrink-0">
+                <item.icon size={18} />
+                {!sidebarExpanded && item.badge > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5">
+                    {item.badge > 99 ? '99+' : item.badge}
+                  </span>
+                )}
+              </div>
               {sidebarExpanded && (
-                <span className="text-sm font-medium whitespace-nowrap truncate">{item.name}</span>
+                <>
+                  <span className="text-sm font-medium whitespace-nowrap truncate flex-1 text-left">{item.name}</span>
+                  {item.badge > 0 && (
+                    <span className="ml-auto min-w-[20px] h-5 bg-red-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center px-1">
+                      {item.badge > 99 ? '99+' : item.badge}
+                    </span>
+                  )}
+                </>
               )}
             </button>
           ))}
