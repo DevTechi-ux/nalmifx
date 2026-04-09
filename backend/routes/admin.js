@@ -4,7 +4,6 @@ import User from '../models/User.js'
 import Transaction from '../models/Transaction.js'
 import Trade from '../models/Trade.js'
 import KYC from '../models/KYC.js'
-import IBUser from '../models/IBUser.js'
 import MasterTrader from '../models/MasterTrader.js'
 import SupportTicket from '../models/SupportTicket.js'
 import { sendTemplateEmail } from '../services/emailService.js'
@@ -19,7 +18,7 @@ router.get('/pending-counts', async (req, res) => {
       Transaction.countDocuments({ type: 'Deposit', status: 'Pending' }),
       Transaction.countDocuments({ type: 'Withdrawal', status: 'Pending' }),
       KYC.countDocuments({ status: 'pending' }),
-      IBUser.countDocuments({ status: 'PENDING' }),
+      User.countDocuments({ isIB: true, ibStatus: 'PENDING' }),
       MasterTrader.countDocuments({ status: 'PENDING' }),
       SupportTicket.countDocuments({ status: { $in: ['OPEN', 'IN_PROGRESS'] } })
     ])

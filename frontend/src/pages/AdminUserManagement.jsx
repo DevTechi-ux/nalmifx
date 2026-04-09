@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import AdminLayout from '../components/AdminLayout'
+import ReportDownload from '../components/ReportDownload'
 import { API_URL } from '../config/api'
 import { 
   Search,
@@ -1450,6 +1451,7 @@ const AdminUserManagement = () => {
             <p className="text-gray-500 text-sm">{users.length} total users</p>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <ReportDownload endpoint="users" label="Export Users" />
             <div className="relative">
               <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
               <input

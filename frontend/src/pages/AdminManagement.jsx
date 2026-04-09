@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import AdminLayout from '../components/AdminLayout'
+import ReportDownload from '../components/ReportDownload'
 import { 
   Shield,
   Plus,
@@ -322,6 +323,7 @@ const AdminManagement = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 border-b border-gray-800">
           <h2 className="text-white font-semibold text-lg">Sub-Admins</h2>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <ReportDownload endpoint="admins" label="Export Admins" />
             <div className="relative">
               <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
               <input
