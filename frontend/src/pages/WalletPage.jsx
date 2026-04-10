@@ -20,6 +20,8 @@ import {
   Building,
   Smartphone,
   QrCode,
+  Banknote,
+  Bitcoin,
   Trophy,
   ArrowRightLeft,
   Send,
@@ -363,17 +365,42 @@ const WalletPage = () => {
     }
 
     try {
+      let bankAccountDetails
+      if (selectedBankAccount.type === 'UPI') {
+        bankAccountDetails = { type: 'UPI', upiId: selectedBankAccount.upiId }
+      } else if (selectedBankAccount.type === 'Cash') {
+        bankAccountDetails = {
+          type: 'Cash',
+          cashFullName: selectedBankAccount.cashFullName,
+          cashContactNumber: selectedBankAccount.cashContactNumber,
+          cashLocationType: selectedBankAccount.cashLocationType,
+          cashLocation: selectedBankAccount.cashLocation,
+          verificationQuestion: selectedBankAccount.verificationQuestion,
+          verificationAnswer: selectedBankAccount.verificationAnswer,
+          idDocumentType: selectedBankAccount.idDocumentType,
+          idDocumentImage: selectedBankAccount.idDocumentImage
+        }
+      } else if (selectedBankAccount.type === 'USDT') {
+        bankAccountDetails = {
+          type: 'USDT',
+          usdtWalletAddress: selectedBankAccount.usdtWalletAddress,
+          usdtWalletQr: selectedBankAccount.usdtWalletQr,
+          usdtNetwork: selectedBankAccount.usdtNetwork,
+          usdtCurrencyPair: selectedBankAccount.usdtCurrencyPair
+        }
+      } else {
+        bankAccountDetails = { type: 'Bank', bankName: selectedBankAccount.bankName, accountNumber: selectedBankAccount.accountNumber, ifscCode: selectedBankAccount.ifscCode }
+      }
+
       const res = await fetch(`${API_URL}/wallet/withdraw`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user._id,
           amount: parseFloat(amount),
-          paymentMethod: selectedBankAccount.type === 'UPI' ? 'UPI' : 'Bank Transfer',
+          paymentMethod: selectedBankAccount.type,
           bankAccountId: selectedBankAccount._id,
-          bankAccountDetails: selectedBankAccount.type === 'UPI' 
-            ? { type: 'UPI', upiId: selectedBankAccount.upiId }
-            : { type: 'Bank', bankName: selectedBankAccount.bankName, accountNumber: selectedBankAccount.accountNumber, ifscCode: selectedBankAccount.ifscCode }
+          bankAccountDetails
         })
       })
       const data = await res.json()
@@ -415,6 +442,8 @@ const WalletPage = () => {
       case 'Bank Transfer': return <Building size={18} />
       case 'UPI': return <Smartphone size={18} />
       case 'QR Code': return <QrCode size={18} />
+      case 'Cash': return <Banknote size={18} />
+      case 'USDT': return <Bitcoin size={18} />
       default: return <Wallet size={18} />
     }
   }
@@ -854,6 +883,28 @@ const WalletPage = () => {
                 {selectedPaymentMethod.type === 'QR Code' && selectedPaymentMethod.qrCodeImage && (
                   <img src={selectedPaymentMethod.qrCodeImage} alt="QR Code" className="mx-auto max-w-48" />
                 )}
+                {selectedPaymentMethod.type === 'Cash' && (
+                  <div className="space-y-2 text-sm">
+                    {selectedPaymentMethod.cashPickupLocation && (
+                      <p className="text-gray-400">Pickup Location: <span className="text-white">{selectedPaymentMethod.cashPickupLocation}</span></p>
+                    )}
+                    {selectedPaymentMethod.cashDropLocation && (
+                      <p className="text-gray-400">Drop Location: <span className="text-white">{selectedPaymentMethod.cashDropLocation}</span></p>
+                    )}
+                    {selectedPaymentMethod.cashInstructions && (
+                      <p className="text-gray-400">Instructions: <span className="text-white">{selectedPaymentMethod.cashInstructions}</span></p>
+                    )}
+                  </div>
+                )}
+                {selectedPaymentMethod.type === 'USDT' && (
+                  <div className="space-y-2 text-sm">
+                    <p className="text-gray-400">Network: <span className="text-orange-400 font-medium">{selectedPaymentMethod.usdtNetwork || 'TRC20'}</span></p>
+                    <p className="text-gray-400">Wallet Address: <span className="text-white font-mono text-xs break-all">{selectedPaymentMethod.usdtWalletAddress}</span></p>
+                    {selectedPaymentMethod.usdtWalletQr && (
+                      <img src={selectedPaymentMethod.usdtWalletQr} alt="Wallet QR" className="mx-auto max-w-48 rounded-lg" />
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1008,16 +1059,26 @@ const WalletPage = () => {
                       }`}
                     >
                       {account.type === 'UPI' ? (
-                        <Smartphone size={20} className="text-blue-400" />
+                        <Smartphone size={20} className="text-purple-400" />
+                      ) : account.type === 'Cash' ? (
+                        <Banknote size={20} className="text-green-400" />
+                      ) : account.type === 'USDT' ? (
+                        <Bitcoin size={20} className="text-orange-400" />
                       ) : (
-                        <Building size={20} className="text-purple-400" />
+                        <Building size={20} className="text-blue-400" />
                       )}
                       <div className="flex-1">
-                        <p className="text-white font-medium">{account.bankName || 'UPI'}</p>
+                        <p className="text-white font-medium">
+                          {account.type === 'Bank Transfer' ? account.bankName :
+                           account.type === 'UPI' ? 'UPI' :
+                           account.type === 'Cash' ? `Cash - ${account.cashFullName}` :
+                           `USDT (${account.usdtNetwork || 'TRC20'})`}
+                        </p>
                         <p className="text-gray-400 text-sm">
-                          {account.type === 'UPI' 
-                            ? account.upiId 
-                            : `A/C: ${account.accountNumber} | IFSC: ${account.ifscCode}`}
+                          {account.type === 'UPI' ? account.upiId :
+                           account.type === 'Cash' ? `${account.cashPickupLocation}` :
+                           account.type === 'USDT' ? `${account.usdtWalletAddress?.slice(0, 20)}...` :
+                           `A/C: ${account.accountNumber} | IFSC: ${account.ifscCode}`}
                         </p>
                       </div>
                     </button>

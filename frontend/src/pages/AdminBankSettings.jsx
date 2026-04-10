@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import AdminLayout from '../components/AdminLayout'
-import { 
+import {
   Building2,
   Plus,
   Edit,
@@ -14,9 +14,14 @@ import {
   Upload,
   Smartphone,
   DollarSign,
-  Percent
+  Percent,
+  Banknote,
+  Bitcoin,
+  Eye,
+  ShieldCheck,
+  MapPin
 } from 'lucide-react'
-import { API_URL } from '../config/api'
+import { API_URL, API_BASE_URL } from '../config/api'
 
 const AdminBankSettings = () => {
   const [paymentMethods, setPaymentMethods] = useState([])
@@ -31,6 +36,12 @@ const AdminBankSettings = () => {
     ifscCode: '',
     upiId: '',
     qrCodeImage: '',
+    cashPickupLocation: '',
+    cashDropLocation: '',
+    cashInstructions: '',
+    usdtWalletAddress: '',
+    usdtWalletQr: '',
+    usdtNetwork: 'TRC20',
     isActive: true
   })
   
@@ -351,6 +362,12 @@ const AdminBankSettings = () => {
       ifscCode: method.ifscCode || '',
       upiId: method.upiId || '',
       qrCodeImage: method.qrCodeImage || '',
+      cashPickupLocation: method.cashPickupLocation || '',
+      cashDropLocation: method.cashDropLocation || '',
+      cashInstructions: method.cashInstructions || '',
+      usdtWalletAddress: method.usdtWalletAddress || '',
+      usdtWalletQr: method.usdtWalletQr || '',
+      usdtNetwork: method.usdtNetwork || 'TRC20',
       isActive: method.isActive
     })
     setShowAddModal(true)
@@ -365,6 +382,12 @@ const AdminBankSettings = () => {
       ifscCode: '',
       upiId: '',
       qrCodeImage: '',
+      cashPickupLocation: '',
+      cashDropLocation: '',
+      cashInstructions: '',
+      usdtWalletAddress: '',
+      usdtWalletQr: '',
+      usdtNetwork: 'TRC20',
       isActive: true
     })
   }
@@ -383,6 +406,8 @@ const AdminBankSettings = () => {
   const bankMethods = paymentMethods.filter(m => m.type === 'Bank Transfer')
   const upiMethods = paymentMethods.filter(m => m.type === 'UPI')
   const qrMethods = paymentMethods.filter(m => m.type === 'QR Code')
+  const cashMethods = paymentMethods.filter(m => m.type === 'Cash')
+  const usdtMethods = paymentMethods.filter(m => m.type === 'USDT')
 
   return (
     <AdminLayout title="Bank Settings" subtitle="Manage bank accounts and payment methods">
@@ -420,8 +445,8 @@ const AdminBankSettings = () => {
         <div className="bg-dark-800 rounded-xl border border-gray-800 overflow-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 border-b border-gray-800">
             <div>
-              <h2 className="text-white font-semibold text-lg">User Bank/UPI Requests</h2>
-              <p className="text-gray-500 text-sm">Approve or reject user bank account submissions</p>
+              <h2 className="text-white font-semibold text-lg">User Payment Requests</h2>
+              <p className="text-gray-500 text-sm">Approve or reject user bank, UPI, cash & USDT account submissions</p>
             </div>
             <div className="flex gap-2">
               {['Pending', 'Approved', 'Rejected'].map(status => (
@@ -452,7 +477,11 @@ const AdminBankSettings = () => {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
                         <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                          req.type === 'Bank Transfer' ? 'bg-blue-500/20 text-blue-500' : 'bg-purple-500/20 text-purple-500'
+                          req.type === 'Bank Transfer' ? 'bg-blue-500/20 text-blue-500' :
+                          req.type === 'UPI' ? 'bg-purple-500/20 text-purple-500' :
+                          req.type === 'Cash' ? 'bg-green-500/20 text-green-500' :
+                          req.type === 'USDT' ? 'bg-orange-500/20 text-orange-500' :
+                          'bg-gray-500/20 text-gray-400'
                         }`}>
                           {req.type}
                         </span>
@@ -471,7 +500,7 @@ const AdminBankSettings = () => {
                         <p className="text-gray-500 text-xs font-mono">User ID: {req.userId?._id}</p>
                       </div>
 
-                      {req.type === 'Bank Transfer' ? (
+                      {req.type === 'Bank Transfer' && (
                         <div className="grid grid-cols-2 gap-2 text-sm">
                           <div>
                             <p className="text-gray-500">Bank Name</p>
@@ -490,10 +519,84 @@ const AdminBankSettings = () => {
                             <p className="text-white font-mono">{req.ifscCode}</p>
                           </div>
                         </div>
-                      ) : (
+                      )}
+                      {req.type === 'UPI' && (
                         <div>
                           <p className="text-gray-500 text-sm">UPI ID</p>
                           <p className="text-purple-400 font-mono text-lg">{req.upiId}</p>
+                        </div>
+                      )}
+                      {req.type === 'Cash' && (
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                              <p className="text-gray-500">Full Name</p>
+                              <p className="text-white font-medium">{req.cashFullName}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-500">Contact Number</p>
+                              <p className="text-white">{req.cashContactNumber || '-'}</p>
+                            </div>
+                            <div className="col-span-2">
+                              <p className="text-gray-500">{req.cashLocationType === 'drop' ? 'Drop' : 'Pickup'} Location</p>
+                              <p className="text-white">{req.cashLocation || '-'}</p>
+                            </div>
+                          </div>
+                          <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                            <p className="text-blue-400 text-xs font-medium mb-2 flex items-center gap-1"><ShieldCheck size={14} /> Human Verification</p>
+                            <div className="space-y-1.5 text-sm">
+                              <div>
+                                <span className="text-gray-400">Q: </span>
+                                <span className="text-white">{req.verificationQuestion || '-'}</span>
+                              </div>
+                              <div>
+                                <span className="text-gray-400">A: </span>
+                                <span className="text-green-400 font-medium">{req.verificationAnswer || '-'}</span>
+                              </div>
+                            </div>
+                          </div>
+                          {req.idDocumentImage && (
+                            <div>
+                              <p className="text-gray-500 text-sm mb-2">ID Document ({req.idDocumentType === 'aadhaar' ? 'Aadhaar Card' : 'PAN Card'})</p>
+                              <img
+                                src={`${API_BASE_URL}${req.idDocumentImage}`}
+                                alt="ID Document"
+                                className="w-full max-h-48 object-contain rounded-lg bg-dark-600 cursor-pointer"
+                                onClick={() => window.open(`${API_BASE_URL}${req.idDocumentImage}`, '_blank')}
+                              />
+                              <p className="text-gray-500 text-xs mt-1">Click to view full image</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {req.type === 'USDT' && (
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                              <p className="text-gray-500">Network</p>
+                              <p className="text-orange-400 font-medium">{req.usdtNetwork || 'TRC20'}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-500">Currency Pair</p>
+                              <p className="text-white">{req.usdtCurrencyPair || '-'}</p>
+                            </div>
+                            <div className="col-span-2">
+                              <p className="text-gray-500">Wallet Address</p>
+                              <p className="text-orange-400 font-mono text-sm break-all">{req.usdtWalletAddress}</p>
+                            </div>
+                          </div>
+                          {req.usdtWalletQr && (
+                            <div>
+                              <p className="text-gray-500 text-sm mb-2">Wallet QR Code</p>
+                              <img
+                                src={`${API_BASE_URL}${req.usdtWalletQr}`}
+                                alt="Wallet QR"
+                                className="w-40 h-40 object-contain rounded-lg bg-dark-600 cursor-pointer"
+                                onClick={() => window.open(`${API_BASE_URL}${req.usdtWalletQr}`, '_blank')}
+                              />
+                              <p className="text-gray-500 text-xs mt-1">Click to view full image</p>
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -727,6 +830,94 @@ const AdminBankSettings = () => {
                       >
                         <Trash2 size={16} />
                       </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Cash Methods */}
+          <div className="bg-dark-800 rounded-xl border border-gray-800 overflow-hidden mb-6">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
+                  <Banknote size={20} className="text-green-500" />
+                </div>
+                <div>
+                  <h2 className="text-white font-semibold">Cash</h2>
+                  <p className="text-gray-500 text-sm">Cash pickup/drop payment methods</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-4 space-y-3">
+              {cashMethods.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">No cash methods added yet</p>
+              ) : (
+                cashMethods.map((cash) => (
+                  <div key={cash._id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-dark-700 rounded-xl border border-gray-700">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-dark-600 rounded-lg flex items-center justify-center">
+                        <Banknote size={24} className="text-green-400" />
+                      </div>
+                      <div>
+                        <p className="text-white font-medium">Cash Payment</p>
+                        <p className="text-gray-500 text-sm">Pickup: {cash.cashPickupLocation || '-'}</p>
+                        <p className="text-gray-500 text-sm">Drop: {cash.cashDropLocation || '-'}</p>
+                        {cash.cashInstructions && <p className="text-gray-400 text-xs mt-1">{cash.cashInstructions}</p>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => handleToggleStatus(cash)} className={`px-3 py-1 rounded-full text-xs ${cash.isActive ? 'bg-green-500/20 text-green-500' : 'bg-gray-500/20 text-gray-400'}`}>
+                        {cash.isActive ? 'Active' : 'Inactive'}
+                      </button>
+                      <button onClick={() => openEditModal(cash)} className="p-2 hover:bg-dark-600 rounded-lg transition-colors text-gray-400 hover:text-white"><Edit size={16} /></button>
+                      <button onClick={() => handleDelete(cash._id)} className="p-2 hover:bg-dark-600 rounded-lg transition-colors text-gray-400 hover:text-red-500"><Trash2 size={16} /></button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* USDT Methods */}
+          <div className="bg-dark-800 rounded-xl border border-gray-800 overflow-hidden mb-6">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center">
+                  <Bitcoin size={20} className="text-orange-500" />
+                </div>
+                <div>
+                  <h2 className="text-white font-semibold">USDT</h2>
+                  <p className="text-gray-500 text-sm">USDT/Crypto wallet payment methods</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-4 space-y-3">
+              {usdtMethods.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">No USDT methods added yet</p>
+              ) : (
+                usdtMethods.map((usdt) => (
+                  <div key={usdt._id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-dark-700 rounded-xl border border-gray-700">
+                    <div className="flex items-center gap-4">
+                      {usdt.usdtWalletQr ? (
+                        <img src={usdt.usdtWalletQr} alt="USDT QR" className="w-16 h-16 rounded-lg object-cover" />
+                      ) : (
+                        <div className="w-12 h-12 bg-dark-600 rounded-lg flex items-center justify-center">
+                          <Bitcoin size={24} className="text-orange-400" />
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-white font-medium">USDT ({usdt.usdtNetwork || 'TRC20'})</p>
+                        <p className="text-orange-400 text-sm font-mono truncate max-w-[300px]">{usdt.usdtWalletAddress}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => handleToggleStatus(usdt)} className={`px-3 py-1 rounded-full text-xs ${usdt.isActive ? 'bg-green-500/20 text-green-500' : 'bg-gray-500/20 text-gray-400'}`}>
+                        {usdt.isActive ? 'Active' : 'Inactive'}
+                      </button>
+                      <button onClick={() => openEditModal(usdt)} className="p-2 hover:bg-dark-600 rounded-lg transition-colors text-gray-400 hover:text-white"><Edit size={16} /></button>
+                      <button onClick={() => handleDelete(usdt._id)} className="p-2 hover:bg-dark-600 rounded-lg transition-colors text-gray-400 hover:text-red-500"><Trash2 size={16} /></button>
                     </div>
                   </div>
                 ))
@@ -968,13 +1159,13 @@ const AdminBankSettings = () => {
               <div>
                 <label className="block text-gray-400 text-sm mb-2">Payment Type</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {['Bank Transfer', 'UPI', 'QR Code'].map((type) => (
+                  {['Bank Transfer', 'UPI', 'QR Code', 'Cash', 'USDT'].map((type) => (
                     <button
                       key={type}
                       onClick={() => setForm({ ...form, type })}
                       className={`p-3 rounded-lg border text-sm ${
-                        form.type === type 
-                          ? 'border-blue-500 bg-blue-500/20 text-blue-500' 
+                        form.type === type
+                          ? 'border-blue-500 bg-blue-500/20 text-blue-500'
                           : 'border-gray-700 text-gray-400 hover:border-gray-600'
                       }`}
                     >
@@ -1075,6 +1266,66 @@ const AdminBankSettings = () => {
                     )}
                   </div>
                 </div>
+              )}
+
+              {/* Cash Fields */}
+              {form.type === 'Cash' && (
+                <>
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">Pickup Location</label>
+                    <input type="text" value={form.cashPickupLocation} onChange={(e) => setForm({ ...form, cashPickupLocation: e.target.value })} placeholder="e.g., 123 Main St, City" className="w-full px-3 py-2 bg-dark-700 border border-gray-700 rounded-lg text-white" />
+                  </div>
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">Drop Location</label>
+                    <input type="text" value={form.cashDropLocation} onChange={(e) => setForm({ ...form, cashDropLocation: e.target.value })} placeholder="e.g., 456 Market Rd, City" className="w-full px-3 py-2 bg-dark-700 border border-gray-700 rounded-lg text-white" />
+                  </div>
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">Instructions for Users</label>
+                    <textarea value={form.cashInstructions} onChange={(e) => setForm({ ...form, cashInstructions: e.target.value })} placeholder="Any special instructions for cash transactions..." rows={3} className="w-full px-3 py-2 bg-dark-700 border border-gray-700 rounded-lg text-white resize-none" />
+                  </div>
+                </>
+              )}
+
+              {/* USDT Fields */}
+              {form.type === 'USDT' && (
+                <>
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">Network</label>
+                    <select value={form.usdtNetwork} onChange={(e) => setForm({ ...form, usdtNetwork: e.target.value })} className="w-full px-3 py-2 bg-dark-700 border border-gray-700 rounded-lg text-white">
+                      <option value="TRC20">TRC20 (Tron)</option>
+                      <option value="ERC20">ERC20 (Ethereum)</option>
+                      <option value="BEP20">BEP20 (BSC)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">USDT Wallet Address</label>
+                    <input type="text" value={form.usdtWalletAddress} onChange={(e) => setForm({ ...form, usdtWalletAddress: e.target.value })} placeholder="Enter USDT wallet address" className="w-full px-3 py-2 bg-dark-700 border border-gray-700 rounded-lg text-white font-mono text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-2">Wallet QR Code</label>
+                    <div className="border-2 border-dashed border-gray-700 rounded-lg p-6 text-center">
+                      {form.usdtWalletQr ? (
+                        <div className="space-y-3">
+                          <img src={form.usdtWalletQr} alt="USDT QR Preview" className="w-32 h-32 mx-auto rounded-lg" />
+                          <button onClick={() => setForm({ ...form, usdtWalletQr: '' })} className="text-red-500 text-sm">Remove Image</button>
+                        </div>
+                      ) : (
+                        <label className="cursor-pointer">
+                          <Upload size={32} className="mx-auto text-gray-500 mb-2" />
+                          <p className="text-gray-400 text-sm">Click to upload wallet QR</p>
+                          <input type="file" accept="image/*" onChange={(e) => {
+                            const file = e.target.files[0]
+                            if (file) {
+                              const reader = new FileReader()
+                              reader.onloadend = () => setForm({ ...form, usdtWalletQr: reader.result })
+                              reader.readAsDataURL(file)
+                            }
+                          }} className="hidden" />
+                        </label>
+                      )}
+                    </div>
+                  </div>
+                </>
               )}
 
               {/* Active Status */}

@@ -82,22 +82,16 @@ const AdminOverview = () => {
       icon: TrendingUp, 
       color: 'green'
     },
-    { 
-      title: 'Total Deposits', 
-      value: `$${stats.totalDeposits.toLocaleString()}`, 
-      icon: Wallet, 
+    {
+      title: 'Total Deposits',
+      value: `$${stats.totalDeposits.toLocaleString()}`,
+      icon: Wallet,
       color: 'purple'
     },
-    { 
-      title: 'Total Comissions', 
-      value: `$${stats.totalDeposits.toLocaleString()}`, 
-      icon: Wallet, 
-      color: 'purple'
-    },
-    { 
-      title: 'Total Withdrawals', 
-      value: `$${stats.totalWithdrawals.toLocaleString()}`, 
-      icon: CreditCard, 
+    {
+      title: 'Total Withdrawals',
+      value: `$${stats.totalWithdrawals.toLocaleString()}`,
+      icon: CreditCard,
       color: 'orange'
     },
   ]

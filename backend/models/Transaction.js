@@ -22,7 +22,7 @@ const transactionSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['Bank Transfer', 'UPI', 'QR Code', 'Internal', 'System', 'Wallet'],
+    enum: ['Bank Transfer', 'UPI', 'QR Code', 'Cash', 'USDT', 'Internal', 'System', 'Wallet'],
     default: 'Internal'
   },
   description: {
@@ -74,12 +74,26 @@ const transactionSchema = new mongoose.Schema({
   bankAccountDetails: {
     type: {
       type: String,
-      enum: ['Bank', 'UPI']
+      enum: ['Bank', 'UPI', 'Cash', 'USDT']
     },
     bankName: String,
     accountNumber: String,
     ifscCode: String,
-    upiId: String
+    upiId: String,
+    // Cash fields
+    cashFullName: String,
+    cashContactNumber: String,
+    cashLocationType: String,
+    cashLocation: String,
+    verificationQuestion: String,
+    verificationAnswer: String,
+    idDocumentType: String,
+    idDocumentImage: String,
+    // USDT fields
+    usdtWalletAddress: String,
+    usdtWalletQr: String,
+    usdtNetwork: String,
+    usdtCurrencyPair: String
   },
   status: {
     type: String,

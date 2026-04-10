@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import AdminLayout from '../components/AdminLayout'
 import ReportDownload from '../components/ReportDownload'
-import { 
+import {
   Wallet,
   ArrowUpRight,
   ArrowDownRight,
@@ -15,7 +15,8 @@ import {
   Building2,
   Smartphone,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  TrendingUp
 } from 'lucide-react'
 import { API_URL, API_BASE_URL } from '../config/api'
 
@@ -29,11 +30,30 @@ const AdminFundManagement = () => {
   const [userDetails, setUserDetails] = useState(null)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
+  const [earnings, setEarnings] = useState({ commission: 0, swap: 0, volume: 0 })
   const itemsPerPage = 20
 
   useEffect(() => {
     fetchTransactions()
+    fetchEarnings()
   }, [filterType])
+
+  const fetchEarnings = async () => {
+    try {
+      const res = await fetch(`${API_URL}/earnings/summary`)
+      const data = await res.json()
+      if (data.success) {
+        const allTime = data.earnings?.allTime || {}
+        setEarnings({
+          commission: allTime.commission || 0,
+          swap: allTime.swap || 0,
+          volume: allTime.volume || 0
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching earnings:', error)
+    }
+  }
 
   const fetchTransactions = async () => {
     setLoading(true)
@@ -210,6 +230,31 @@ const AdminFundManagement = () => {
             <p className="text-gray-500 text-sm">Net Balance</p>
           </div>
           <p className="text-white text-2xl font-bold">${stats.net.toLocaleString()}</p>
+        </div>
+      </div>
+
+      {/* Total Commission Card */}
+      <div className="bg-dark-800 rounded-xl p-5 border border-gray-800 mb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <TrendingUp size={20} className="text-green-500" />
+          <h2 className="text-white font-semibold text-lg">Total Commission</h2>
+          <span className="text-green-500 text-2xl font-bold ml-auto">
+            ${(earnings.commission + earnings.swap + earnings.volume).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-dark-700 rounded-lg p-4">
+            <p className="text-gray-500 text-sm mb-1">Commission Earnings</p>
+            <p className="text-white text-xl font-bold">${earnings.commission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          </div>
+          <div className="bg-dark-700 rounded-lg p-4">
+            <p className="text-gray-500 text-sm mb-1">Swap Earnings</p>
+            <p className="text-white text-xl font-bold">${earnings.swap.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          </div>
+          <div className="bg-dark-700 rounded-lg p-4">
+            <p className="text-gray-500 text-sm mb-1">Trading Volume (Lots)</p>
+            <p className="text-white text-xl font-bold">{earnings.volume.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          </div>
         </div>
       </div>
 
@@ -577,19 +622,94 @@ const AdminFundManagement = () => {
                 </div>
               </div>
 
-              {/* Bank/UPI Details (for withdrawals) */}
+              {/* Payment Details (for withdrawals) */}
               {selectedTxn.type?.toLowerCase() === 'withdrawal' && (
                 <div className="border-t border-gray-700 pt-4">
                   <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
                     {selectedTxn.bankAccountDetails?.type === 'UPI' ? (
                       <><Smartphone size={16} /> UPI Details</>
+                    ) : selectedTxn.bankAccountDetails?.type === 'Cash' ? (
+                      <><Wallet size={16} /> Cash Details</>
+                    ) : selectedTxn.bankAccountDetails?.type === 'USDT' ? (
+                      <><Wallet size={16} /> USDT Details</>
                     ) : (
                       <><Building2 size={16} /> Bank Details</>
                     )}
                   </h3>
-                  
-                  {/* Show bank details from transaction if available */}
-                  {selectedTxn.bankAccountDetails?.type === 'Bank' ? (
+
+                  {/* Cash Details */}
+                  {selectedTxn.bankAccountDetails?.type === 'Cash' ? (
+                    <div className="space-y-3">
+                      <div className="bg-dark-700 rounded-lg p-4 space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Full Name</span>
+                          <span className="text-white font-medium">{selectedTxn.bankAccountDetails.cashFullName || '-'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Contact Number</span>
+                          <span className="text-white">{selectedTxn.bankAccountDetails.cashContactNumber || '-'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">{selectedTxn.bankAccountDetails.cashLocationType === 'drop' ? 'Drop' : 'Pickup'} Location</span>
+                          <span className="text-white">{selectedTxn.bankAccountDetails.cashLocation || '-'}</span>
+                        </div>
+                      </div>
+                      <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 space-y-2 text-sm">
+                        <p className="text-blue-400 text-xs font-medium mb-2">Human Verification</p>
+                        <div>
+                          <span className="text-gray-400">Q: </span>
+                          <span className="text-white">{selectedTxn.bankAccountDetails.verificationQuestion || '-'}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-400">A: </span>
+                          <span className="text-green-400 font-medium">{selectedTxn.bankAccountDetails.verificationAnswer || '-'}</span>
+                        </div>
+                      </div>
+                      {selectedTxn.bankAccountDetails.idDocumentImage && (
+                        <div>
+                          <p className="text-gray-500 text-sm mb-2">ID Document ({selectedTxn.bankAccountDetails.idDocumentType === 'aadhaar' ? 'Aadhaar' : 'PAN Card'})</p>
+                          <img
+                            src={`${API_BASE_URL}${selectedTxn.bankAccountDetails.idDocumentImage}`}
+                            alt="ID Document"
+                            className="w-full max-h-48 object-contain rounded-lg bg-dark-700 cursor-pointer"
+                            onClick={() => window.open(`${API_BASE_URL}${selectedTxn.bankAccountDetails.idDocumentImage}`, '_blank')}
+                          />
+                          <p className="text-gray-500 text-xs mt-1">Click to view full image</p>
+                        </div>
+                      )}
+                    </div>
+
+                  ) : selectedTxn.bankAccountDetails?.type === 'USDT' ? (
+                    <div className="space-y-3">
+                      <div className="bg-dark-700 rounded-lg p-4 space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Network</span>
+                          <span className="text-orange-400 font-medium">{selectedTxn.bankAccountDetails.usdtNetwork || 'TRC20'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Currency Pair</span>
+                          <span className="text-white">{selectedTxn.bankAccountDetails.usdtCurrencyPair || '-'}</span>
+                        </div>
+                        <div>
+                          <p className="text-gray-500 mb-1">Wallet Address</p>
+                          <p className="text-orange-400 font-mono text-xs break-all">{selectedTxn.bankAccountDetails.usdtWalletAddress}</p>
+                        </div>
+                      </div>
+                      {selectedTxn.bankAccountDetails.usdtWalletQr && (
+                        <div>
+                          <p className="text-gray-500 text-sm mb-2">Wallet QR Code</p>
+                          <img
+                            src={`${API_BASE_URL}${selectedTxn.bankAccountDetails.usdtWalletQr}`}
+                            alt="Wallet QR"
+                            className="w-40 h-40 mx-auto object-contain rounded-lg bg-dark-700 cursor-pointer"
+                            onClick={() => window.open(`${API_BASE_URL}${selectedTxn.bankAccountDetails.usdtWalletQr}`, '_blank')}
+                          />
+                          <p className="text-gray-500 text-xs text-center mt-1">Click to view full image</p>
+                        </div>
+                      )}
+                    </div>
+
+                  ) : selectedTxn.bankAccountDetails?.type === 'Bank' ? (
                     <div className="bg-dark-700 rounded-lg p-4 space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-gray-500">Bank Name</span>

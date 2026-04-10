@@ -26,9 +26,11 @@ import {
   Shield, 
   Save, 
   X, 
-  Building2, 
-  Smartphone, 
-  CreditCard, 
+  Building2,
+  Smartphone,
+  CreditCard,
+  Banknote,
+  Bitcoin,
   Trophy,
   LogOut,
   CheckCircle, 
@@ -72,9 +74,24 @@ const ProfilePage = () => {
     accountHolderName: '',
     ifscCode: '',
     branchName: '',
-    upiId: ''
+    upiId: '',
+    // Cash fields
+    cashFullName: '',
+    cashContactNumber: '',
+    cashLocationType: 'pickup', // 'pickup' or 'drop'
+    cashLocation: '',
+    verificationQuestion: '',
+    verificationAnswer: '',
+    idDocumentType: 'aadhaar',
+    idDocumentImage: '',
+    // USDT fields
+    usdtWalletAddress: '',
+    usdtWalletQr: '',
+    usdtNetwork: 'TRC20',
+    usdtCurrencyPair: 'INR/USDT'
   })
   const [bankLoading, setBankLoading] = useState(false)
+  const [docUploading, setDocUploading] = useState(false)
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768)
@@ -99,6 +116,29 @@ const ProfilePage = () => {
     }
   }
 
+  // Upload document (Aadhaar/PAN/wallet QR)
+  const handleDocUpload = async (file, fieldName) => {
+    setDocUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('document', file)
+      const res = await fetch(`${API_URL}/upload/document`, {
+        method: 'POST',
+        body: formData
+      })
+      const data = await res.json()
+      if (data.success) {
+        setBankForm(prev => ({ ...prev, [fieldName]: data.url }))
+      } else {
+        alert('Upload failed')
+      }
+    } catch (error) {
+      console.error('Upload error:', error)
+      alert('Upload failed')
+    }
+    setDocUploading(false)
+  }
+
   // Submit bank account for approval
   const handleBankSubmit = async () => {
     if (bankFormType === 'Bank Transfer') {
@@ -106,9 +146,43 @@ const ProfilePage = () => {
         alert('Please fill all required bank details')
         return
       }
-    } else {
+    } else if (bankFormType === 'UPI') {
       if (!bankForm.upiId) {
         alert('Please enter UPI ID')
+        return
+      }
+    } else if (bankFormType === 'Cash') {
+      if (!bankForm.cashFullName) {
+        alert('Please enter your full name')
+        return
+      }
+      if (!bankForm.cashContactNumber) {
+        alert('Please enter your contact number')
+        return
+      }
+      if (!bankForm.cashLocation) {
+        alert('Please enter the pickup or drop address')
+        return
+      }
+      if (!bankForm.verificationQuestion || !bankForm.verificationAnswer) {
+        alert('Please select a verification question and enter your answer')
+        return
+      }
+      if (!bankForm.idDocumentImage) {
+        alert('Please upload your Aadhaar or PAN card')
+        return
+      }
+    } else if (bankFormType === 'USDT') {
+      if (!bankForm.usdtWalletAddress) {
+        alert('Please enter your USDT wallet address')
+        return
+      }
+      if (!bankForm.usdtWalletQr) {
+        alert('Please upload your wallet QR code')
+        return
+      }
+      if (!bankForm.usdtCurrencyPair) {
+        alert('Please select a currency pair')
         return
       }
     }
@@ -126,23 +200,24 @@ const ProfilePage = () => {
       })
       const data = await res.json()
       if (data.success) {
-        alert('Bank account submitted for approval!')
+        alert(bankFormType === 'Cash' ? 'Cash account submitted for approval!' :
+              bankFormType === 'USDT' ? 'USDT wallet submitted for approval!' :
+              'Bank account submitted for approval!')
         setShowBankForm(false)
         setBankForm({
-          bankName: '',
-          accountNumber: '',
-          accountHolderName: '',
-          ifscCode: '',
-          branchName: '',
-          upiId: ''
+          bankName: '', accountNumber: '', accountHolderName: '', ifscCode: '', branchName: '', upiId: '',
+          cashFullName: '', cashContactNumber: '', cashLocationType: 'pickup', cashLocation: '',
+          verificationQuestion: '', verificationAnswer: '',
+          idDocumentType: 'aadhaar', idDocumentImage: '',
+          usdtWalletAddress: '', usdtWalletQr: '', usdtNetwork: 'TRC20', usdtCurrencyPair: 'INR/USDT'
         })
         fetchUserBankAccounts()
       } else {
-        alert(data.message || 'Failed to submit bank account')
+        alert(data.message || 'Failed to submit')
       }
     } catch (error) {
-      console.error('Error submitting bank account:', error)
-      alert('Failed to submit bank account')
+      console.error('Error submitting:', error)
+      alert('Failed to submit')
     }
     setBankLoading(false)
   }
@@ -814,7 +889,7 @@ const ProfilePage = () => {
               </div>
 
               <p className="text-gray-500 text-sm mb-4">
-                Add bank accounts or UPI IDs for withdrawals. Accounts require admin approval before use.
+                Add bank accounts, UPI, Cash, or USDT for withdrawals. Accounts require admin approval before use.
               </p>
 
               {userBankAccounts.length === 0 ? (
@@ -829,13 +904,20 @@ const ProfilePage = () => {
                         <div className="flex items-center gap-3">
                           {acc.type === 'Bank Transfer' ? (
                             <Building2 size={20} className="text-blue-500" />
-                          ) : (
+                          ) : acc.type === 'UPI' ? (
                             <Smartphone size={20} className="text-purple-500" />
+                          ) : acc.type === 'Cash' ? (
+                            <Banknote size={20} className="text-green-500" />
+                          ) : (
+                            <Bitcoin size={20} className="text-orange-500" />
                           )}
                           <div>
                             <div className="flex items-center gap-2">
                               <span className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                                {acc.type === 'Bank Transfer' ? acc.bankName : 'UPI'}
+                                {acc.type === 'Bank Transfer' ? acc.bankName :
+                                 acc.type === 'UPI' ? 'UPI' :
+                                 acc.type === 'Cash' ? `Cash - ${acc.cashFullName || 'N/A'}` :
+                                 `USDT (${acc.usdtNetwork || 'TRC20'})`}
                               </span>
                               <span className={`px-2 py-0.5 rounded text-xs ${
                                 acc.status === 'Pending' ? 'bg-yellow-500/20 text-yellow-500' :
@@ -849,8 +931,14 @@ const ProfilePage = () => {
                               <p className="text-gray-500 text-sm">
                                 A/C: {acc.accountNumber} | IFSC: {acc.ifscCode}
                               </p>
-                            ) : (
+                            ) : acc.type === 'UPI' ? (
                               <p className="text-purple-400 text-sm font-mono">{acc.upiId}</p>
+                            ) : acc.type === 'Cash' ? (
+                              <p className="text-gray-500 text-sm">
+                                {acc.cashLocationType === 'drop' ? 'Drop' : 'Pickup'}: {acc.cashLocation || acc.cashPickupLocation || acc.cashDropLocation || '-'}
+                              </p>
+                            ) : (
+                              <p className="text-orange-400 text-sm font-mono truncate max-w-[250px]">{acc.usdtWalletAddress}</p>
                             )}
                             {acc.rejectionReason && (
                               <p className="text-red-400 text-xs mt-1">Reason: {acc.rejectionReason}</p>
@@ -905,9 +993,30 @@ const ProfilePage = () => {
                       >
                         <Smartphone size={18} /> UPI
                       </button>
+                      <button
+                        onClick={() => setBankFormType('Cash')}
+                        className={`p-3 rounded-lg border flex items-center justify-center gap-2 ${
+                          bankFormType === 'Cash'
+                            ? 'border-green-500 bg-green-500/20 text-green-500'
+                            : 'border-gray-700 text-gray-400'
+                        }`}
+                      >
+                        <Banknote size={18} /> Cash
+                      </button>
+                      <button
+                        onClick={() => setBankFormType('USDT')}
+                        className={`p-3 rounded-lg border flex items-center justify-center gap-2 ${
+                          bankFormType === 'USDT'
+                            ? 'border-orange-500 bg-orange-500/20 text-orange-500'
+                            : 'border-gray-700 text-gray-400'
+                        }`}
+                      >
+                        <Bitcoin size={18} /> USDT
+                      </button>
                     </div>
 
-                    {bankFormType === 'Bank Transfer' ? (
+                    {/* Bank Transfer Fields */}
+                    {bankFormType === 'Bank Transfer' && (
                       <>
                         <div>
                           <label className="text-gray-400 text-sm block mb-1">Bank Name *</label>
@@ -960,7 +1069,10 @@ const ProfilePage = () => {
                           />
                         </div>
                       </>
-                    ) : (
+                    )}
+
+                    {/* UPI Fields */}
+                    {bankFormType === 'UPI' && (
                       <div>
                         <label className="text-gray-400 text-sm block mb-1">UPI ID *</label>
                         <input
@@ -973,9 +1085,214 @@ const ProfilePage = () => {
                       </div>
                     )}
 
+                    {/* Cash Fields */}
+                    {bankFormType === 'Cash' && (
+                      <>
+                        <div>
+                          <label className="text-gray-400 text-sm block mb-1">Full Name *</label>
+                          <input
+                            type="text"
+                            value={bankForm.cashFullName}
+                            onChange={(e) => setBankForm({...bankForm, cashFullName: e.target.value})}
+                            placeholder="Enter your full name"
+                            className="w-full bg-dark-700 border border-gray-600 rounded-lg px-3 py-2 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-gray-400 text-sm block mb-1">Contact Number *</label>
+                          <input
+                            type="tel"
+                            value={bankForm.cashContactNumber}
+                            onChange={(e) => setBankForm({...bankForm, cashContactNumber: e.target.value})}
+                            placeholder="Enter your contact number"
+                            className="w-full bg-dark-700 border border-gray-600 rounded-lg px-3 py-2 text-white"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-gray-400 text-sm block mb-1">Address Type *</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setBankForm({...bankForm, cashLocationType: 'pickup'})}
+                              className={`p-2.5 rounded-lg border text-sm ${
+                                bankForm.cashLocationType === 'pickup'
+                                  ? 'border-green-500 bg-green-500/20 text-green-500'
+                                  : 'border-gray-700 text-gray-400'
+                              }`}
+                            >
+                              Pickup Address
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setBankForm({...bankForm, cashLocationType: 'drop'})}
+                              className={`p-2.5 rounded-lg border text-sm ${
+                                bankForm.cashLocationType === 'drop'
+                                  ? 'border-green-500 bg-green-500/20 text-green-500'
+                                  : 'border-gray-700 text-gray-400'
+                              }`}
+                            >
+                              Drop Address
+                            </button>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-gray-400 text-sm block mb-1">
+                            {bankForm.cashLocationType === 'drop' ? 'Drop' : 'Pickup'} Address *
+                          </label>
+                          <input
+                            type="text"
+                            value={bankForm.cashLocation}
+                            onChange={(e) => setBankForm({...bankForm, cashLocation: e.target.value})}
+                            placeholder={`Enter ${bankForm.cashLocationType === 'drop' ? 'drop' : 'pickup'} address`}
+                            className="w-full bg-dark-700 border border-gray-600 rounded-lg px-3 py-2 text-white"
+                          />
+                        </div>
+
+                        <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                          <p className="text-blue-400 text-xs font-medium">Human Verification (Required)</p>
+                        </div>
+                        <div>
+                          <label className="text-gray-400 text-sm block mb-1">Select a Verification Question *</label>
+                          <select
+                            value={bankForm.verificationQuestion}
+                            onChange={(e) => setBankForm({...bankForm, verificationQuestion: e.target.value})}
+                            className="w-full bg-dark-700 border border-gray-600 rounded-lg px-3 py-2 text-white"
+                          >
+                            <option value="">-- Select a question --</option>
+                            <option value="What is your mother's maiden name?">What is your mother's maiden name?</option>
+                            <option value="What is the name of your first school?">What is the name of your first school?</option>
+                            <option value="What city were you born in?">What city were you born in?</option>
+                            <option value="What is your pet's name?">What is your pet's name?</option>
+                            <option value="What is your favourite childhood nickname?">What is your favourite childhood nickname?</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-gray-400 text-sm block mb-1">Your Answer *</label>
+                          <input
+                            type="text"
+                            value={bankForm.verificationAnswer}
+                            onChange={(e) => setBankForm({...bankForm, verificationAnswer: e.target.value})}
+                            placeholder="Enter your answer"
+                            className="w-full bg-dark-700 border border-gray-600 rounded-lg px-3 py-2 text-white"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-gray-400 text-sm block mb-1">ID Document Type *</label>
+                          <select
+                            value={bankForm.idDocumentType}
+                            onChange={(e) => setBankForm({...bankForm, idDocumentType: e.target.value})}
+                            className="w-full bg-dark-700 border border-gray-600 rounded-lg px-3 py-2 text-white"
+                          >
+                            <option value="aadhaar">Aadhaar Card</option>
+                            <option value="pancard">PAN Card</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-gray-400 text-sm block mb-1">
+                            Upload {bankForm.idDocumentType === 'aadhaar' ? 'Aadhaar' : 'PAN'} Card *
+                          </label>
+                          {bankForm.idDocumentImage ? (
+                            <div className="relative">
+                              <img src={`${API_BASE_URL}${bankForm.idDocumentImage}`} alt="ID Document" className="w-full h-40 object-contain rounded-lg bg-dark-700 border border-gray-600" />
+                              <button
+                                onClick={() => setBankForm({...bankForm, idDocumentImage: ''})}
+                                className="absolute top-2 right-2 p-1 bg-red-500 rounded-full text-white"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ) : (
+                            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-gray-500">
+                              <Upload size={24} className="text-gray-500 mb-2" />
+                              <p className="text-gray-500 text-sm">{docUploading ? 'Uploading...' : 'Click to upload'}</p>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => e.target.files[0] && handleDocUpload(e.target.files[0], 'idDocumentImage')}
+                                className="hidden"
+                                disabled={docUploading}
+                              />
+                            </label>
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    {/* USDT Fields */}
+                    {bankFormType === 'USDT' && (
+                      <>
+                        <div>
+                          <label className="text-gray-400 text-sm block mb-1">Currency Pair *</label>
+                          <select
+                            value={bankForm.usdtCurrencyPair}
+                            onChange={(e) => setBankForm({...bankForm, usdtCurrencyPair: e.target.value})}
+                            className="w-full bg-dark-700 border border-gray-600 rounded-lg px-3 py-2 text-white"
+                          >
+                            <option value="INR/USDT">INR/USDT</option>
+                            <option value="USD/USDT">USD/USDT</option>
+                            <option value="EUR/USDT">EUR/USDT</option>
+                            <option value="GBP/USDT">GBP/USDT</option>
+                            <option value="AED/USDT">AED/USDT</option>
+                            <option value="BTC/USDT">BTC/USDT</option>
+                            <option value="ETH/USDT">ETH/USDT</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-gray-400 text-sm block mb-1">Network *</label>
+                          <select
+                            value={bankForm.usdtNetwork}
+                            onChange={(e) => setBankForm({...bankForm, usdtNetwork: e.target.value})}
+                            className="w-full bg-dark-700 border border-gray-600 rounded-lg px-3 py-2 text-white"
+                          >
+                            <option value="TRC20">TRC20 (Tron)</option>
+                            <option value="ERC20">ERC20 (Ethereum)</option>
+                            <option value="BEP20">BEP20 (BSC)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-gray-400 text-sm block mb-1">Wallet Address *</label>
+                          <input
+                            type="text"
+                            value={bankForm.usdtWalletAddress}
+                            onChange={(e) => setBankForm({...bankForm, usdtWalletAddress: e.target.value})}
+                            placeholder="Enter your USDT wallet address"
+                            className="w-full bg-dark-700 border border-gray-600 rounded-lg px-3 py-2 text-white font-mono text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-gray-400 text-sm block mb-1">Upload Wallet QR Code *</label>
+                          {bankForm.usdtWalletQr ? (
+                            <div className="relative">
+                              <img src={`${API_BASE_URL}${bankForm.usdtWalletQr}`} alt="Wallet QR" className="w-full h-40 object-contain rounded-lg bg-dark-700 border border-gray-600" />
+                              <button
+                                onClick={() => setBankForm({...bankForm, usdtWalletQr: ''})}
+                                className="absolute top-2 right-2 p-1 bg-red-500 rounded-full text-white"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ) : (
+                            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-gray-500">
+                              <Upload size={24} className="text-gray-500 mb-2" />
+                              <p className="text-gray-500 text-sm">{docUploading ? 'Uploading...' : 'Click to upload QR'}</p>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => e.target.files[0] && handleDocUpload(e.target.files[0], 'usdtWalletQr')}
+                                className="hidden"
+                                disabled={docUploading}
+                              />
+                            </label>
+                          )}
+                        </div>
+                      </>
+                    )}
+
                     <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
                       <p className="text-yellow-500 text-xs">
-                        ⚠️ Your account will be reviewed by admin before it can be used for withdrawals.
+                        Your account will be reviewed by admin before it can be used for withdrawals.
                       </p>
                     </div>
 

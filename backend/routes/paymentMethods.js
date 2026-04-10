@@ -28,7 +28,9 @@ router.get('/all', async (req, res) => {
 // POST /api/payment-methods - Create payment method (admin)
 router.post('/', async (req, res) => {
   try {
-    const { type, bankName, accountNumber, accountHolderName, ifscCode, upiId, qrCodeImage } = req.body
+    const { type, bankName, accountNumber, accountHolderName, ifscCode, upiId, qrCodeImage,
+            cashPickupLocation, cashDropLocation, cashInstructions,
+            usdtWalletAddress, usdtWalletQr, usdtNetwork } = req.body
     const paymentMethod = new PaymentMethod({
       type,
       bankName,
@@ -36,7 +38,13 @@ router.post('/', async (req, res) => {
       accountHolderName,
       ifscCode,
       upiId,
-      qrCodeImage
+      qrCodeImage,
+      cashPickupLocation,
+      cashDropLocation,
+      cashInstructions,
+      usdtWalletAddress,
+      usdtWalletQr,
+      usdtNetwork
     })
     await paymentMethod.save()
     res.status(201).json({ message: 'Payment method created', paymentMethod })
@@ -311,22 +319,28 @@ router.get('/user-banks/:userId/approved', async (req, res) => {
 // POST /api/payment-methods/user-banks - Submit bank account for approval
 router.post('/user-banks', async (req, res) => {
   try {
-    const { userId, type, bankName, accountNumber, accountHolderName, ifscCode, branchName, upiId } = req.body
+    const { userId, type, bankName, accountNumber, accountHolderName, ifscCode, branchName, upiId,
+            cashFullName, cashContactNumber, cashLocationType, cashLocation,
+            verificationQuestion, verificationAnswer,
+            idDocumentType, idDocumentImage,
+            usdtWalletAddress, usdtWalletQr, usdtNetwork, usdtCurrencyPair } = req.body
 
     if (!userId || !type) {
       return res.status(400).json({ message: 'User ID and type are required' })
     }
 
-    // Check for duplicate
-    const existing = await UserBankAccount.findOne({
-      userId,
-      type,
-      ...(type === 'Bank Transfer' ? { accountNumber } : { upiId }),
-      status: { $ne: 'Rejected' }
-    })
+    // Check for duplicate based on type
+    let duplicateQuery = { userId, type, status: { $ne: 'Rejected' } }
+    if (type === 'Bank Transfer') duplicateQuery.accountNumber = accountNumber
+    else if (type === 'UPI') duplicateQuery.upiId = upiId
+    else if (type === 'USDT') duplicateQuery.usdtWalletAddress = usdtWalletAddress
+    // Cash can have multiple submissions (different locations)
 
-    if (existing) {
-      return res.status(400).json({ message: 'This account is already submitted or approved' })
+    if (type !== 'Cash') {
+      const existing = await UserBankAccount.findOne(duplicateQuery)
+      if (existing) {
+        return res.status(400).json({ message: 'This account is already submitted or approved' })
+      }
     }
 
     const account = new UserBankAccount({
@@ -338,14 +352,28 @@ router.post('/user-banks', async (req, res) => {
       ifscCode,
       branchName,
       upiId,
+      cashFullName,
+      cashContactNumber,
+      cashLocationType,
+      cashLocation,
+      verificationQuestion,
+      verificationAnswer,
+      idDocumentType,
+      idDocumentImage,
+      usdtWalletAddress,
+      usdtWalletQr,
+      usdtNetwork,
+      usdtCurrencyPair,
       status: 'Pending'
     })
 
     await account.save()
-    res.status(201).json({ 
+    res.status(201).json({
       success: true,
-      message: 'Bank account submitted for approval',
-      account 
+      message: type === 'Cash' ? 'Cash withdrawal request submitted for approval' :
+               type === 'USDT' ? 'USDT wallet submitted for approval' :
+               'Bank account submitted for approval',
+      account
     })
   } catch (error) {
     res.status(500).json({ message: 'Error submitting bank account', error: error.message })

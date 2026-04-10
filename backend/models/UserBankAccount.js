@@ -8,7 +8,7 @@ const userBankAccountSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['Bank Transfer', 'UPI'],
+    enum: ['Bank Transfer', 'UPI', 'Cash', 'USDT'],
     required: true
   },
   // Bank Transfer fields
@@ -34,6 +34,69 @@ const userBankAccountSchema = new mongoose.Schema({
   },
   // UPI fields
   upiId: {
+    type: String,
+    default: ''
+  },
+  // Cash fields
+  cashFullName: {
+    type: String,
+    default: ''
+  },
+  cashContactNumber: {
+    type: String,
+    default: ''
+  },
+  cashLocationType: {
+    type: String,
+    enum: ['pickup', 'drop', ''],
+    default: ''
+  },
+  cashLocation: {
+    type: String,
+    default: ''
+  },
+  // Legacy fields (kept for backward compat)
+  cashPickupLocation: {
+    type: String,
+    default: ''
+  },
+  cashDropLocation: {
+    type: String,
+    default: ''
+  },
+  // Human verification
+  verificationQuestion: {
+    type: String,
+    default: ''
+  },
+  verificationAnswer: {
+    type: String,
+    default: ''
+  },
+  // ID document upload
+  idDocumentType: {
+    type: String,
+    enum: ['aadhaar', 'pancard', ''],
+    default: ''
+  },
+  idDocumentImage: {
+    type: String,
+    default: ''
+  },
+  // USDT fields
+  usdtWalletAddress: {
+    type: String,
+    default: ''
+  },
+  usdtWalletQr: {
+    type: String,
+    default: ''
+  },
+  usdtNetwork: {
+    type: String,
+    default: ''
+  },
+  usdtCurrencyPair: {
     type: String,
     default: ''
   },
