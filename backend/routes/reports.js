@@ -4,6 +4,7 @@ import PDFDocument from 'pdfkit'
 import User from '../models/User.js'
 import Transaction from '../models/Transaction.js'
 import Admin from '../models/Admin.js'
+import Trade from '../models/Trade.js'
 
 const router = express.Router()
 
@@ -329,6 +330,186 @@ router.get('/admins', async (req, res) => {
     res.end()
   } catch (error) {
     console.error('Admin report error:', error)
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
+// ===================== EARNINGS REPORT =====================
+router.get('/earnings', async (req, res) => {
+  try {
+    const { format = 'excel', period, view = 'daily' } = req.query
+    const dateFilter = getDateFilter(period)
+    const matchStage = { status: { $in: ['OPEN', 'CLOSED'] } }
+    if (dateFilter) matchStage.openedAt = dateFilter
+
+    const periodLabel = period === 'daily' ? 'Today' : period === 'weekly' ? 'Last 7 Days' : 'All Time'
+
+    if (view === 'users') {
+      // By User breakdown
+      const userEarnings = await Trade.aggregate([
+        { $match: matchStage },
+        {
+          $group: {
+            _id: '$userId',
+            commission: { $sum: '$commission' },
+            spread: { $sum: '$spread' },
+            swap: { $sum: '$swap' },
+            trades: { $sum: 1 },
+            volume: { $sum: '$quantity' }
+          }
+        },
+        { $lookup: { from: 'users', localField: '_id', foreignField: '_id', as: 'user' } },
+        { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+        { $sort: { commission: -1 } }
+      ])
+
+      const headers = ['User', 'Email', 'Commission', 'Swap', 'Total', 'Trades', 'Volume']
+      const mapRow = (e) => [
+        e.user?.firstName || e.user?.name || 'Unknown',
+        e.user?.email || '-',
+        `$${(e.commission || 0).toFixed(2)}`,
+        `$${(e.swap || 0).toFixed(2)}`,
+        `$${((e.commission || 0) + (e.swap || 0)).toFixed(2)}`,
+        e.trades,
+        (e.volume || 0).toFixed(2)
+      ]
+
+      if (format === 'pdf') {
+        return buildPDF(res, `Earnings by User (${periodLabel})`, headers, userEarnings.map(mapRow), `earnings_users_${period || 'all'}.pdf`)
+      }
+
+      const workbook = new ExcelJS.Workbook()
+      const sheet = workbook.addWorksheet('Earnings by User')
+      sheet.columns = [
+        { header: 'User', key: 'user', width: 20 },
+        { header: 'Email', key: 'email', width: 28 },
+        { header: 'Commission', key: 'commission', width: 16 },
+        { header: 'Swap', key: 'swap', width: 14 },
+        { header: 'Total', key: 'total', width: 16 },
+        { header: 'Trades', key: 'trades', width: 10 },
+        { header: 'Volume', key: 'volume', width: 14 }
+      ]
+      styleHeader(sheet)
+      userEarnings.forEach(e => {
+        const row = mapRow(e)
+        sheet.addRow({ user: row[0], email: row[1], commission: row[2], swap: row[3], total: row[4], trades: row[5], volume: row[6] })
+      })
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      res.setHeader('Content-Disposition', `attachment; filename="earnings_users_${period || 'all'}.xlsx"`)
+      await workbook.xlsx.write(res)
+      return res.end()
+    }
+
+    if (view === 'symbols') {
+      // By Symbol breakdown
+      const symbolEarnings = await Trade.aggregate([
+        { $match: matchStage },
+        {
+          $group: {
+            _id: '$symbol',
+            commission: { $sum: '$commission' },
+            spread: { $sum: '$spread' },
+            swap: { $sum: '$swap' },
+            trades: { $sum: 1 },
+            volume: { $sum: '$quantity' }
+          }
+        },
+        { $sort: { commission: -1 } }
+      ])
+
+      const headers = ['Symbol', 'Commission', 'Swap', 'Total', 'Trades', 'Volume']
+      const mapRow = (e) => [
+        e._id,
+        `$${(e.commission || 0).toFixed(2)}`,
+        `$${(e.swap || 0).toFixed(2)}`,
+        `$${((e.commission || 0) + (e.swap || 0)).toFixed(2)}`,
+        e.trades,
+        (e.volume || 0).toFixed(2)
+      ]
+
+      if (format === 'pdf') {
+        return buildPDF(res, `Earnings by Symbol (${periodLabel})`, headers, symbolEarnings.map(mapRow), `earnings_symbols_${period || 'all'}.pdf`)
+      }
+
+      const workbook = new ExcelJS.Workbook()
+      const sheet = workbook.addWorksheet('Earnings by Symbol')
+      sheet.columns = [
+        { header: 'Symbol', key: 'symbol', width: 18 },
+        { header: 'Commission', key: 'commission', width: 16 },
+        { header: 'Swap', key: 'swap', width: 14 },
+        { header: 'Total', key: 'total', width: 16 },
+        { header: 'Trades', key: 'trades', width: 10 },
+        { header: 'Volume', key: 'volume', width: 14 }
+      ]
+      styleHeader(sheet)
+      symbolEarnings.forEach(e => {
+        const row = mapRow(e)
+        sheet.addRow({ symbol: row[0], commission: row[1], swap: row[2], total: row[3], trades: row[4], volume: row[5] })
+      })
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      res.setHeader('Content-Disposition', `attachment; filename="earnings_symbols_${period || 'all'}.xlsx"`)
+      await workbook.xlsx.write(res)
+      return res.end()
+    }
+
+    // Default: Daily breakdown
+    const dailyEarnings = await Trade.aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$openedAt' },
+            month: { $month: '$openedAt' },
+            day: { $dayOfMonth: '$openedAt' }
+          },
+          commission: { $sum: '$commission' },
+          spread: { $sum: '$spread' },
+          swap: { $sum: '$swap' },
+          trades: { $sum: 1 },
+          volume: { $sum: '$quantity' }
+        }
+      },
+      { $sort: { '_id.year': -1, '_id.month': -1, '_id.day': -1 } }
+    ])
+
+    const headers = ['Date', 'Commission', 'Swap', 'Total', 'Trades', 'Volume']
+    const mapRow = (e) => [
+      `${e._id.year}-${String(e._id.month).padStart(2, '0')}-${String(e._id.day).padStart(2, '0')}`,
+      `$${(e.commission || 0).toFixed(2)}`,
+      `$${(e.swap || 0).toFixed(2)}`,
+      `$${((e.commission || 0) + (e.swap || 0)).toFixed(2)}`,
+      e.trades,
+      (e.volume || 0).toFixed(2)
+    ]
+
+    if (format === 'pdf') {
+      return buildPDF(res, `Daily Earnings Report (${periodLabel})`, headers, dailyEarnings.map(mapRow), `earnings_daily_${period || 'all'}.pdf`)
+    }
+
+    const workbook = new ExcelJS.Workbook()
+    const sheet = workbook.addWorksheet('Daily Earnings')
+    sheet.columns = [
+      { header: 'Date', key: 'date', width: 14 },
+      { header: 'Commission', key: 'commission', width: 16 },
+      { header: 'Swap', key: 'swap', width: 14 },
+      { header: 'Total', key: 'total', width: 16 },
+      { header: 'Trades', key: 'trades', width: 10 },
+      { header: 'Volume', key: 'volume', width: 14 }
+    ]
+    styleHeader(sheet)
+    dailyEarnings.forEach(e => {
+      const row = mapRow(e)
+      sheet.addRow({ date: row[0], commission: row[1], swap: row[2], total: row[3], trades: row[4], volume: row[5] })
+    })
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.setHeader('Content-Disposition', `attachment; filename="earnings_daily_${period || 'all'}.xlsx"`)
+    await workbook.xlsx.write(res)
+    res.end()
+  } catch (error) {
+    console.error('Earnings report error:', error)
     res.status(500).json({ success: false, message: error.message })
   }
 })

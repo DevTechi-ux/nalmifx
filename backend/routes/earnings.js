@@ -285,4 +285,45 @@ router.get('/by-symbol', async (req, res) => {
   }
 })
 
+// POST /api/earnings/reset - Reset earnings (zero out commission, swap, spread on trades)
+router.post('/reset', async (req, res) => {
+  try {
+    const { period } = req.body // 'today', 'week', 'month', 'year', 'all'
+
+    const now = new Date()
+    let dateFilter = {}
+
+    if (period === 'today') {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      dateFilter = { openedAt: { $gte: start } }
+    } else if (period === 'week') {
+      const start = new Date(now)
+      start.setDate(start.getDate() - 7)
+      start.setHours(0, 0, 0, 0)
+      dateFilter = { openedAt: { $gte: start } }
+    } else if (period === 'month') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1)
+      dateFilter = { openedAt: { $gte: start } }
+    } else if (period === 'year') {
+      const start = new Date(now.getFullYear(), 0, 1)
+      dateFilter = { openedAt: { $gte: start } }
+    }
+    // 'all' = no date filter
+
+    const result = await Trade.updateMany(
+      { ...dateFilter, status: { $in: ['OPEN', 'CLOSED'] } },
+      { $set: { commission: 0, swap: 0, spread: 0 } }
+    )
+
+    res.json({
+      success: true,
+      message: `Earnings reset successfully for ${period || 'all'} trades`,
+      modifiedCount: result.modifiedCount
+    })
+  } catch (error) {
+    console.error('Error resetting earnings:', error)
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
 export default router

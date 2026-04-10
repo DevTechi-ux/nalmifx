@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import AdminLayout from '../components/AdminLayout'
-import { 
+import ReportDownload from '../components/ReportDownload'
+import {
   DollarSign,
   TrendingUp,
   Calendar,
@@ -8,7 +9,9 @@ import {
   BarChart3,
   RefreshCw,
   ChevronDown,
-  Download
+  Download,
+  RotateCcw,
+  AlertTriangle
 } from 'lucide-react'
 import { API_URL } from '../config/api'
 
@@ -20,6 +23,9 @@ const AdminEarnings = () => {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('overview')
   const [dateRange, setDateRange] = useState('30')
+  const [showResetModal, setShowResetModal] = useState(false)
+  const [resetPeriod, setResetPeriod] = useState('all')
+  const [resetting, setResetting] = useState(false)
 
   useEffect(() => {
     fetchAllData()
@@ -84,6 +90,25 @@ const AdminEarnings = () => {
     }
   }
 
+  const handleReset = async () => {
+    setResetting(true)
+    try {
+      const res = await fetch(`${API_URL}/earnings/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ period: resetPeriod })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setShowResetModal(false)
+        fetchAllData()
+      }
+    } catch (error) {
+      console.error('Error resetting earnings:', error)
+    }
+    setResetting(false)
+  }
+
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -124,14 +149,77 @@ const AdminEarnings = () => {
             <option value="90">Last 90 Days</option>
             <option value="365">Last Year</option>
           </select>
-          <button 
+          <button
             onClick={fetchAllData}
             className="p-2 bg-dark-800 hover:bg-dark-700 rounded-lg text-gray-400"
           >
             <RefreshCw size={18} />
           </button>
         </div>
+        <div className="flex items-center gap-2">
+          <ReportDownload
+            endpoint="earnings"
+            label="Export Earnings"
+            extraParams={{ view: activeTab === 'users' ? 'users' : activeTab === 'symbols' ? 'symbols' : 'daily' }}
+          />
+          <button
+            onClick={() => setShowResetModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors text-sm"
+          >
+            <RotateCcw size={16} />
+            Reset Earnings
+          </button>
+        </div>
       </div>
+
+      {/* Reset Confirmation Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-dark-800 border border-gray-700 rounded-xl p-6 w-full max-w-md mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
+                <AlertTriangle size={20} className="text-red-500" />
+              </div>
+              <div>
+                <h3 className="text-white font-semibold text-lg">Reset Earnings</h3>
+                <p className="text-gray-400 text-sm">This action cannot be undone</p>
+              </div>
+            </div>
+            <p className="text-gray-300 text-sm mb-4">
+              This will reset all commission, swap, and spread values to zero for the selected period. The trades themselves will not be deleted.
+            </p>
+            <div className="mb-5">
+              <label className="text-gray-400 text-sm mb-2 block">Select Period</label>
+              <select
+                value={resetPeriod}
+                onChange={(e) => setResetPeriod(e.target.value)}
+                className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm"
+              >
+                <option value="today">Today</option>
+                <option value="week">Last 7 Days</option>
+                <option value="month">This Month</option>
+                <option value="year">This Year</option>
+                <option value="all">All Time</option>
+              </select>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowResetModal(false)}
+                className="flex-1 px-4 py-2 bg-dark-700 border border-gray-600 text-gray-300 rounded-lg hover:bg-dark-600 transition-colors text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReset}
+                disabled={resetting}
+                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm disabled:opacity-50"
+              >
+                {resetting ? 'Resetting...' : 'Confirm Reset'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center h-64">

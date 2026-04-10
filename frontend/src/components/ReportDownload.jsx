@@ -1,16 +1,28 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Download, FileSpreadsheet, FileText, ChevronDown } from 'lucide-react'
 import { API_URL } from '../config/api'
 
-const ReportDownload = ({ endpoint, label = 'Download Report' }) => {
+const ReportDownload = ({ endpoint, label = 'Download Report', extraParams = {} }) => {
   const [open, setOpen] = useState(false)
   const [downloading, setDownloading] = useState(false)
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 })
+  const btnRef = useRef(null)
+
+  useEffect(() => {
+    if (open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setDropdownPos({
+        top: rect.bottom + 8,
+        left: Math.max(8, rect.right - 224) // 224 = w-56 (14rem)
+      })
+    }
+  }, [open])
 
   const handleDownload = async (format, period) => {
     setDownloading(true)
     setOpen(false)
     try {
-      const params = new URLSearchParams({ format, ...(period && { period }) })
+      const params = new URLSearchParams({ format, ...(period && { period }), ...extraParams })
       const res = await fetch(`${API_URL}/reports/${endpoint}?${params}`)
       if (!res.ok) throw new Error('Download failed')
 
@@ -40,6 +52,7 @@ const ReportDownload = ({ endpoint, label = 'Download Report' }) => {
   return (
     <div className="relative">
       <button
+        ref={btnRef}
         onClick={() => setOpen(!open)}
         disabled={downloading}
         className="flex items-center gap-2 px-4 py-2 bg-dark-700 border border-gray-700 text-white rounded-lg hover:bg-dark-600 transition-colors text-sm disabled:opacity-50"
@@ -52,7 +65,10 @@ const ReportDownload = ({ endpoint, label = 'Download Report' }) => {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-2 z-50 bg-dark-700 border border-gray-700 rounded-lg shadow-xl w-56 overflow-hidden">
+          <div
+            className="fixed z-50 bg-dark-700 border border-gray-700 rounded-lg shadow-xl w-56"
+            style={{ top: dropdownPos.top, left: dropdownPos.left }}
+          >
             {periods.map((p) => (
               <div key={p.key || 'all'}>
                 <div className="px-3 py-2 text-xs text-gray-500 font-semibold uppercase bg-dark-800">
