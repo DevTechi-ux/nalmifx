@@ -36,7 +36,7 @@ const AdminLayout = ({ children, title, subtitle }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [expandedSections, setExpandedSections] = useState({})
   const [pendingCounts, setPendingCounts] = useState({
-    funds: 0, kyc: 0, ib: 0, copyTrade: 0, support: 0
+    funds: 0, kyc: 0, ib: 0, copyTrade: 0, support: 0, bankRequests: 0
   })
 
   const fetchPendingCounts = useCallback(async () => {
@@ -65,7 +65,7 @@ const AdminLayout = ({ children, title, subtitle }) => {
     { name: 'User Management', icon: Users, path: '/admin/users' },
     { name: 'Trade Management', icon: TrendingUp, path: '/admin/trades' },
     { name: 'Fund Management', icon: Wallet, path: '/admin/funds', badge: pendingCounts.funds },
-    { name: 'Bank Settings', icon: Building2, path: '/admin/bank-settings' },
+    { name: 'Bank Settings', icon: Building2, path: '/admin/bank-settings', badge: pendingCounts.bankRequests },
     { name: 'IB Management', icon: UserCog, path: '/admin/ib-management', badge: pendingCounts.ib },
     { name: 'Forex Charges', icon: DollarSign, path: '/admin/forex-charges' },
     { name: 'Earnings Report', icon: TrendingUp, path: '/admin/earnings' },

@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { X, Mail, Lock, Eye, EyeOff } from 'lucide-react'
 import { API_URL } from '../config/api'
 
 const AdminLogin = () => {
   const navigate = useNavigate()
+  const { slug } = useParams()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -32,6 +33,12 @@ const AdminLogin = () => {
       const data = await res.json()
       
       if (data.success && data.token) {
+        // Branded admin URL: only allow this admin in if their slug matches.
+        if (slug && data.admin?.role !== 'SUPER_ADMIN' && data.admin?.urlSlug !== slug) {
+          setError('These credentials do not belong to this branch')
+          setLoading(false)
+          return
+        }
         localStorage.setItem('adminToken', data.token)
         localStorage.setItem('adminUser', JSON.stringify(data.admin))
         navigate('/admin/dashboard')

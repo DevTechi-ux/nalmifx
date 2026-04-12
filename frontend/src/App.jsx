@@ -100,6 +100,7 @@ function App() {
         <Route path="/data-deletion" element={<DataDeletion />} />
         <Route path="/:slug/login" element={<BrandedLogin />} />
         <Route path="/:slug/signup" element={<BrandedSignup />} />
+        <Route path="/:slug/admin" element={<AdminLogin />} />
       </Routes>
     </Router>
   )

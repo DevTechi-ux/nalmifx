@@ -6,6 +6,7 @@ import Trade from '../models/Trade.js'
 import KYC from '../models/KYC.js'
 import MasterTrader from '../models/MasterTrader.js'
 import SupportTicket from '../models/SupportTicket.js'
+import UserBankAccount from '../models/UserBankAccount.js'
 import { sendTemplateEmail } from '../services/emailService.js'
 import EmailSettings from '../models/EmailSettings.js'
 
@@ -14,13 +15,14 @@ const router = express.Router()
 // GET /api/admin/pending-counts - Get pending item counts for sidebar badges
 router.get('/pending-counts', async (req, res) => {
   try {
-    const [pendingDeposits, pendingWithdrawals, pendingKYC, pendingIB, pendingMasters, openTickets] = await Promise.all([
+    const [pendingDeposits, pendingWithdrawals, pendingKYC, pendingIB, pendingMasters, openTickets, pendingBankRequests] = await Promise.all([
       Transaction.countDocuments({ type: 'Deposit', status: 'Pending' }),
       Transaction.countDocuments({ type: 'Withdrawal', status: 'Pending' }),
       KYC.countDocuments({ status: 'pending' }),
       User.countDocuments({ isIB: true, ibStatus: 'PENDING' }),
       MasterTrader.countDocuments({ status: 'PENDING' }),
-      SupportTicket.countDocuments({ status: { $in: ['OPEN', 'IN_PROGRESS'] } })
+      SupportTicket.countDocuments({ status: { $in: ['OPEN', 'IN_PROGRESS'] } }),
+      UserBankAccount.countDocuments({ status: 'Pending' })
     ])
 
     res.json({
@@ -32,7 +34,8 @@ router.get('/pending-counts', async (req, res) => {
         kyc: pendingKYC,
         ib: pendingIB,
         copyTrade: pendingMasters,
-        support: openTickets
+        support: openTickets,
+        bankRequests: pendingBankRequests
       }
     })
   } catch (error) {
