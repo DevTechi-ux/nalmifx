@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import AdminLayout from '../components/AdminLayout'
 import ReportDownload from '../components/ReportDownload'
+import SettlementPanel from '../components/SettlementPanel'
 import {
   DollarSign,
   TrendingUp,
@@ -11,7 +12,8 @@ import {
   ChevronDown,
   Download,
   RotateCcw,
-  AlertTriangle
+  AlertTriangle,
+  Handshake
 } from 'lucide-react'
 import { API_URL } from '../config/api'
 
@@ -26,9 +28,21 @@ const AdminEarnings = () => {
   const [showResetModal, setShowResetModal] = useState(false)
   const [resetPeriod, setResetPeriod] = useState('all')
   const [resetting, setResetting] = useState(false)
+  const [totalSettled, setTotalSettled] = useState(0)
+
+  const fetchSettledTotal = async () => {
+    try {
+      const res = await fetch(`${API_URL}/settlements?source=earnings&limit=500`)
+      const data = await res.json()
+      if (data.success) {
+        setTotalSettled(data.settlements.reduce((sum, s) => sum + (s.amount || 0), 0))
+      }
+    } catch (error) {}
+  }
 
   useEffect(() => {
     fetchAllData()
+    fetchSettledTotal()
   }, [dateRange])
 
   const fetchAllData = async () => {
@@ -257,10 +271,10 @@ const AdminEarnings = () => {
               icon={BarChart3}
               color="text-orange-500"
             />
-            <StatCard 
-              title="All Time" 
-              value={summary?.allTime?.total} 
-              subtitle={`${summary?.allTime?.trades || 0} trades`}
+            <StatCard
+              title="All Time"
+              value={(summary?.allTime?.total || 0) - totalSettled}
+              subtitle={`${summary?.allTime?.trades || 0} trades${totalSettled > 0 ? ` | Settled: $${totalSettled.toFixed(2)}` : ''}`}
               icon={DollarSign}
               color="text-green-500"
             />
@@ -358,7 +372,16 @@ const AdminEarnings = () => {
             >
               By Symbol
             </button>
+            <button
+              onClick={() => setActiveTab('settlements')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm ${activeTab === 'settlements' ? 'bg-blue-500 text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              <Handshake size={16} />
+              Settlements
+            </button>
           </div>
+
+          {activeTab === 'settlements' && <SettlementPanel source="earnings" maxAmount={summary?.allTime?.total || 0} onTotalSettledChange={setTotalSettled} />}
 
           {/* Daily Breakdown Table */}
           {activeTab === 'daily' && (

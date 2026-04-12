@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import AdminLayout from '../components/AdminLayout'
 import ReportDownload from '../components/ReportDownload'
+import SettlementPanel from '../components/SettlementPanel'
 import { API_URL } from '../config/api'
 import { 
   UserCog,
@@ -22,12 +23,14 @@ import {
   Award,
   Trophy,
   Crown,
-  Target
+  Target,
+  Handshake
 } from 'lucide-react'
 
 const AdminIBManagement = () => {
   const [searchTerm, setSearchTerm] = useState('')
-  const [activeTab, setActiveTab] = useState('ibs') // ibs, applications, plans, settings, transfer
+  const [activeTab, setActiveTab] = useState('ibs') // ibs, applications, plans, settings, transfer, settlements
+  const [totalSettled, setTotalSettled] = useState(0)
   const [ibs, setIbs] = useState([])
   const [applications, setApplications] = useState([])
   const [plans, setPlans] = useState([])
@@ -57,6 +60,16 @@ const AdminIBManagement = () => {
   const [ibPlan, setIbPlan] = useState('')
   const [savingIB, setSavingIB] = useState(false)
 
+  const fetchSettledTotal = async () => {
+    try {
+      const res = await fetch(`${API_URL}/settlements?source=ib_management&limit=500`)
+      const data = await res.json()
+      if (data.success) {
+        setTotalSettled(data.settlements.reduce((sum, s) => sum + (s.amount || 0), 0))
+      }
+    } catch (error) {}
+  }
+
   useEffect(() => {
     fetchDashboard()
     fetchIBs()
@@ -65,6 +78,7 @@ const AdminIBManagement = () => {
     fetchSettings()
     fetchAllUsers()
     fetchIBLevels()
+    fetchSettledTotal()
 
     // Auto-refresh every 10 seconds
     const refreshInterval = setInterval(() => {
@@ -461,8 +475,9 @@ const AdminIBManagement = () => {
             <DollarSign size={18} className="text-purple-500" />
             <p className="text-gray-500 text-sm">Total Commissions</p>
           </div>
-          <p className="text-white text-2xl font-bold">${(dashboard?.commissions?.total?.totalCommission || 0).toFixed(2)}</p>
+          <p className="text-white text-2xl font-bold">${((dashboard?.commissions?.total?.totalCommission || 0) - totalSettled).toFixed(2)}</p>
           <p className="text-green-500 text-xs mt-1">Today: ${(dashboard?.commissions?.today?.totalCommission || 0).toFixed(2)}</p>
+          {totalSettled > 0 && <p className="text-gray-500 text-xs">Settled: ${totalSettled.toFixed(2)}</p>}
         </div>
         <div className="bg-dark-800 rounded-xl p-5 border border-gray-800">
           <div className="flex items-center gap-2 mb-2">
@@ -481,6 +496,7 @@ const AdminIBManagement = () => {
           { id: 'applications', label: 'Applications', count: applications.length },
           { id: 'levels', label: 'IB Levels', count: ibLevels.length, icon: Award },
           { id: 'transfer', label: 'Referral Transfer', icon: ArrowRightLeft },
+          { id: 'settlements', label: 'Settlements', icon: Handshake },
           { id: 'settings', label: 'Settings' }
         ].map(tab => (
           <button
@@ -1075,6 +1091,8 @@ const AdminIBManagement = () => {
           onClose={() => { setShowPlanModal(false); setEditingPlan(null); }}
         />
       )}
+
+      {activeTab === 'settlements' && <SettlementPanel source="ib_management" maxAmount={dashboard?.commissions?.total?.totalCommission || 0} onTotalSettledChange={setTotalSettled} />}
 
       {/* Level Modal */}
       {showLevelModal && (

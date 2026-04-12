@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import AdminLayout from '../components/AdminLayout'
 import ReportDownload from '../components/ReportDownload'
+import SettlementPanel from '../components/SettlementPanel'
 import {
   Wallet,
   ArrowUpRight,
@@ -16,11 +17,13 @@ import {
   Smartphone,
   ChevronLeft,
   ChevronRight,
-  TrendingUp
+  TrendingUp,
+  Handshake
 } from 'lucide-react'
 import { API_URL, API_BASE_URL } from '../config/api'
 
 const AdminFundManagement = () => {
+  const [activeTab, setActiveTab] = useState('transactions')
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState('all')
   const [transactions, setTransactions] = useState([])
@@ -31,12 +34,24 @@ const AdminFundManagement = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [earnings, setEarnings] = useState({ commission: 0, swap: 0, volume: 0 })
+  const [totalSettled, setTotalSettled] = useState(0)
   const itemsPerPage = 20
 
   useEffect(() => {
     fetchTransactions()
     fetchEarnings()
+    fetchSettledTotal()
   }, [filterType])
+
+  const fetchSettledTotal = async () => {
+    try {
+      const res = await fetch(`${API_URL}/settlements?source=fund_management&limit=500`)
+      const data = await res.json()
+      if (data.success) {
+        setTotalSettled(data.settlements.reduce((sum, s) => sum + (s.amount || 0), 0))
+      }
+    } catch (error) {}
+  }
 
   const fetchEarnings = async () => {
     try {
@@ -229,10 +244,31 @@ const AdminFundManagement = () => {
             <Wallet size={18} className="text-purple-500" />
             <p className="text-gray-500 text-sm">Net Balance</p>
           </div>
-          <p className="text-white text-2xl font-bold">${stats.net.toLocaleString()}</p>
+          <p className="text-white text-2xl font-bold">${(stats.net - totalSettled).toLocaleString()}</p>
+          {totalSettled > 0 && <p className="text-gray-500 text-xs mt-1">Settled: ${totalSettled.toLocaleString()}</p>}
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6 border-b border-gray-800 pb-2">
+        <button
+          onClick={() => setActiveTab('transactions')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'transactions' ? 'bg-red-500 text-white' : 'text-gray-400 hover:text-white'}`}
+        >
+          Transactions
+        </button>
+        <button
+          onClick={() => setActiveTab('settlements')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'settlements' ? 'bg-red-500 text-white' : 'text-gray-400 hover:text-white'}`}
+        >
+          <Handshake size={16} />
+          Settlements
+        </button>
+      </div>
+
+      {activeTab === 'settlements' && <SettlementPanel source="fund_management" maxAmount={stats.net} onTotalSettledChange={setTotalSettled} />}
+
+      {activeTab === 'transactions' && <>
       {/* Total Commission Card */}
       <div className="bg-dark-800 rounded-xl p-5 border border-gray-800 mb-6">
         <div className="flex items-center gap-2 mb-4">
@@ -516,6 +552,8 @@ const AdminFundManagement = () => {
           </div>
         )}
       </div>
+
+      </>}
 
       {/* Transaction Details Modal */}
       {showDetailsModal && selectedTxn && (

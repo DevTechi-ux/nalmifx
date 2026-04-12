@@ -37,6 +37,7 @@ const AdminDashboard = () => {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [settlementSummary, setSettlementSummary] = useState(null)
 
   // Debug sidebar state
   console.log('Sidebar expanded:', sidebarExpanded)
@@ -80,7 +81,17 @@ console.log('Menu items:', menuItems)
       }
       setLoading(false)
     }
+    const fetchSettlementSummary = async () => {
+      try {
+        const res = await fetch(`${API_URL}/settlements/summary`)
+        const data = await res.json()
+        if (data.success) setSettlementSummary(data.summary)
+      } catch (error) {
+        console.error('Error fetching settlement summary:', error)
+      }
+    }
     fetchUsers()
+    fetchSettlementSummary()
   }, [])
 
   const handleLogout = () => {
@@ -241,6 +252,35 @@ console.log('Menu items:', menuItems)
                   <p className="text-white text-2xl font-bold">0</p>
                 </div>
               </div>
+
+              {/* Settlement Overview */}
+              {settlementSummary && (
+                <div className="bg-dark-800 rounded-xl p-5 border border-gray-800 mb-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-white font-semibold">Settlement Overview</h2>
+                    <span className="text-green-500 text-xl font-bold">
+                      ${(settlementSummary.overall?.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-dark-700 rounded-lg p-4">
+                      <p className="text-gray-500 text-sm mb-1">Fund Management</p>
+                      <p className="text-white text-lg font-bold">${(settlementSummary.fund_management?.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                      <p className="text-gray-500 text-xs">{settlementSummary.fund_management?.count || 0} settlements</p>
+                    </div>
+                    <div className="bg-dark-700 rounded-lg p-4">
+                      <p className="text-gray-500 text-sm mb-1">IB Management</p>
+                      <p className="text-white text-lg font-bold">${(settlementSummary.ib_management?.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                      <p className="text-gray-500 text-xs">{settlementSummary.ib_management?.count || 0} settlements</p>
+                    </div>
+                    <div className="bg-dark-700 rounded-lg p-4">
+                      <p className="text-gray-500 text-sm mb-1">Earnings</p>
+                      <p className="text-white text-lg font-bold">${(settlementSummary.earnings?.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                      <p className="text-gray-500 text-xs">{settlementSummary.earnings?.count || 0} settlements</p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Recent Users Preview */}
               <div className="bg-dark-800 rounded-xl p-5 border border-gray-800">
