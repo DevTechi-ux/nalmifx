@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
 import { 
   Palette, 
@@ -32,7 +33,7 @@ const AdminThemeSettings = () => {
   const fetchThemes = async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${API_URL}/theme/all`)
+      const res = await adminFetch(`${API_URL}/theme/all`)
       const data = await res.json()
       if (data.success) {
         setThemes(data.themes || [])
@@ -47,7 +48,7 @@ const AdminThemeSettings = () => {
 
   const fetchPresets = async () => {
     try {
-      const res = await fetch(`${API_URL}/theme/presets`)
+      const res = await adminFetch(`${API_URL}/theme/presets`)
       const data = await res.json()
       if (data.success) {
         setPresets(data.presets || [])
@@ -59,7 +60,7 @@ const AdminThemeSettings = () => {
 
   const applyPreset = async (presetName) => {
     try {
-      const res = await fetch(`${API_URL}/theme/apply-preset`, {
+      const res = await adminFetch(`${API_URL}/theme/apply-preset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ presetName })
@@ -78,7 +79,7 @@ const AdminThemeSettings = () => {
 
   const activateTheme = async (themeId) => {
     try {
-      const res = await fetch(`${API_URL}/theme/${themeId}/activate`, {
+      const res = await adminFetch(`${API_URL}/theme/${themeId}/activate`, {
         method: 'PUT'
       })
       const data = await res.json()
@@ -96,7 +97,7 @@ const AdminThemeSettings = () => {
   const deleteTheme = async (themeId) => {
     if (!confirm('Are you sure you want to delete this theme?')) return
     try {
-      const res = await fetch(`${API_URL}/theme/${themeId}`, {
+      const res = await adminFetch(`${API_URL}/theme/${themeId}`, {
         method: 'DELETE'
       })
       const data = await res.json()
@@ -117,7 +118,7 @@ const AdminThemeSettings = () => {
       return
     }
     try {
-      const res = await fetch(`${API_URL}/theme/create`, {
+      const res = await adminFetch(`${API_URL}/theme/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newThemeName, isActive: false })
@@ -144,7 +145,7 @@ const AdminThemeSettings = () => {
 
   const updateTheme = async () => {
     try {
-      const res = await fetch(`${API_URL}/theme/${selectedTheme._id}`, {
+      const res = await adminFetch(`${API_URL}/theme/${selectedTheme._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ colors: editColors })

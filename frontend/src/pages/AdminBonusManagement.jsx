@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
 import { Plus, Edit2, Trash2, Gift, DollarSign, Percent, Calendar, Users, TrendingUp, FileText, Eye, EyeOff } from 'lucide-react'
 import { API_URL } from '../config/api'
@@ -34,7 +35,7 @@ const AdminBonusManagement = () => {
 
   const fetchBonuses = async () => {
     try {
-      const res = await fetch(`${API_URL}/bonus`)
+      const res = await adminFetch(`${API_URL}/bonus`)
       const data = await res.json()
       if (data.success) {
         setBonuses(data.data)
@@ -46,7 +47,7 @@ const AdminBonusManagement = () => {
 
   const fetchUserBonuses = async () => {
     try {
-      const res = await fetch(`${API_URL}/bonus/user-bonuses`)
+      const res = await adminFetch(`${API_URL}/bonus/user-bonuses`)
       const data = await res.json()
       if (data.success) {
         setUserBonuses(data.data)
@@ -110,7 +111,7 @@ const AdminBonusManagement = () => {
     if (!confirm('Are you sure you want to delete this bonus?')) return
 
     try {
-      const res = await fetch(`${API_URL}/bonus/${id}`, {
+      const res = await adminFetch(`${API_URL}/bonus/${id}`, {
         method: 'DELETE'
       })
 

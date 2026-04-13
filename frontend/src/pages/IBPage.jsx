@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import userFetch from '../utils/userFetch.js'
 import { useNavigate } from 'react-router-dom'
 import { 
   LayoutDashboard, User, Wallet, Users, Copy, UserCircle, HelpCircle, FileText, LogOut,
@@ -59,7 +60,7 @@ const IBPage = () => {
 
   const fetchChallengeStatus = async () => {
     try {
-      const res = await fetch(`${API_URL}/prop/status`)
+      const res = await userFetch(`${API_URL}/prop/status`)
       const data = await res.json()
       if (data.success) setChallengeModeEnabled(data.enabled)
     } catch (error) {
@@ -69,7 +70,7 @@ const IBPage = () => {
 
   const fetchIBProfile = async () => {
     try {
-      const res = await fetch(`${API_URL}/ib/my-profile/${user._id}`)
+      const res = await userFetch(`${API_URL}/ib/my-profile/${user._id}`)
       const data = await res.json()
       if (data.ibUser) {
         // Merge ibUser, wallet, and stats into one profile object
@@ -100,7 +101,7 @@ const IBPage = () => {
 
   const fetchReferrals = async () => {
     try {
-      const res = await fetch(`${API_URL}/ib/my-referrals/${user._id}`)
+      const res = await userFetch(`${API_URL}/ib/my-referrals/${user._id}`)
       const data = await res.json()
       setReferrals(data.referrals || [])
     } catch (error) {
@@ -110,7 +111,7 @@ const IBPage = () => {
 
   const fetchCommissions = async () => {
     try {
-      const res = await fetch(`${API_URL}/ib/my-commissions/${user._id}`)
+      const res = await userFetch(`${API_URL}/ib/my-commissions/${user._id}`)
       const data = await res.json()
       setCommissions(data.commissions || [])
     } catch (error) {
@@ -120,7 +121,7 @@ const IBPage = () => {
 
   const fetchDownline = async () => {
     try {
-      const res = await fetch(`${API_URL}/ib/my-downline/${user._id}`)
+      const res = await userFetch(`${API_URL}/ib/my-downline/${user._id}`)
       const data = await res.json()
       // The API returns tree with downlines array
       setDownline(data.tree?.downlines || [])
@@ -132,7 +133,7 @@ const IBPage = () => {
   const handleApply = async () => {
     setApplying(true)
     try {
-      const res = await fetch(`${API_URL}/ib/apply`, {
+      const res = await userFetch(`${API_URL}/ib/apply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user._id })
@@ -166,7 +167,7 @@ const IBPage = () => {
     }
 
     try {
-      const res = await fetch(`${API_URL}/ib/withdraw`, {
+      const res = await userFetch(`${API_URL}/ib/withdraw`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
 import ReportDownload from '../components/ReportDownload'
 import SettlementPanel from '../components/SettlementPanel'
@@ -45,7 +46,7 @@ const AdminFundManagement = () => {
 
   const fetchSettledTotal = async () => {
     try {
-      const res = await fetch(`${API_URL}/settlements?source=fund_management&limit=500`)
+      const res = await adminFetch(`${API_URL}/settlements?source=fund_management&limit=500`)
       const data = await res.json()
       if (data.success) {
         setTotalSettled(data.settlements.reduce((sum, s) => sum + (s.amount || 0), 0))
@@ -55,7 +56,7 @@ const AdminFundManagement = () => {
 
   const fetchEarnings = async () => {
     try {
-      const res = await fetch(`${API_URL}/earnings/summary`)
+      const res = await adminFetch(`${API_URL}/earnings/summary`)
       const data = await res.json()
       if (data.success) {
         const allTime = data.earnings?.allTime || {}
@@ -73,7 +74,7 @@ const AdminFundManagement = () => {
   const fetchTransactions = async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${API_URL}/wallet/admin/transactions`)
+      const res = await adminFetch(`${API_URL}/wallet/admin/transactions`)
       const data = await res.json()
       if (data.transactions) {
         let filtered = data.transactions
@@ -112,7 +113,7 @@ const AdminFundManagement = () => {
 
   const handleApprove = async (txnId) => {
     try {
-      const res = await fetch(`${API_URL}/wallet/transaction/${txnId}/approve`, {
+      const res = await adminFetch(`${API_URL}/wallet/transaction/${txnId}/approve`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminRemarks: '' })
@@ -133,7 +134,7 @@ const AdminFundManagement = () => {
   const handleReject = async (txnId) => {
     const remarks = prompt('Enter rejection reason (optional):')
     try {
-      const res = await fetch(`${API_URL}/wallet/transaction/${txnId}/reject`, {
+      const res = await adminFetch(`${API_URL}/wallet/transaction/${txnId}/reject`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminRemarks: remarks || '' })
@@ -198,7 +199,7 @@ const AdminFundManagement = () => {
     
     // Fetch user details including bank info
     try {
-      const res = await fetch(`${API_URL}/auth/user/${txn.userId?._id || txn.userId}`)
+      const res = await adminFetch(`${API_URL}/auth/user/${txn.userId?._id || txn.userId}`)
       const data = await res.json()
       if (data.user) {
         setUserDetails(data.user)

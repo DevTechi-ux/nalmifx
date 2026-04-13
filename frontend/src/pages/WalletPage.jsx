@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import userFetch from '../utils/userFetch.js'
 import { useNavigate } from 'react-router-dom'
 import { 
   LayoutDashboard, 
@@ -139,7 +140,7 @@ const WalletPage = () => {
 
   const fetchUserBankAccounts = async () => {
     try {
-      const res = await fetch(`${API_URL}/payment-methods/user-banks/${user._id}/approved`)
+      const res = await userFetch(`${API_URL}/payment-methods/user-banks/${user._id}/approved`)
       const data = await res.json()
       setUserBankAccounts(data.accounts || [])
     } catch (error) {
@@ -149,7 +150,7 @@ const WalletPage = () => {
 
   const fetchCurrencies = async () => {
     try {
-      const res = await fetch(`${API_URL}/payment-methods/currencies/active`)
+      const res = await userFetch(`${API_URL}/payment-methods/currencies/active`)
       const data = await res.json()
       setCurrencies(data.currencies || [])
       // Set USD as default if no currencies
@@ -177,7 +178,7 @@ const WalletPage = () => {
 
   const fetchChallengeStatus = async () => {
     try {
-      const res = await fetch(`${API_URL}/prop/status`)
+      const res = await userFetch(`${API_URL}/prop/status`)
       const data = await res.json()
       if (data.success) {
         setChallengeModeEnabled(data.enabled)
@@ -198,7 +199,7 @@ const WalletPage = () => {
       // Check if this is user's first deposit by looking at their transaction history
       let isFirstDeposit = false
       try {
-        const transactionsRes = await fetch(`${API_URL}/wallet/transactions/${user._id}`)
+        const transactionsRes = await userFetch(`${API_URL}/wallet/transactions/${user._id}`)
         const transactionsData = await transactionsRes.json()
         
         if (transactionsData.success && transactionsData.transactions) {
@@ -213,7 +214,7 @@ const WalletPage = () => {
         isFirstDeposit = false // Default to false if we can't check
       }
 
-      const res = await fetch(`${API_URL}/bonus/calculate-bonus`, {
+      const res = await userFetch(`${API_URL}/bonus/calculate-bonus`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -239,7 +240,7 @@ const WalletPage = () => {
 
   const fetchWallet = async () => {
     try {
-      const res = await fetch(`${API_URL}/wallet/${user._id}`)
+      const res = await userFetch(`${API_URL}/wallet/${user._id}`)
       const data = await res.json()
       setWallet(data.wallet)
     } catch (error) {
@@ -250,7 +251,7 @@ const WalletPage = () => {
   const fetchTransactions = async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${API_URL}/wallet/transactions/${user._id}`)
+      const res = await userFetch(`${API_URL}/wallet/transactions/${user._id}`)
       const data = await res.json()
       setTransactions(data.transactions || [])
     } catch (error) {
@@ -261,7 +262,7 @@ const WalletPage = () => {
 
   const fetchPaymentMethods = async () => {
     try {
-      const res = await fetch(`${API_URL}/payment-methods`)
+      const res = await userFetch(`${API_URL}/payment-methods`)
       const data = await res.json()
       setPaymentMethods(data.paymentMethods || [])
     } catch (error) {
@@ -298,7 +299,7 @@ const WalletPage = () => {
         formData.append('screenshot', screenshot)
         formData.append('userId', user._id)
         
-        const uploadRes = await fetch(`${API_URL}/upload/screenshot`, {
+        const uploadRes = await userFetch(`${API_URL}/upload/screenshot`, {
           method: 'POST',
           body: formData
         })
@@ -308,7 +309,7 @@ const WalletPage = () => {
         }
       }
 
-      const res = await fetch(`${API_URL}/wallet/deposit`, {
+      const res = await userFetch(`${API_URL}/wallet/deposit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -392,7 +393,7 @@ const WalletPage = () => {
         bankAccountDetails = { type: 'Bank', bankName: selectedBankAccount.bankName, accountNumber: selectedBankAccount.accountNumber, ifscCode: selectedBankAccount.ifscCode }
       }
 
-      const res = await fetch(`${API_URL}/wallet/withdraw`, {
+      const res = await userFetch(`${API_URL}/wallet/withdraw`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

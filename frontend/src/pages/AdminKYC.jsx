@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
 import { 
   FileCheck,
@@ -32,7 +33,7 @@ const AdminKYC = () => {
 
   const fetchKycRequests = async () => {
     try {
-      const res = await fetch(`${API_URL}/kyc/all?status=${filterStatus}`)
+      const res = await adminFetch(`${API_URL}/kyc/all?status=${filterStatus}`)
       const data = await res.json()
       if (data.success) {
         setKycRequests(data.kycList || [])
@@ -47,7 +48,7 @@ const AdminKYC = () => {
   const handleApprove = async (kycId) => {
     setActionLoading(true)
     try {
-      const res = await fetch(`${API_URL}/kyc/approve/${kycId}`, {
+      const res = await adminFetch(`${API_URL}/kyc/approve/${kycId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' }
       })
@@ -70,7 +71,7 @@ const AdminKYC = () => {
     if (!selectedKyc) return
     setActionLoading(true)
     try {
-      const res = await fetch(`${API_URL}/kyc/reject/${selectedKyc._id}`, {
+      const res = await adminFetch(`${API_URL}/kyc/reject/${selectedKyc._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: rejectReason || 'Documents not acceptable' })

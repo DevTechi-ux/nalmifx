@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import { useNavigate } from 'react-router-dom'
 import { API_URL } from '../config/api'
 // import BonusManagement from './admin/BonusManagement.jsx'
@@ -71,7 +72,7 @@ console.log('Menu items:', menuItems)
     const fetchUsers = async () => {
       setLoading(true)
       try {
-        const response = await fetch(`${API_URL}/admin/users`)
+        const response = await adminFetch(`${API_URL}/admin/users`)
         if (response.ok) {
           const data = await response.json()
           setUsers(data.users || [])
@@ -83,7 +84,7 @@ console.log('Menu items:', menuItems)
     }
     const fetchSettlementSummary = async () => {
       try {
-        const res = await fetch(`${API_URL}/settlements/summary`)
+        const res = await adminFetch(`${API_URL}/settlements/summary`)
         const data = await res.json()
         if (data.success) setSettlementSummary(data.summary)
       } catch (error) {

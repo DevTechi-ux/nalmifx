@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
 import { 
   User,
@@ -43,7 +44,7 @@ const AdminMyAccount = () => {
 
   const fetchProfile = async () => {
     try {
-      const res = await fetch(`${API_URL}/admin-mgmt/me`, {
+      const res = await adminFetch(`${API_URL}/admin-mgmt/me`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const data = await res.json()
@@ -68,7 +69,7 @@ const AdminMyAccount = () => {
     setErrorMsg('')
 
     try {
-      const res = await fetch(`${API_URL}/admin-mgmt/me`, {
+      const res = await adminFetch(`${API_URL}/admin-mgmt/me`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -113,7 +114,7 @@ const AdminMyAccount = () => {
 
     setChangingPassword(true)
     try {
-      const res = await fetch(`${API_URL}/admin-mgmt/me/password`, {
+      const res = await adminFetch(`${API_URL}/admin-mgmt/me/password`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

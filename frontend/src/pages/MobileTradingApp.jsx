@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import userFetch from '../utils/userFetch.js'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { 
   Home, BarChart2, TrendingUp, LineChart, MoreHorizontal,
@@ -79,7 +80,7 @@ const MobileTradingApp = () => {
   // Fetch all instruments from API
   const fetchInstruments = async () => {
     try {
-      const res = await fetch(`${API_URL}/prices/instruments`)
+      const res = await userFetch(`${API_URL}/prices/instruments`)
       const data = await res.json()
       if (data.success && data.instruments) {
         const instrumentsWithState = data.instruments.map(inst => ({
@@ -209,7 +210,7 @@ const MobileTradingApp = () => {
     
     try {
       // Check pending orders for execution
-      const pendingRes = await fetch(`${API_URL}/trade/check-pending`, {
+      const pendingRes = await userFetch(`${API_URL}/trade/check-pending`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prices })
@@ -225,7 +226,7 @@ const MobileTradingApp = () => {
       }
       
       // Check SL/TP for open trades
-      const sltpRes = await fetch(`${API_URL}/trade/check-sltp`, {
+      const sltpRes = await userFetch(`${API_URL}/trade/check-sltp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prices })
@@ -248,7 +249,7 @@ const MobileTradingApp = () => {
 
   const fetchAccounts = async (userId) => {
     try {
-      const res = await fetch(`${API_URL}/trading-accounts/user/${userId}`)
+      const res = await userFetch(`${API_URL}/trading-accounts/user/${userId}`)
       const data = await res.json()
       setAccounts(data.accounts || [])
       if (data.accounts?.length > 0) {
@@ -271,7 +272,7 @@ const MobileTradingApp = () => {
   const fetchOpenTrades = async () => {
     if (!selectedAccount) return
     try {
-      const res = await fetch(`${API_URL}/trade/open/${selectedAccount._id}`)
+      const res = await userFetch(`${API_URL}/trade/open/${selectedAccount._id}`)
       const data = await res.json()
       if (data.success) setOpenTrades(data.trades || [])
     } catch (e) {}
@@ -280,7 +281,7 @@ const MobileTradingApp = () => {
   const fetchPendingOrders = async () => {
     if (!selectedAccount) return
     try {
-      const res = await fetch(`${API_URL}/trade/pending/${selectedAccount._id}`)
+      const res = await userFetch(`${API_URL}/trade/pending/${selectedAccount._id}`)
       const data = await res.json()
       if (data.success) setPendingOrders(data.orders || [])
     } catch (e) {}
@@ -289,7 +290,7 @@ const MobileTradingApp = () => {
   const fetchTradeHistory = async () => {
     if (!selectedAccount) return
     try {
-      const res = await fetch(`${API_URL}/trade/history/${selectedAccount._id}?limit=50`)
+      const res = await userFetch(`${API_URL}/trade/history/${selectedAccount._id}?limit=50`)
       const data = await res.json()
       if (data.success) setTradeHistory(data.trades || [])
     } catch (e) {}
@@ -299,7 +300,7 @@ const MobileTradingApp = () => {
     if (!selectedAccount) return
     try {
       const pricesParam = encodeURIComponent(JSON.stringify(livePrices))
-      const res = await fetch(`${API_URL}/trade/summary/${selectedAccount._id}?prices=${pricesParam}`)
+      const res = await userFetch(`${API_URL}/trade/summary/${selectedAccount._id}?prices=${pricesParam}`)
       const data = await res.json()
       if (data.success) setAccountSummary(data.summary)
     } catch (e) {}
@@ -351,7 +352,7 @@ const MobileTradingApp = () => {
       const actualOrderType = orderType === 'market' ? 'MARKET' : pendingOrderType
       const pendingPrice = orderType === 'pending' ? parseFloat(entryPrice) : null
 
-      const res = await fetch(`${API_URL}/trade/open`, {
+      const res = await userFetch(`${API_URL}/trade/open`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -406,7 +407,7 @@ const MobileTradingApp = () => {
     }
 
     try {
-      const res = await fetch(`${API_URL}/trade/close`, {
+      const res = await userFetch(`${API_URL}/trade/close`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -456,7 +457,7 @@ const MobileTradingApp = () => {
 
     try {
       const livePrice = livePrices[selectedTradeForModify.symbol]
-      const res = await fetch(`${API_URL}/trade/modify`, {
+      const res = await userFetch(`${API_URL}/trade/modify`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -484,7 +485,7 @@ const MobileTradingApp = () => {
   // Cancel pending order
   const cancelPendingOrder = async (orderId) => {
     try {
-      const res = await fetch(`${API_URL}/trade/cancel`, {
+      const res = await userFetch(`${API_URL}/trade/cancel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tradeId: orderId })
@@ -1266,7 +1267,7 @@ const MobileTradingApp = () => {
               }
               setIsExecuting(true)
               try {
-                const res = await fetch(`${API_URL}/trade/open`, {
+                const res = await userFetch(`${API_URL}/trade/open`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -1313,7 +1314,7 @@ const MobileTradingApp = () => {
               }
               setIsExecuting(true)
               try {
-                const res = await fetch(`${API_URL}/trade/open`, {
+                const res = await userFetch(`${API_URL}/trade/open`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({

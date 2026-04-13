@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
 import { 
   DollarSign,
@@ -52,7 +53,7 @@ const AdminForexCharges = () => {
 
   const fetchAccountTypes = async () => {
     try {
-      const res = await fetch(`${API_URL}/account-types/all`)
+      const res = await adminFetch(`${API_URL}/account-types/all`)
       const data = await res.json()
       setAccountTypes(data.accountTypes || [])
     } catch (error) {
@@ -62,7 +63,7 @@ const AdminForexCharges = () => {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch(`${API_URL}/admin/users`)
+      const res = await adminFetch(`${API_URL}/admin/users`)
       const data = await res.json()
       if (data.success) {
         setUsers(data.users || [])
@@ -75,7 +76,7 @@ const AdminForexCharges = () => {
   const fetchCharges = async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${API_URL}/charges?segment=Forex`)
+      const res = await adminFetch(`${API_URL}/charges?segment=Forex`)
       const data = await res.json()
       if (data.success) {
         setCharges(data.charges || [])
@@ -116,7 +117,7 @@ const AdminForexCharges = () => {
   const handleDelete = async (chargeId) => {
     if (!confirm('Are you sure you want to delete this charge?')) return
     try {
-      const res = await fetch(`${API_URL}/charges/${chargeId}`, { method: 'DELETE' })
+      const res = await adminFetch(`${API_URL}/charges/${chargeId}`, { method: 'DELETE' })
       const data = await res.json()
       if (data.success) {
         alert('Charge deleted!')

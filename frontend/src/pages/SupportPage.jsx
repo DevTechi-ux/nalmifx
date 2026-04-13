@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import userFetch from '../utils/userFetch.js'
 import { useNavigate } from 'react-router-dom'
 import { 
   LayoutDashboard, User, Wallet, Users, Copy, UserCircle, HelpCircle, FileText, LogOut,
@@ -52,7 +53,7 @@ const SupportPage = () => {
 
   const fetchChallengeStatus = async () => {
     try {
-      const res = await fetch(`${API_URL}/prop/status`)
+      const res = await userFetch(`${API_URL}/prop/status`)
       const data = await res.json()
       if (data.success) setChallengeModeEnabled(data.enabled)
     } catch (error) {}
@@ -60,7 +61,7 @@ const SupportPage = () => {
 
   const fetchTickets = async () => {
     try {
-      const res = await fetch(`${API_URL}/support/user/${user._id}`)
+      const res = await userFetch(`${API_URL}/support/user/${user._id}`)
       const data = await res.json()
       setTickets(data.tickets || [])
     } catch (error) {
@@ -78,7 +79,7 @@ const SupportPage = () => {
 
     setSubmitting(true)
     try {
-      const res = await fetch(`${API_URL}/support/create`, {
+      const res = await userFetch(`${API_URL}/support/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -125,7 +126,7 @@ const SupportPage = () => {
 
   const openTicketChat = async (ticketId) => {
     try {
-      const res = await fetch(`${API_URL}/support/ticket/${ticketId}`)
+      const res = await userFetch(`${API_URL}/support/ticket/${ticketId}`)
       const data = await res.json()
       if (data.success) {
         setSelectedTicket(data.ticket)
@@ -140,7 +141,7 @@ const SupportPage = () => {
 
     setSendingReply(true)
     try {
-      const res = await fetch(`${API_URL}/support/reply/${selectedTicket.ticketId}`, {
+      const res = await userFetch(`${API_URL}/support/reply/${selectedTicket.ticketId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

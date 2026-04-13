@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import userFetch from '../utils/userFetch.js'
 import { useNavigate } from 'react-router-dom'
 import { 
   LayoutDashboard, 
@@ -78,7 +79,7 @@ const Dashboard = () => {
     }
     
     try {
-      const res = await fetch(`${API_URL}/auth/me`, {
+      const res = await userFetch(`${API_URL}/auth/me`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const data = await res.json()
@@ -114,7 +115,7 @@ const Dashboard = () => {
 
   const fetchChallengeStatus = async () => {
     try {
-      const res = await fetch(`${API_URL}/prop/status`)
+      const res = await userFetch(`${API_URL}/prop/status`)
       const data = await res.json()
       if (data.success) {
         setChallengeModeEnabled(data.enabled)
@@ -126,7 +127,7 @@ const Dashboard = () => {
 
   const fetchWalletBalance = async () => {
     try {
-      const res = await fetch(`${API_URL}/wallet/${user._id}`)
+      const res = await userFetch(`${API_URL}/wallet/${user._id}`)
       const data = await res.json()
       setWalletBalance(data.wallet?.balance || 0)
     } catch (error) {
@@ -136,7 +137,7 @@ const Dashboard = () => {
 
   const fetchUserAccounts = async () => {
     try {
-      const res = await fetch(`${API_URL}/trading-accounts/user/${user._id}`)
+      const res = await userFetch(`${API_URL}/trading-accounts/user/${user._id}`)
       const data = await res.json()
       setUserAccounts(data.accounts || [])
     } catch (error) {
@@ -153,7 +154,7 @@ const Dashboard = () => {
       
       for (const account of userAccounts) {
         // Fetch closed trades for history
-        const historyRes = await fetch(`${API_URL}/trade/history/${account._id}`)
+        const historyRes = await userFetch(`${API_URL}/trade/history/${account._id}`)
         const historyData = await historyRes.json()
         if (historyData.success && historyData.trades) {
           allTrades = [...allTrades, ...historyData.trades]
@@ -165,7 +166,7 @@ const Dashboard = () => {
         }
         
         // Fetch open trades
-        const openRes = await fetch(`${API_URL}/trade/open/${account._id}`)
+        const openRes = await userFetch(`${API_URL}/trade/open/${account._id}`)
         const openData = await openRes.json()
         if (openData.success && openData.trades) {
           allTrades = [...allTrades, ...openData.trades]

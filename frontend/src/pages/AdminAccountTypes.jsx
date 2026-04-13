@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
 import { 
   Plus,
@@ -39,7 +40,7 @@ const AdminAccountTypes = () => {
   const fetchAccountTypes = async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${API_URL}/account-types/all`)
+      const res = await adminFetch(`${API_URL}/account-types/all`)
       const data = await res.json()
       setAccountTypes(data.accountTypes || [])
     } catch (error) {
@@ -93,7 +94,7 @@ const AdminAccountTypes = () => {
     if (!confirm('Are you sure you want to delete this account type?')) return
 
     try {
-      const res = await fetch(`${API_URL}/account-types/${id}`, {
+      const res = await adminFetch(`${API_URL}/account-types/${id}`, {
         method: 'DELETE'
       })
       
@@ -109,7 +110,7 @@ const AdminAccountTypes = () => {
 
   const handleToggleActive = async (type) => {
     try {
-      const res = await fetch(`${API_URL}/account-types/${type._id}`, {
+      const res = await adminFetch(`${API_URL}/account-types/${type._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...type, isActive: !type.isActive })

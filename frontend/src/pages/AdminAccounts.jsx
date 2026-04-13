@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import { useNavigate } from 'react-router-dom'
 import { 
   LayoutDashboard, 
@@ -54,7 +55,7 @@ const AdminAccounts = () => {
   const fetchAccounts = async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${API_URL}/trading-accounts/all`)
+      const res = await adminFetch(`${API_URL}/trading-accounts/all`)
       const data = await res.json()
       setAccounts(data.accounts || [])
     } catch (error) {
@@ -66,7 +67,7 @@ const AdminAccounts = () => {
   const handleUpdateAccount = async () => {
     if (!selectedAccount) return
     try {
-      const res = await fetch(`${API_URL}/trading-accounts/${selectedAccount._id}/admin-update`, {
+      const res = await adminFetch(`${API_URL}/trading-accounts/${selectedAccount._id}/admin-update`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editForm)
@@ -89,7 +90,7 @@ const AdminAccounts = () => {
       return
     }
     try {
-      const res = await fetch(`${API_URL}/trading-accounts/${selectedAccount._id}/reset-pin`, {
+      const res = await adminFetch(`${API_URL}/trading-accounts/${selectedAccount._id}/reset-pin`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ newPin })

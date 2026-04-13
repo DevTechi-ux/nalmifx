@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import userFetch from '../utils/userFetch.js'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { 
   LayoutDashboard, 
@@ -122,7 +123,7 @@ const Account = () => {
 
   const fetchChallengeStatus = async () => {
     try {
-      const res = await fetch(`${API_URL}/prop/status`)
+      const res = await userFetch(`${API_URL}/prop/status`)
       const data = await res.json()
       if (data.success) {
         setChallengeModeEnabled(data.enabled)
@@ -134,7 +135,7 @@ const Account = () => {
 
   const fetchChallengeAccounts = async () => {
     try {
-      const res = await fetch(`${API_URL}/prop/my-accounts/${user._id}`)
+      const res = await userFetch(`${API_URL}/prop/my-accounts/${user._id}`)
       const data = await res.json()
       if (data.success) {
         setChallengeAccounts(data.accounts || [])
@@ -146,7 +147,7 @@ const Account = () => {
 
   const fetchWalletBalance = async () => {
     try {
-      const res = await fetch(`${API_URL}/wallet/${user._id}`)
+      const res = await userFetch(`${API_URL}/wallet/${user._id}`)
       const data = await res.json()
       setWalletBalance(data.wallet?.balance || 0)
     } catch (error) {
@@ -156,7 +157,7 @@ const Account = () => {
 
   const fetchAccountTypes = async () => {
     try {
-      const res = await fetch(`${API_URL}/account-types`)
+      const res = await userFetch(`${API_URL}/account-types`)
       const data = await res.json()
       setAccountTypes(data.accountTypes || [])
     } catch (error) {
@@ -167,7 +168,7 @@ const Account = () => {
   const fetchUserAccounts = async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${API_URL}/trading-accounts/user/${user._id}`)
+      const res = await userFetch(`${API_URL}/trading-accounts/user/${user._id}`)
       const data = await res.json()
       setUserAccounts(data.accounts || [])
     } catch (error) {
@@ -250,7 +251,7 @@ const Account = () => {
     }
 
     try {
-      const res = await fetch(`${API_URL}/trading-accounts`, {
+      const res = await userFetch(`${API_URL}/trading-accounts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -287,7 +288,7 @@ const Account = () => {
     }
 
     try {
-      const res = await fetch(`${API_URL}/trading-accounts/${selectedAccount._id}/change-pin`, {
+      const res = await userFetch(`${API_URL}/trading-accounts/${selectedAccount._id}/change-pin`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -325,7 +326,7 @@ const Account = () => {
     const isDemoAccount = account?.isDemo || account?.accountTypeId?.isDemo
 
     try {
-      const res = await fetch(`${API_URL}/trading-accounts/${accountId}/archive`, {
+      const res = await userFetch(`${API_URL}/trading-accounts/${accountId}/archive`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' }
       })
@@ -362,7 +363,7 @@ const Account = () => {
 
   const handleUnarchiveAccount = async (accountId) => {
     try {
-      const res = await fetch(`${API_URL}/trading-accounts/${accountId}/unarchive`, {
+      const res = await userFetch(`${API_URL}/trading-accounts/${accountId}/unarchive`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' }
       })
@@ -383,7 +384,7 @@ const Account = () => {
 
   const handleDeleteAccount = async (accountId) => {
     try {
-      const res = await fetch(`${API_URL}/trading-accounts/${accountId}`, {
+      const res = await userFetch(`${API_URL}/trading-accounts/${accountId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' }
       })
@@ -410,7 +411,7 @@ const Account = () => {
     }
 
     try {
-      const res = await fetch(`${API_URL}/trading-accounts/${accountId}/reset-demo`, {
+      const res = await userFetch(`${API_URL}/trading-accounts/${accountId}/reset-demo`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       })
@@ -440,7 +441,7 @@ const Account = () => {
     }
 
     try {
-      const res = await fetch(`${API_URL}/trading-accounts/${selectedAccount._id}/transfer`, {
+      const res = await userFetch(`${API_URL}/trading-accounts/${selectedAccount._id}/transfer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -485,7 +486,7 @@ const Account = () => {
     }
 
     try {
-      const res = await fetch(`${API_URL}/trading-accounts/${selectedAccount._id}/transfer`, {
+      const res = await userFetch(`${API_URL}/trading-accounts/${selectedAccount._id}/transfer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -530,7 +531,7 @@ const Account = () => {
     }
 
     try {
-      const res = await fetch(`${API_URL}/trading-accounts/account-transfer`, {
+      const res = await userFetch(`${API_URL}/trading-accounts/account-transfer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

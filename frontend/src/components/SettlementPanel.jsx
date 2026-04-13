@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import {
   Plus,
   Trash2,
@@ -28,7 +29,7 @@ const SettlementPanel = ({ source, maxAmount, onTotalSettledChange }) => {
   const fetchSettlements = async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${API_URL}/settlements?source=${source}&limit=500`)
+      const res = await adminFetch(`${API_URL}/settlements?source=${source}&limit=500`)
       const data = await res.json()
       if (data.success) {
         setSettlements(data.settlements)
@@ -61,7 +62,7 @@ const SettlementPanel = ({ source, maxAmount, onTotalSettledChange }) => {
     setSubmitting(true)
     try {
       const adminUser = JSON.parse(localStorage.getItem('adminUser') || '{}')
-      const res = await fetch(`${API_URL}/settlements`, {
+      const res = await adminFetch(`${API_URL}/settlements`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, amount: parseFloat(form.amount), source, adminName: adminUser.name || adminUser.email || '' })
@@ -83,7 +84,7 @@ const SettlementPanel = ({ source, maxAmount, onTotalSettledChange }) => {
   const handleDelete = async (id) => {
     if (!confirm('Delete this settlement record?')) return
     try {
-      const res = await fetch(`${API_URL}/settlements/${id}`, { method: 'DELETE' })
+      const res = await adminFetch(`${API_URL}/settlements/${id}`, { method: 'DELETE' })
       const data = await res.json()
       if (data.success) fetchSettlements()
       else alert(data.message || 'Error deleting')
@@ -95,7 +96,7 @@ const SettlementPanel = ({ source, maxAmount, onTotalSettledChange }) => {
   const handleExport = async (format) => {
     setDownloading(true)
     try {
-      const res = await fetch(`${API_URL}/settlements/export?source=${source}&format=${format}`)
+      const res = await adminFetch(`${API_URL}/settlements/export?source=${source}&format=${format}`)
       const blob = await res.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')

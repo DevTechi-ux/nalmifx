@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
 import ReportDownload from '../components/ReportDownload'
 import SettlementPanel from '../components/SettlementPanel'
@@ -62,7 +63,7 @@ const AdminIBManagement = () => {
 
   const fetchSettledTotal = async () => {
     try {
-      const res = await fetch(`${API_URL}/settlements?source=ib_management&limit=500`)
+      const res = await adminFetch(`${API_URL}/settlements?source=ib_management&limit=500`)
       const data = await res.json()
       if (data.success) {
         setTotalSettled(data.settlements.reduce((sum, s) => sum + (s.amount || 0), 0))
@@ -92,7 +93,7 @@ const AdminIBManagement = () => {
 
   const fetchAllUsers = async () => {
     try {
-      const res = await fetch(`${API_URL}/admin/users`)
+      const res = await adminFetch(`${API_URL}/admin/users`)
       const data = await res.json()
       setAllUsers(data.users || [])
     } catch (error) {
@@ -112,7 +113,7 @@ const AdminIBManagement = () => {
 
     setTransferLoading(true)
     try {
-      const res = await fetch(`${API_URL}/ib/admin/transfer-referrals`, {
+      const res = await adminFetch(`${API_URL}/ib/admin/transfer-referrals`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -162,7 +163,7 @@ const AdminIBManagement = () => {
 
   const fetchDashboard = async () => {
     try {
-      const res = await fetch(`${API_URL}/ib/admin/dashboard`)
+      const res = await adminFetch(`${API_URL}/ib/admin/dashboard`)
       const data = await res.json()
       // Handle both old format (data.dashboard) and new format (data.stats)
       if (data.stats) {
@@ -185,7 +186,7 @@ const AdminIBManagement = () => {
 
   const fetchIBs = async () => {
     try {
-      const res = await fetch(`${API_URL}/ib/admin/all`)
+      const res = await adminFetch(`${API_URL}/ib/admin/all`)
       const data = await res.json()
       setIbs(data.ibs || [])
     } catch (error) {
@@ -196,7 +197,7 @@ const AdminIBManagement = () => {
 
   const fetchApplications = async () => {
     try {
-      const res = await fetch(`${API_URL}/ib/admin/pending`)
+      const res = await adminFetch(`${API_URL}/ib/admin/pending`)
       const data = await res.json()
       setApplications(data.pending || [])
     } catch (error) {
@@ -206,7 +207,7 @@ const AdminIBManagement = () => {
 
   const fetchPlans = async () => {
     try {
-      const res = await fetch(`${API_URL}/ib/admin/plans`)
+      const res = await adminFetch(`${API_URL}/ib/admin/plans`)
       const data = await res.json()
       setPlans(data.plans || [])
     } catch (error) {
@@ -216,7 +217,7 @@ const AdminIBManagement = () => {
 
   const fetchSettings = async () => {
     try {
-      const res = await fetch(`${API_URL}/ib/admin/settings`)
+      const res = await adminFetch(`${API_URL}/ib/admin/settings`)
       const data = await res.json()
       if (data.settings) setSettings(data.settings)
     } catch (error) {
@@ -226,7 +227,7 @@ const AdminIBManagement = () => {
 
   const fetchIBLevels = async () => {
     try {
-      const res = await fetch(`${API_URL}/ib/admin/levels`)
+      const res = await adminFetch(`${API_URL}/ib/admin/levels`)
       const data = await res.json()
       setIbLevels(data.levels || [])
     } catch (error) {
@@ -265,7 +266,7 @@ const AdminIBManagement = () => {
     if (!confirm('Are you sure you want to delete this level?')) return
     
     try {
-      const res = await fetch(`${API_URL}/ib/admin/levels/${levelId}`, {
+      const res = await adminFetch(`${API_URL}/ib/admin/levels/${levelId}`, {
         method: 'DELETE'
       })
       const data = await res.json()
@@ -283,7 +284,7 @@ const AdminIBManagement = () => {
 
   const handleApprove = async (userId, planId = null) => {
     try {
-      const res = await fetch(`${API_URL}/ib/admin/approve/${userId}`, {
+      const res = await adminFetch(`${API_URL}/ib/admin/approve/${userId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ planId: planId })
@@ -308,7 +309,7 @@ const AdminIBManagement = () => {
     if (!reason) return
 
     try {
-      const res = await fetch(`${API_URL}/ib/admin/reject/${userId}`, {
+      const res = await adminFetch(`${API_URL}/ib/admin/reject/${userId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason })
@@ -332,7 +333,7 @@ const AdminIBManagement = () => {
     if (!reason) return
 
     try {
-      const res = await fetch(`${API_URL}/ib/admin/block/${userId}`, {
+      const res = await adminFetch(`${API_URL}/ib/admin/block/${userId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason })
@@ -352,7 +353,7 @@ const AdminIBManagement = () => {
     if (!confirm('Are you sure you want to suspend this IB?')) return
 
     try {
-      const res = await fetch(`${API_URL}/ib/admin/suspend/${ibId}`, {
+      const res = await adminFetch(`${API_URL}/ib/admin/suspend/${ibId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminId: 'admin' })
@@ -378,7 +379,7 @@ const AdminIBManagement = () => {
     setSavingIB(true)
     
     try {
-      const res = await fetch(`${API_URL}/ib/admin/update/${viewingIB._id}`, {
+      const res = await adminFetch(`${API_URL}/ib/admin/update/${viewingIB._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -430,7 +431,7 @@ const AdminIBManagement = () => {
 
   const handleUpdateSettings = async (newSettings) => {
     try {
-      const res = await fetch(`${API_URL}/ib/admin/settings`, {
+      const res = await adminFetch(`${API_URL}/ib/admin/settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newSettings)
@@ -713,7 +714,7 @@ const AdminIBManagement = () => {
               <p>No IB levels configured</p>
               <button
                 onClick={async () => {
-                  await fetch(`${API_URL}/ib/admin/init-levels`, { method: 'POST' })
+                  await adminFetch(`${API_URL}/ib/admin/init-levels`, { method: 'POST' })
                   fetchIBLevels()
                 }}
                 className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
@@ -1520,7 +1521,7 @@ const IBDetailsModal = ({ ib, plans, ibCommission, setIbCommission, ibPlan, setI
               <button
                 onClick={async () => {
                   try {
-                    const res = await fetch(`${API_URL}/ib/admin/unblock/${ib._id}`, { method: 'PUT' })
+                    const res = await adminFetch(`${API_URL}/ib/admin/unblock/${ib._id}`, { method: 'PUT' })
                     const data = await res.json()
                     if (data.success) {
                       alert('IB unblocked!')
@@ -1539,7 +1540,7 @@ const IBDetailsModal = ({ ib, plans, ibCommission, setIbCommission, ibPlan, setI
                   const reason = prompt('Enter block reason:')
                   if (!reason) return
                   try {
-                    const res = await fetch(`${API_URL}/ib/admin/block/${ib._id}`, {
+                    const res = await adminFetch(`${API_URL}/ib/admin/block/${ib._id}`, {
                       method: 'PUT',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ reason })

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
 import ReportDownload from '../components/ReportDownload'
 import { 
@@ -86,7 +87,7 @@ const AdminManagement = () => {
 
   const fetchAdmins = async () => {
     try {
-      const res = await fetch(`${API_URL}/admin-mgmt/admins`)
+      const res = await adminFetch(`${API_URL}/admin-mgmt/admins`)
       const data = await res.json()
       if (data.success) {
         setAdmins(data.admins || [])
@@ -99,7 +100,7 @@ const AdminManagement = () => {
 
   const handleCreateAdmin = async () => {
     try {
-      const res = await fetch(`${API_URL}/admin-mgmt/admins`, {
+      const res = await adminFetch(`${API_URL}/admin-mgmt/admins`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newAdmin)
@@ -120,7 +121,7 @@ const AdminManagement = () => {
 
   const handleUpdateAdmin = async () => {
     try {
-      const res = await fetch(`${API_URL}/admin-mgmt/admins/${selectedAdmin._id}`, {
+      const res = await adminFetch(`${API_URL}/admin-mgmt/admins/${selectedAdmin._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -146,7 +147,7 @@ const AdminManagement = () => {
 
   const handleUpdatePermissions = async () => {
     try {
-      const res = await fetch(`${API_URL}/admin-mgmt/admins/${selectedAdmin._id}/permissions`, {
+      const res = await adminFetch(`${API_URL}/admin-mgmt/admins/${selectedAdmin._id}/permissions`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ permissions: selectedAdmin.permissions })
@@ -166,7 +167,7 @@ const AdminManagement = () => {
 
   const handleFundAdmin = async () => {
     try {
-      const res = await fetch(`${API_URL}/admin-mgmt/wallet/fund`, {
+      const res = await adminFetch(`${API_URL}/admin-mgmt/wallet/fund`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -193,7 +194,7 @@ const AdminManagement = () => {
   const handleToggleStatus = async (admin) => {
     const newStatus = admin.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE'
     try {
-      const res = await fetch(`${API_URL}/admin-mgmt/admins/${admin._id}/status`, {
+      const res = await adminFetch(`${API_URL}/admin-mgmt/admins/${admin._id}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
@@ -210,7 +211,7 @@ const AdminManagement = () => {
   const handleDeleteAdmin = async (admin) => {
     if (!confirm(`Are you sure you want to delete ${admin.firstName} ${admin.lastName}?`)) return
     try {
-      const res = await fetch(`${API_URL}/admin-mgmt/admins/${admin._id}`, {
+      const res = await adminFetch(`${API_URL}/admin-mgmt/admins/${admin._id}`, {
         method: 'DELETE'
       })
       const data = await res.json()
@@ -231,7 +232,7 @@ const AdminManagement = () => {
       return
     }
     try {
-      const res = await fetch(`${API_URL}/admin-mgmt/admins/${selectedAdmin._id}/reset-password`, {
+      const res = await adminFetch(`${API_URL}/admin-mgmt/admins/${selectedAdmin._id}/reset-password`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ newPassword })

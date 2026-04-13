@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import { useNavigate } from 'react-router-dom'
 import { 
   LayoutDashboard, 
@@ -56,7 +57,7 @@ const AdminPaymentMethods = () => {
   const fetchPaymentMethods = async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${API_URL}/payment-methods/all`)
+      const res = await adminFetch(`${API_URL}/payment-methods/all`)
       const data = await res.json()
       setPaymentMethods(data.paymentMethods || [])
     } catch (error) {
@@ -94,7 +95,7 @@ const AdminPaymentMethods = () => {
   const handleDelete = async (id) => {
     if (!confirm('Delete this payment method?')) return
     try {
-      const res = await fetch(`${API_URL}/payment-methods/${id}`, { method: 'DELETE' })
+      const res = await adminFetch(`${API_URL}/payment-methods/${id}`, { method: 'DELETE' })
       if (res.ok) {
         setSuccess('Payment method deleted!')
         fetchPaymentMethods()
@@ -107,7 +108,7 @@ const AdminPaymentMethods = () => {
 
   const handleToggleActive = async (method) => {
     try {
-      await fetch(`${API_URL}/payment-methods/${method._id}`, {
+      await adminFetch(`${API_URL}/payment-methods/${method._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...method, isActive: !method.isActive })

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
 import { 
   HeadphonesIcon,
@@ -35,7 +36,7 @@ const AdminSupport = () => {
   const fetchTickets = async () => {
     try {
       const statusParam = filterStatus !== 'all' ? `?status=${filterStatus.toUpperCase()}` : ''
-      const res = await fetch(`${API_URL}/support/admin/all${statusParam}`)
+      const res = await adminFetch(`${API_URL}/support/admin/all${statusParam}`)
       const data = await res.json()
       setTickets(data.tickets || [])
     } catch (error) {
@@ -46,7 +47,7 @@ const AdminSupport = () => {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch(`${API_URL}/support/admin/stats`)
+      const res = await adminFetch(`${API_URL}/support/admin/stats`)
       const data = await res.json()
       if (data.stats) setStats(data.stats)
     } catch (error) {
@@ -56,7 +57,7 @@ const AdminSupport = () => {
 
   const openTicketChat = async (ticketId) => {
     try {
-      const res = await fetch(`${API_URL}/support/ticket/${ticketId}`)
+      const res = await adminFetch(`${API_URL}/support/ticket/${ticketId}`)
       const data = await res.json()
       if (data.success) {
         setSelectedTicket(data.ticket)
@@ -71,7 +72,7 @@ const AdminSupport = () => {
 
     setSendingReply(true)
     try {
-      const res = await fetch(`${API_URL}/support/reply/${selectedTicket.ticketId}`, {
+      const res = await adminFetch(`${API_URL}/support/reply/${selectedTicket.ticketId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -98,7 +99,7 @@ const AdminSupport = () => {
 
   const updateTicketStatus = async (ticketId, status) => {
     try {
-      const res = await fetch(`${API_URL}/support/admin/status/${ticketId}`, {
+      const res = await adminFetch(`${API_URL}/support/admin/status/${ticketId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status })

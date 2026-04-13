@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import { useNavigate } from 'react-router-dom'
 import { 
   LayoutDashboard, 
@@ -47,7 +48,7 @@ const AdminTransactions = () => {
   const fetchTransactions = async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${API_URL}/wallet/admin/transactions`)
+      const res = await adminFetch(`${API_URL}/wallet/admin/transactions`)
       const data = await res.json()
       setTransactions(data.transactions || [])
     } catch (error) {
@@ -60,7 +61,7 @@ const AdminTransactions = () => {
     if (!selectedTx) return
     try {
       const endpoint = actionType === 'approve' ? 'approve' : 'reject'
-      const res = await fetch(`${API_URL}/wallet/transaction/${selectedTx._id}/${endpoint}`, {
+      const res = await adminFetch(`${API_URL}/wallet/transaction/${selectedTx._id}/${endpoint}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminRemarks })

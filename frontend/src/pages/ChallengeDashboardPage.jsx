@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import userFetch from '../utils/userFetch.js'
 import { useNavigate } from 'react-router-dom'
 import {
   Trophy, Target, TrendingUp, TrendingDown, Clock, AlertTriangle,
@@ -33,7 +34,7 @@ export default function ChallengeDashboardPage() {
 
   const fetchAccounts = async () => {
     try {
-      const res = await fetch(`${API_URL}/prop/my-accounts/${user._id}`)
+      const res = await userFetch(`${API_URL}/prop/my-accounts/${user._id}`)
       const data = await res.json()
       if (data.success && data.accounts.length > 0) {
         setAccounts(data.accounts)
@@ -47,7 +48,7 @@ export default function ChallengeDashboardPage() {
 
   const fetchDashboard = async (accountId) => {
     try {
-      const res = await fetch(`${API_URL}/prop/account/${accountId}`)
+      const res = await userFetch(`${API_URL}/prop/account/${accountId}`)
       const data = await res.json()
       if (data.success) {
         setDashboard(data)
@@ -59,7 +60,7 @@ export default function ChallengeDashboardPage() {
 
   const fetchFundedInfo = async (accountId) => {
     try {
-      const res = await fetch(`${API_URL}/prop/funded-info/${accountId}`)
+      const res = await userFetch(`${API_URL}/prop/funded-info/${accountId}`)
       const data = await res.json()
       if (data.success) {
         setFundedInfo(data.fundedInfo)
@@ -84,7 +85,7 @@ export default function ChallengeDashboardPage() {
 
     setWithdrawing(true)
     try {
-      const res = await fetch(`${API_URL}/prop/withdraw-profit`, {
+      const res = await userFetch(`${API_URL}/prop/withdraw-profit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

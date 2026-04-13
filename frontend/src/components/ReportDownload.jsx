@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import { Download, FileSpreadsheet, FileText, ChevronDown } from 'lucide-react'
 import { API_URL } from '../config/api'
 
@@ -23,7 +24,7 @@ const ReportDownload = ({ endpoint, label = 'Download Report', extraParams = {} 
     setOpen(false)
     try {
       const params = new URLSearchParams({ format, ...(period && { period }), ...extraParams })
-      const res = await fetch(`${API_URL}/reports/${endpoint}?${params}`)
+      const res = await adminFetch(`${API_URL}/reports/${endpoint}?${params}`)
       if (!res.ok) throw new Error('Download failed')
 
       const blob = await res.blob()

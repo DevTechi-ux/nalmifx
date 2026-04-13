@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
 import ReportDownload from '../components/ReportDownload'
 import SettlementPanel from '../components/SettlementPanel'
@@ -32,7 +33,7 @@ const AdminEarnings = () => {
 
   const fetchSettledTotal = async () => {
     try {
-      const res = await fetch(`${API_URL}/settlements?source=earnings&limit=500`)
+      const res = await adminFetch(`${API_URL}/settlements?source=earnings&limit=500`)
       const data = await res.json()
       if (data.success) {
         setTotalSettled(data.settlements.reduce((sum, s) => sum + (s.amount || 0), 0))
@@ -58,7 +59,7 @@ const AdminEarnings = () => {
 
   const fetchSummary = async () => {
     try {
-      const res = await fetch(`${API_URL}/earnings/summary`)
+      const res = await adminFetch(`${API_URL}/earnings/summary`)
       const data = await res.json()
       if (data.success) {
         setSummary(data.earnings)
@@ -70,7 +71,7 @@ const AdminEarnings = () => {
 
   const fetchDailyEarnings = async () => {
     try {
-      const res = await fetch(`${API_URL}/earnings/daily?days=${dateRange}`)
+      const res = await adminFetch(`${API_URL}/earnings/daily?days=${dateRange}`)
       const data = await res.json()
       if (data.success) {
         setDailyEarnings(data.earnings || [])
@@ -82,7 +83,7 @@ const AdminEarnings = () => {
 
   const fetchUserEarnings = async () => {
     try {
-      const res = await fetch(`${API_URL}/earnings/by-user?days=${dateRange}`)
+      const res = await adminFetch(`${API_URL}/earnings/by-user?days=${dateRange}`)
       const data = await res.json()
       if (data.success) {
         setUserEarnings(data.earnings || [])
@@ -94,7 +95,7 @@ const AdminEarnings = () => {
 
   const fetchSymbolEarnings = async () => {
     try {
-      const res = await fetch(`${API_URL}/earnings/by-symbol?days=${dateRange}`)
+      const res = await adminFetch(`${API_URL}/earnings/by-symbol?days=${dateRange}`)
       const data = await res.json()
       if (data.success) {
         setSymbolEarnings(data.earnings || [])
@@ -107,7 +108,7 @@ const AdminEarnings = () => {
   const handleReset = async () => {
     setResetting(true)
     try {
-      const res = await fetch(`${API_URL}/earnings/reset`, {
+      const res = await adminFetch(`${API_URL}/earnings/reset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ period: resetPeriod })

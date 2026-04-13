@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import userFetch from '../utils/userFetch.js'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Search, Star, X, Plus, Minus, Settings, Home, Wallet, LayoutGrid, BarChart3, Pencil, Trophy, AlertTriangle, Sun, Moon, Grid2X2 } from 'lucide-react'
 import metaApiService from '../services/metaApi'
@@ -48,7 +49,7 @@ const TradingPage = () => {
   // Fetch all instruments from API
   const fetchInstruments = async () => {
     try {
-      const res = await fetch(`${API_URL}/prices/instruments`)
+      const res = await userFetch(`${API_URL}/prices/instruments`)
       const data = await res.json()
       if (data.success && data.instruments) {
         const instrumentsWithState = data.instruments.map(inst => ({
@@ -232,7 +233,7 @@ const TradingPage = () => {
       }
       
       try {
-        const res = await fetch(`${API_URL}/auth/me`, {
+        const res = await userFetch(`${API_URL}/auth/me`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         const data = await res.json()
@@ -427,7 +428,7 @@ const TradingPage = () => {
         if (Object.keys(allPrices).length > 0) {
           try {
             // Check pending orders for execution
-            const pendingRes = await fetch(`${API_URL}/trade/check-pending`, {
+            const pendingRes = await userFetch(`${API_URL}/trade/check-pending`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ prices: allPrices })
@@ -443,7 +444,7 @@ const TradingPage = () => {
             
             // Check SL/TP for all trades (auto-close when hit)
             // Always call check-sltp - backend will query all open trades
-            const slTpRes = await fetch(`${API_URL}/trade/check-sltp`, {
+            const slTpRes = await userFetch(`${API_URL}/trade/check-sltp`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ prices: allPrices })
@@ -485,7 +486,7 @@ const TradingPage = () => {
   // Fetch admin-set spreads for instruments
   const fetchAdminSpreads = async () => {
     try {
-      const res = await fetch(`${API_URL}/charges/spreads`)
+      const res = await userFetch(`${API_URL}/charges/spreads`)
       const data = await res.json()
       if (data.success) {
         setAdminSpreads(data.spreads || {})
@@ -498,7 +499,7 @@ const TradingPage = () => {
   // Fetch open trades
   const fetchOpenTrades = async () => {
     try {
-      const res = await fetch(`${API_URL}/trade/open/${accountId}`)
+      const res = await userFetch(`${API_URL}/trade/open/${accountId}`)
       const data = await res.json()
       if (data.success) {
         setOpenTrades(data.trades || [])
@@ -511,7 +512,7 @@ const TradingPage = () => {
   // Fetch pending orders
   const fetchPendingOrders = async () => {
     try {
-      const res = await fetch(`${API_URL}/trade/pending/${accountId}`)
+      const res = await userFetch(`${API_URL}/trade/pending/${accountId}`)
       const data = await res.json()
       if (data.success) {
         setPendingOrders(data.trades || [])
@@ -524,7 +525,7 @@ const TradingPage = () => {
   // Fetch trade history (closed trades)
   const fetchTradeHistory = async () => {
     try {
-      const res = await fetch(`${API_URL}/trade/history/${accountId}`)
+      const res = await userFetch(`${API_URL}/trade/history/${accountId}`)
       const data = await res.json()
       if (data.success) {
         setTradeHistory(data.trades || [])
@@ -546,7 +547,7 @@ const TradingPage = () => {
       })
       
       const pricesParam = encodeURIComponent(JSON.stringify(pricesObj))
-      const res = await fetch(`${API_URL}/trade/summary/${accountId}?prices=${pricesParam}`)
+      const res = await userFetch(`${API_URL}/trade/summary/${accountId}?prices=${pricesParam}`)
       const data = await res.json()
       if (data.success) {
         setAccountSummary(data.summary)
@@ -566,7 +567,7 @@ const TradingPage = () => {
         }
       })
 
-      const res = await fetch(`${API_URL}/trade/check-stopout`, {
+      const res = await userFetch(`${API_URL}/trade/check-stopout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -648,7 +649,7 @@ const TradingPage = () => {
         return
       }
       
-      const res = await fetch(`${API_URL}/trade/open`, {
+      const res = await userFetch(`${API_URL}/trade/open`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -730,7 +731,7 @@ const TradingPage = () => {
       const currentBid = livePrice?.bid || selectedInstrument.bid
       const currentAsk = livePrice?.ask || selectedInstrument.ask
       
-      const res = await fetch(`${API_URL}/trade/open`, {
+      const res = await userFetch(`${API_URL}/trade/open`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -788,7 +789,7 @@ const TradingPage = () => {
         return
       }
 
-      const res = await fetch(`${API_URL}/trade/close`, {
+      const res = await userFetch(`${API_URL}/trade/close`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -822,7 +823,7 @@ const TradingPage = () => {
   // Cancel pending order
   const cancelPendingOrder = async (tradeId) => {
     try {
-      const res = await fetch(`${API_URL}/trade/cancel`, {
+      const res = await userFetch(`${API_URL}/trade/cancel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tradeId })
@@ -880,7 +881,7 @@ const TradingPage = () => {
       }
       console.log('Request body:', JSON.stringify(requestBody))
 
-      const res = await fetch(`${API_URL}/trade/modify`, {
+      const res = await userFetch(`${API_URL}/trade/modify`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
@@ -966,7 +967,7 @@ const TradingPage = () => {
     try {
       if (accountType === 'challenge') {
         // Fetch challenge account dashboard
-        const res = await fetch(`${API_URL}/prop/account/${accountId}`)
+        const res = await userFetch(`${API_URL}/prop/account/${accountId}`)
         const data = await res.json()
         if (data.success && data.account) {
           setChallengeAccount(data)
@@ -989,7 +990,7 @@ const TradingPage = () => {
         }
       } else {
         // Fetch regular trading account
-        const res = await fetch(`${API_URL}/trading-accounts/user/${user._id}`)
+        const res = await userFetch(`${API_URL}/trading-accounts/user/${user._id}`)
         const data = await res.json()
         const acc = data.accounts?.find(a => a._id === accountId)
         if (acc) {

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import userFetch from '../utils/userFetch.js'
 import { useNavigate } from 'react-router-dom'
 import { 
   LayoutDashboard, 
@@ -87,7 +88,7 @@ const OrderBook = () => {
       if (symbols.length === 0) return
       
       try {
-        const res = await fetch(`${API_URL}/prices/batch`, {
+        const res = await userFetch(`${API_URL}/prices/batch`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ symbols })
@@ -108,7 +109,7 @@ const OrderBook = () => {
 
   const fetchAccounts = async () => {
     try {
-      const res = await fetch(`${API_URL}/trading-accounts/user/${user._id}`)
+      const res = await userFetch(`${API_URL}/trading-accounts/user/${user._id}`)
       const data = await res.json()
       setAccounts(data.accounts || [])
     } catch (error) {
@@ -129,21 +130,21 @@ const OrderBook = () => {
 
       for (const account of accountsToFetch) {
         // Fetch open trades
-        const openRes = await fetch(`${API_URL}/trade/open/${account._id}`)
+        const openRes = await userFetch(`${API_URL}/trade/open/${account._id}`)
         const openData = await openRes.json()
         if (openData.success && openData.trades) {
           allOpen = [...allOpen, ...openData.trades.map(t => ({ ...t, accountName: account.accountId }))]
         }
 
         // Fetch closed trades (history)
-        const historyRes = await fetch(`${API_URL}/trade/history/${account._id}`)
+        const historyRes = await userFetch(`${API_URL}/trade/history/${account._id}`)
         const historyData = await historyRes.json()
         if (historyData.success && historyData.trades) {
           allClosed = [...allClosed, ...historyData.trades.map(t => ({ ...t, accountName: account.accountId }))]
         }
 
         // Fetch pending orders
-        const pendingRes = await fetch(`${API_URL}/trade/pending/${account._id}`)
+        const pendingRes = await userFetch(`${API_URL}/trade/pending/${account._id}`)
         const pendingData = await pendingRes.json()
         if (pendingData.success && pendingData.trades) {
           allPending = [...allPending, ...pendingData.trades.map(o => ({ ...o, accountName: account.accountId }))]
@@ -254,7 +255,7 @@ const OrderBook = () => {
         return
       }
 
-      const res = await fetch(`${API_URL}/trade/close`, {
+      const res = await userFetch(`${API_URL}/trade/close`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -280,7 +281,7 @@ const OrderBook = () => {
     if (!confirm(`Cancel pending ${order.side} ${order.quantity} ${order.symbol} order?`)) return
     
     try {
-      const res = await fetch(`${API_URL}/trade/cancel`, {
+      const res = await userFetch(`${API_URL}/trade/cancel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tradeId: order._id })

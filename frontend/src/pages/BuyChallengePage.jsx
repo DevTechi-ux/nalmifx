@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import userFetch from '../utils/userFetch.js'
 import { useNavigate } from 'react-router-dom'
 import { 
   Trophy, Target, TrendingUp, Shield, Clock, AlertTriangle,
@@ -31,7 +32,7 @@ export default function BuyChallengePage() {
 
   const fetchChallenges = async () => {
     try {
-      const res = await fetch(`${API_URL}/prop/challenges`)
+      const res = await userFetch(`${API_URL}/prop/challenges`)
       const data = await res.json()
       if (data.success) {
         setChallenges(data.challenges || [])
@@ -45,7 +46,7 @@ export default function BuyChallengePage() {
 
   const fetchSettings = async () => {
     try {
-      const res = await fetch(`${API_URL}/prop/status`)
+      const res = await userFetch(`${API_URL}/prop/status`)
       const data = await res.json()
       if (data.success) {
         setSettings(data)
@@ -87,7 +88,7 @@ export default function BuyChallengePage() {
 
     setBuying(true)
     try {
-      const res = await fetch(`${API_URL}/prop/buy`, {
+      const res = await userFetch(`${API_URL}/prop/buy`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

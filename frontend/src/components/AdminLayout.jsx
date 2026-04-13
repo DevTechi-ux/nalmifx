@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -41,7 +42,7 @@ const AdminLayout = ({ children, title, subtitle }) => {
 
   const fetchPendingCounts = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/admin/pending-counts`)
+      const res = await adminFetch(`${API_URL}/admin/pending-counts`)
       const data = await res.json()
       if (data.success) setPendingCounts(data.counts)
     } catch (e) {

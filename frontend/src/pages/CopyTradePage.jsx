@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import userFetch from '../utils/userFetch.js'
 import { useNavigate } from 'react-router-dom'
 import { 
   LayoutDashboard, User, Wallet, Users, Copy, UserCircle, HelpCircle, FileText, LogOut,
@@ -91,7 +92,7 @@ const CopyTradePage = () => {
   const fetchMyFollowers = async () => {
     if (!myMasterProfile?._id) return
     try {
-      const res = await fetch(`${API_URL}/copy/my-followers/${myMasterProfile._id}`)
+      const res = await userFetch(`${API_URL}/copy/my-followers/${myMasterProfile._id}`)
       const data = await res.json()
       setMyFollowers(data.followers || [])
     } catch (error) {
@@ -101,7 +102,7 @@ const CopyTradePage = () => {
 
   const fetchChallengeStatus = async () => {
     try {
-      const res = await fetch(`${API_URL}/prop/status`)
+      const res = await userFetch(`${API_URL}/prop/status`)
       const data = await res.json()
       if (data.success) setChallengeModeEnabled(data.enabled)
     } catch (error) {
@@ -111,7 +112,7 @@ const CopyTradePage = () => {
 
   const fetchMasters = async () => {
     try {
-      const res = await fetch(`${API_URL}/copy/masters`)
+      const res = await userFetch(`${API_URL}/copy/masters`)
       const data = await res.json()
       setMasters(data.masters || [])
     } catch (error) {
@@ -122,7 +123,7 @@ const CopyTradePage = () => {
 
   const fetchMySubscriptions = async () => {
     try {
-      const res = await fetch(`${API_URL}/copy/my-subscriptions/${user._id}`)
+      const res = await userFetch(`${API_URL}/copy/my-subscriptions/${user._id}`)
       const data = await res.json()
       setMySubscriptions(data.subscriptions || [])
     } catch (error) {
@@ -132,7 +133,7 @@ const CopyTradePage = () => {
 
   const fetchMyCopyTrades = async () => {
     try {
-      const res = await fetch(`${API_URL}/copy/my-copy-trades/${user._id}?limit=50`)
+      const res = await userFetch(`${API_URL}/copy/my-copy-trades/${user._id}?limit=50`)
       const data = await res.json()
       setMyCopyTrades(data.copyTrades || [])
     } catch (error) {
@@ -142,7 +143,7 @@ const CopyTradePage = () => {
 
   const fetchAccounts = async () => {
     try {
-      const res = await fetch(`${API_URL}/trading-accounts/user/${user._id}`)
+      const res = await userFetch(`${API_URL}/trading-accounts/user/${user._id}`)
       const data = await res.json()
       setAccounts(data.accounts || [])
       if (data.accounts?.length > 0) {
@@ -156,7 +157,7 @@ const CopyTradePage = () => {
 
   const fetchMyMasterProfile = async () => {
     try {
-      const res = await fetch(`${API_URL}/copy/master/my-profile/${user._id}`)
+      const res = await userFetch(`${API_URL}/copy/master/my-profile/${user._id}`)
       const data = await res.json()
       if (data.master) {
         setMyMasterProfile(data.master)
@@ -187,7 +188,7 @@ const CopyTradePage = () => {
 
     setApplyingMaster(true)
     try {
-      const res = await fetch(`${API_URL}/copy/master/apply`, {
+      const res = await userFetch(`${API_URL}/copy/master/apply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -216,7 +217,7 @@ const CopyTradePage = () => {
     
     setWithdrawing(true)
     try {
-      const res = await fetch(`${API_URL}/copy/master/withdraw`, {
+      const res = await userFetch(`${API_URL}/copy/master/withdraw`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -244,7 +245,7 @@ const CopyTradePage = () => {
     if (!selectedMaster || !selectedAccount) return
 
     try {
-      const res = await fetch(`${API_URL}/copy/follow`, {
+      const res = await userFetch(`${API_URL}/copy/follow`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -273,7 +274,7 @@ const CopyTradePage = () => {
   const handlePauseResume = async (subscriptionId, currentStatus) => {
     const action = currentStatus === 'ACTIVE' ? 'pause' : 'resume'
     try {
-      const res = await fetch(`${API_URL}/copy/follow/${subscriptionId}/${action}`, {
+      const res = await userFetch(`${API_URL}/copy/follow/${subscriptionId}/${action}`, {
         method: 'PUT'
       })
       const data = await res.json()
@@ -289,7 +290,7 @@ const CopyTradePage = () => {
     if (!confirm('Are you sure you want to stop following this master?')) return
 
     try {
-      const res = await fetch(`${API_URL}/copy/follow/${subscriptionId}/stop`, {
+      const res = await userFetch(`${API_URL}/copy/follow/${subscriptionId}/stop`, {
         method: 'PUT'
       })
       const data = await res.json()
@@ -313,7 +314,7 @@ const CopyTradePage = () => {
     if (!editingSubscription) return
 
     try {
-      const res = await fetch(`${API_URL}/copy/follow/${editingSubscription._id}/update`, {
+      const res = await userFetch(`${API_URL}/copy/follow/${editingSubscription._id}/update`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -341,7 +342,7 @@ const CopyTradePage = () => {
     if (!confirm('Are you sure you want to unfollow this master? This will stop all future copy trades.')) return
 
     try {
-      const res = await fetch(`${API_URL}/copy/follow/${subscriptionId}/unfollow`, {
+      const res = await userFetch(`${API_URL}/copy/follow/${subscriptionId}/unfollow`, {
         method: 'DELETE'
       })
       const data = await res.json()

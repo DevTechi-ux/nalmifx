@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { API_URL } from '../config/api'
 import ReportDownload from '../components/ReportDownload'
+import adminFetch from '../utils/adminFetch.js'
 
 const AdminPropFirm = () => {
   const [searchTerm, setSearchTerm] = useState('')
@@ -89,13 +90,13 @@ const AdminPropFirm = () => {
     setAccountDetail(null)
     setAccountTrades([])
     try {
-      const res = await fetch(`${API_URL}/prop/admin/account/${accountId}`)
+      const res = await adminFetch(`${API_URL}/prop/admin/account/${accountId}`)
       const data = await res.json()
       if (data.success) {
         setAccountDetail(data)
       }
       // Fetch trades for this account
-      const tradesRes = await fetch(`${API_URL}/prop/account-trades/${accountId}`)
+      const tradesRes = await adminFetch(`${API_URL}/prop/account-trades/${accountId}`)
       const tradesData = await tradesRes.json()
       if (tradesData.success) {
         setAccountTrades(tradesData.trades || [])
@@ -109,14 +110,14 @@ const AdminPropFirm = () => {
   useEffect(() => {
     fetchData()
     // Mark challenge pass notifications as seen
-    fetch(`${API_URL}/prop/admin/mark-notified`, { method: 'PUT' }).catch(() => {})
+    adminFetch(`${API_URL}/prop/admin/mark-notified`, { method: 'PUT' }).catch(() => {})
   }, [])
 
   const fetchData = async () => {
     setLoading(true)
     try {
       // Fetch settings
-      const settingsRes = await fetch(`${API_URL}/prop/admin/settings`)
+      const settingsRes = await adminFetch(`${API_URL}/prop/admin/settings`)
       const settingsData = await settingsRes.json()
       if (settingsData.success) {
         setChallengeModeEnabled(settingsData.settings.challengeModeEnabled)
@@ -128,14 +129,14 @@ const AdminPropFirm = () => {
       }
 
       // Fetch challenges
-      const challengesRes = await fetch(`${API_URL}/prop/admin/challenges`)
+      const challengesRes = await adminFetch(`${API_URL}/prop/admin/challenges`)
       const challengesData = await challengesRes.json()
       if (challengesData.success) {
         setChallenges(challengesData.challenges || [])
       }
 
       // Fetch participants (challenge accounts)
-      const accountsRes = await fetch(`${API_URL}/prop/admin/accounts?limit=50`)
+      const accountsRes = await adminFetch(`${API_URL}/prop/admin/accounts?limit=50`)
       const accountsData = await accountsRes.json()
       if (accountsData.success) {
         const allAccounts = accountsData.accounts || []
@@ -144,7 +145,7 @@ const AdminPropFirm = () => {
       }
 
       // Fetch dashboard stats
-      const dashRes = await fetch(`${API_URL}/prop/admin/dashboard`)
+      const dashRes = await adminFetch(`${API_URL}/prop/admin/dashboard`)
       const dashData = await dashRes.json()
       if (dashData.success) {
         setStats(dashData.stats || {})
@@ -158,7 +159,7 @@ const AdminPropFirm = () => {
   const toggleChallengeMode = async () => {
     try {
       const newValue = !challengeModeEnabled
-      const res = await fetch(`${API_URL}/prop/admin/settings`, {
+      const res = await adminFetch(`${API_URL}/prop/admin/settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ challengeModeEnabled: newValue })
@@ -176,7 +177,7 @@ const AdminPropFirm = () => {
 
   const saveSettings = async () => {
     try {
-      const res = await fetch(`${API_URL}/prop/admin/settings`, {
+      const res = await adminFetch(`${API_URL}/prop/admin/settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -255,7 +256,7 @@ const AdminPropFirm = () => {
   const deleteChallenge = async (challengeId) => {
     if (!confirm('Are you sure you want to delete this challenge?')) return
     try {
-      const res = await fetch(`${API_URL}/prop/admin/challenges/${challengeId}`, {
+      const res = await adminFetch(`${API_URL}/prop/admin/challenges/${challengeId}`, {
         method: 'DELETE'
       })
       const data = await res.json()

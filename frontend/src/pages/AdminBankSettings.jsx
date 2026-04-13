@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
 import {
   Building2,
@@ -76,7 +77,7 @@ const AdminBankSettings = () => {
 
   const fetchBankRequests = async () => {
     try {
-      const res = await fetch(`${API_URL}/payment-methods/admin/bank-requests?status=${requestFilter}`)
+      const res = await adminFetch(`${API_URL}/payment-methods/admin/bank-requests?status=${requestFilter}`)
       const data = await res.json()
       setBankRequests(data.requests || [])
     } catch (error) {
@@ -86,7 +87,7 @@ const AdminBankSettings = () => {
 
   const fetchRequestStats = async () => {
     try {
-      const res = await fetch(`${API_URL}/payment-methods/admin/bank-requests/stats`)
+      const res = await adminFetch(`${API_URL}/payment-methods/admin/bank-requests/stats`)
       const data = await res.json()
       setRequestStats(data.stats || { pending: 0, approved: 0, rejected: 0 })
     } catch (error) {
@@ -96,7 +97,7 @@ const AdminBankSettings = () => {
 
   const handleApproveRequest = async (id) => {
     try {
-      const res = await fetch(`${API_URL}/payment-methods/admin/bank-requests/${id}/approve`, {
+      const res = await adminFetch(`${API_URL}/payment-methods/admin/bank-requests/${id}/approve`, {
         method: 'PUT'
       })
       const data = await res.json()
@@ -115,7 +116,7 @@ const AdminBankSettings = () => {
     if (!reason) return
 
     try {
-      const res = await fetch(`${API_URL}/payment-methods/admin/bank-requests/${id}/reject`, {
+      const res = await adminFetch(`${API_URL}/payment-methods/admin/bank-requests/${id}/reject`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason })
@@ -133,7 +134,7 @@ const AdminBankSettings = () => {
 
   const fetchCurrencyMarkups = async () => {
     try {
-      const res = await fetch(`${API_URL}/payment-methods/currencies`)
+      const res = await adminFetch(`${API_URL}/payment-methods/currencies`)
       const data = await res.json()
       setCurrencyMarkups(data.currencies || [])
     } catch (error) {
@@ -168,7 +169,7 @@ const AdminBankSettings = () => {
   // Fetch live exchange rates
   const fetchLiveRates = async () => {
     try {
-      const res = await fetch(`${API_URL}/payment-methods/currencies/live-rates`)
+      const res = await adminFetch(`${API_URL}/payment-methods/currencies/live-rates`)
       const data = await res.json()
       if (data.success && data.rates) {
         alert(`Live rates fetched! ${Object.keys(data.rates).length} currencies updated.`)
@@ -187,7 +188,7 @@ const AdminBankSettings = () => {
     if (!confirm('This will add all common currencies with live exchange rates. Continue?')) return
     
     try {
-      const res = await fetch(`${API_URL}/payment-methods/currencies/add-all`, {
+      const res = await adminFetch(`${API_URL}/payment-methods/currencies/add-all`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currencies: commonCurrencies })
@@ -208,7 +209,7 @@ const AdminBankSettings = () => {
   // Update single currency with live rate
   const updateLiveRate = async (currencyCode) => {
     try {
-      const res = await fetch(`${API_URL}/payment-methods/currencies/update-rate/${currencyCode}`, {
+      const res = await adminFetch(`${API_URL}/payment-methods/currencies/update-rate/${currencyCode}`, {
         method: 'PUT'
       })
       const data = await res.json()
@@ -254,7 +255,7 @@ const AdminBankSettings = () => {
   const handleDeleteCurrency = async (id) => {
     if (!confirm('Are you sure you want to delete this currency?')) return
     try {
-      const res = await fetch(`${API_URL}/payment-methods/currencies/${id}`, { method: 'DELETE' })
+      const res = await adminFetch(`${API_URL}/payment-methods/currencies/${id}`, { method: 'DELETE' })
       if (res.ok) {
         alert('Currency deleted!')
         fetchCurrencyMarkups()
@@ -289,7 +290,7 @@ const AdminBankSettings = () => {
   const fetchPaymentMethods = async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${API_URL}/payment-methods/all`)
+      const res = await adminFetch(`${API_URL}/payment-methods/all`)
       const data = await res.json()
       setPaymentMethods(data.paymentMethods || [])
     } catch (error) {
@@ -329,7 +330,7 @@ const AdminBankSettings = () => {
   const handleDelete = async (id) => {
     if (!confirm('Are you sure you want to delete this payment method?')) return
     try {
-      const res = await fetch(`${API_URL}/payment-methods/${id}`, { method: 'DELETE' })
+      const res = await adminFetch(`${API_URL}/payment-methods/${id}`, { method: 'DELETE' })
       if (res.ok) {
         alert('Payment method deleted!')
         fetchPaymentMethods()
@@ -341,7 +342,7 @@ const AdminBankSettings = () => {
 
   const handleToggleStatus = async (method) => {
     try {
-      await fetch(`${API_URL}/payment-methods/${method._id}`, {
+      await adminFetch(`${API_URL}/payment-methods/${method._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive: !method.isActive })

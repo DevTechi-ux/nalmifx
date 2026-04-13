@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
 import { 
   TrendingUp,
@@ -104,7 +105,7 @@ const AdminTradeManagement = () => {
       if (missingSymbols.length === 0) return
       
       try {
-        const res = await fetch(`${API_URL}/prices/batch`, {
+        const res = await adminFetch(`${API_URL}/prices/batch`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ symbols })
@@ -165,7 +166,7 @@ const AdminTradeManagement = () => {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch(`${API_URL}/admin/users`)
+      const res = await adminFetch(`${API_URL}/admin/users`)
       const data = await res.json()
       if (data.users) setUsers(data.users)
     } catch (error) {
@@ -175,7 +176,7 @@ const AdminTradeManagement = () => {
 
   const fetchTradingAccounts = async (userId) => {
     try {
-      const res = await fetch(`${API_URL}/trading-accounts/user/${userId}`)
+      const res = await adminFetch(`${API_URL}/trading-accounts/user/${userId}`)
       const data = await res.json()
       if (data.accounts) setTradingAccounts(data.accounts)
     } catch (error) {
@@ -187,7 +188,7 @@ const AdminTradeManagement = () => {
     setLoadingPrices(true)
     try {
       // Use backend API directly for all symbols - more reliable
-      const response = await fetch(`${API_URL}/prices/${symbol}`)
+      const response = await adminFetch(`${API_URL}/prices/${symbol}`)
       const data = await response.json()
       
       if (data.success && data.price && data.price.bid && data.price.ask) {
@@ -205,7 +206,7 @@ const AdminTradeManagement = () => {
       } else {
         console.warn('No price data received for', symbol, data)
         // Try batch endpoint as fallback
-        const batchRes = await fetch(`${API_URL}/prices/batch`, {
+        const batchRes = await adminFetch(`${API_URL}/prices/batch`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ symbols: [symbol] })
@@ -230,7 +231,7 @@ const AdminTradeManagement = () => {
 
   const handleCreateTrade = async () => {
     try {
-      const res = await fetch(`${API_URL}/admin/trade/create`, {
+      const res = await adminFetch(`${API_URL}/admin/trade/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -262,7 +263,7 @@ const AdminTradeManagement = () => {
   const handleEditTrade = async () => {
     if (!selectedTrade) return
     try {
-      const res = await fetch(`${API_URL}/admin/trade/edit/${selectedTrade._id}`, {
+      const res = await adminFetch(`${API_URL}/admin/trade/edit/${selectedTrade._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -298,7 +299,7 @@ const AdminTradeManagement = () => {
         marketPrice = selectedTrade.side === 'BUY' ? priceData.bid : priceData.ask
       }
 
-      const res = await fetch(`${API_URL}/admin/trade/close/${selectedTrade._id}`, {
+      const res = await adminFetch(`${API_URL}/admin/trade/close/${selectedTrade._id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -376,7 +377,7 @@ const AdminTradeManagement = () => {
       const statusParam = filterStatus !== 'all' ? `&status=${filterStatus.toUpperCase()}` : ''
       const dateFromParam = dateFrom ? `&dateFrom=${dateFrom}` : ''
       const dateToParam = dateTo ? `&dateTo=${dateTo}` : ''
-      const res = await fetch(`${API_URL}/admin/trade/all?limit=${tradesPerPage}&offset=${offset}${statusParam}${dateFromParam}${dateToParam}`)
+      const res = await adminFetch(`${API_URL}/admin/trade/all?limit=${tradesPerPage}&offset=${offset}${statusParam}${dateFromParam}${dateToParam}`)
       const data = await res.json()
       if (data.trades) {
         setTrades(data.trades)

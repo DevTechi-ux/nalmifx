@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
 import { 
   Copy,
@@ -43,7 +44,7 @@ const AdminCopyTrade = () => {
 
   const fetchDashboard = async () => {
     try {
-      const res = await fetch(`${API_URL}/copy/admin/dashboard`)
+      const res = await adminFetch(`${API_URL}/copy/admin/dashboard`)
       const data = await res.json()
       setDashboard(data.dashboard)
     } catch (error) {
@@ -53,7 +54,7 @@ const AdminCopyTrade = () => {
 
   const fetchMasters = async () => {
     try {
-      const res = await fetch(`${API_URL}/copy/admin/masters`)
+      const res = await adminFetch(`${API_URL}/copy/admin/masters`)
       const data = await res.json()
       setMasters(data.masters || [])
     } catch (error) {
@@ -64,7 +65,7 @@ const AdminCopyTrade = () => {
 
   const fetchApplications = async () => {
     try {
-      const res = await fetch(`${API_URL}/copy/admin/applications`)
+      const res = await adminFetch(`${API_URL}/copy/admin/applications`)
       const data = await res.json()
       setApplications(data.applications || [])
     } catch (error) {
@@ -74,7 +75,7 @@ const AdminCopyTrade = () => {
 
   const fetchFollowers = async () => {
     try {
-      const res = await fetch(`${API_URL}/copy/admin/followers`)
+      const res = await adminFetch(`${API_URL}/copy/admin/followers`)
       const data = await res.json()
       setFollowers(data.followers || [])
     } catch (error) {
@@ -85,7 +86,7 @@ const AdminCopyTrade = () => {
   const handleApprove = async () => {
     if (!selectedMaster) return
     try {
-      const res = await fetch(`${API_URL}/copy/admin/approve/${selectedMaster._id}`, {
+      const res = await adminFetch(`${API_URL}/copy/admin/approve/${selectedMaster._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -113,7 +114,7 @@ const AdminCopyTrade = () => {
     if (!reason) return
     
     try {
-      const res = await fetch(`${API_URL}/copy/admin/reject/${masterId}`, {
+      const res = await adminFetch(`${API_URL}/copy/admin/reject/${masterId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -137,7 +138,7 @@ const AdminCopyTrade = () => {
     if (!confirm('Are you sure you want to suspend this master?')) return
     
     try {
-      const res = await fetch(`${API_URL}/copy/admin/suspend/${masterId}`, {
+      const res = await adminFetch(`${API_URL}/copy/admin/suspend/${masterId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminId: adminUser._id })

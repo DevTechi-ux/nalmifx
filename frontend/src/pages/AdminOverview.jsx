@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
 import { 
   Users,
@@ -32,14 +33,14 @@ const AdminOverview = () => {
     setLoading(true)
     try {
       // Fetch users
-      const usersResponse = await fetch(`${API_URL}/admin/users`)
+      const usersResponse = await adminFetch(`${API_URL}/admin/users`)
       if (usersResponse.ok) {
         const data = await usersResponse.json()
         setUsers(data.users || [])
       }
       
       // Fetch dashboard stats
-      const statsResponse = await fetch(`${API_URL}/admin/dashboard-stats`)
+      const statsResponse = await adminFetch(`${API_URL}/admin/dashboard-stats`)
       if (statsResponse.ok) {
         const data = await statsResponse.json()
         if (data.success) {

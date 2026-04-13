@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
 import { 
   Mail,
@@ -63,7 +64,7 @@ const AdminEmailTemplates = () => {
   const fetchTemplates = async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${API_URL}/email-templates`)
+      const res = await adminFetch(`${API_URL}/email-templates`)
       const data = await res.json()
       if (data.success) {
         setTemplates(data.templates || [])
@@ -76,7 +77,7 @@ const AdminEmailTemplates = () => {
 
   const fetchSettings = async () => {
     try {
-      const res = await fetch(`${API_URL}/email-templates/settings/smtp`)
+      const res = await adminFetch(`${API_URL}/email-templates/settings/smtp`)
       const data = await res.json()
       if (data.success && data.settings) {
         setSmtpSettings(data.settings)
@@ -91,7 +92,7 @@ const AdminEmailTemplates = () => {
   const toggleSmtp = async () => {
     setTogglingSmtp(true)
     try {
-      const res = await fetch(`${API_URL}/email-templates/settings/toggle-smtp`, { method: 'PUT' })
+      const res = await adminFetch(`${API_URL}/email-templates/settings/toggle-smtp`, { method: 'PUT' })
       const data = await res.json()
       if (data.success) {
         setSmtpEnabled(data.smtpEnabled)
@@ -108,7 +109,7 @@ const AdminEmailTemplates = () => {
 
   const seedTemplates = async () => {
     try {
-      const res = await fetch(`${API_URL}/email-templates/seed`, { method: 'POST' })
+      const res = await adminFetch(`${API_URL}/email-templates/seed`, { method: 'POST' })
       const data = await res.json()
       if (data.success) {
         setSuccess('Default templates seeded successfully!')
@@ -123,7 +124,7 @@ const AdminEmailTemplates = () => {
   const resetTemplates = async () => {
     if (!confirm('Are you sure you want to reset ALL templates to defaults? This will delete any customizations.')) return
     try {
-      const res = await fetch(`${API_URL}/email-templates/reset`, { method: 'POST' })
+      const res = await adminFetch(`${API_URL}/email-templates/reset`, { method: 'POST' })
       const data = await res.json()
       if (data.success) {
         setSuccess('All templates reset to defaults!')
@@ -140,7 +141,7 @@ const AdminEmailTemplates = () => {
   const deleteTemplate = async (template) => {
     if (!confirm(`Are you sure you want to delete "${template.name}"?`)) return
     try {
-      const res = await fetch(`${API_URL}/email-templates/${template._id}`, { method: 'DELETE' })
+      const res = await adminFetch(`${API_URL}/email-templates/${template._id}`, { method: 'DELETE' })
       const data = await res.json()
       if (data.success) {
         setSuccess('Template deleted!')
@@ -164,7 +165,7 @@ const AdminEmailTemplates = () => {
     if (!templateTestEmail || !testingTemplate) return
     setSendingTemplateTest(true)
     try {
-      const res = await fetch(`${API_URL}/email-templates/${testingTemplate._id}/test`, {
+      const res = await adminFetch(`${API_URL}/email-templates/${testingTemplate._id}/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toEmail: templateTestEmail })
@@ -185,7 +186,7 @@ const AdminEmailTemplates = () => {
 
   const handleToggle = async (template) => {
     try {
-      const res = await fetch(`${API_URL}/email-templates/${template._id}/toggle`, { method: 'PUT' })
+      const res = await adminFetch(`${API_URL}/email-templates/${template._id}/toggle`, { method: 'PUT' })
       const data = await res.json()
       if (data.success) {
         fetchTemplates()
@@ -213,7 +214,7 @@ const AdminEmailTemplates = () => {
     if (!selectedTemplate) return
     setSaving(true)
     try {
-      const res = await fetch(`${API_URL}/email-templates/${selectedTemplate._id}`, {
+      const res = await adminFetch(`${API_URL}/email-templates/${selectedTemplate._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editForm)
@@ -236,7 +237,7 @@ const AdminEmailTemplates = () => {
   const handleSaveSettings = async () => {
     setSaving(true)
     try {
-      const res = await fetch(`${API_URL}/email-templates/settings/smtp`, {
+      const res = await adminFetch(`${API_URL}/email-templates/settings/smtp`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(smtpSettings)
@@ -259,7 +260,7 @@ const AdminEmailTemplates = () => {
   const testConnection = async () => {
     setTestingConnection(true)
     try {
-      const res = await fetch(`${API_URL}/email-templates/settings/test`, { method: 'POST' })
+      const res = await adminFetch(`${API_URL}/email-templates/settings/test`, { method: 'POST' })
       const data = await res.json()
       if (data.success) {
         setSuccess('SMTP connection successful!')
@@ -283,7 +284,7 @@ const AdminEmailTemplates = () => {
     }
     setSendingTestEmail(true)
     try {
-      const res = await fetch(`${API_URL}/email-templates/settings/send-test`, {
+      const res = await adminFetch(`${API_URL}/email-templates/settings/send-test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toEmail: testEmail })

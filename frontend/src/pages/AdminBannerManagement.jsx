@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
 import { Plus, Edit2, Trash2, Image, Eye, EyeOff, GripVertical, Link, Calendar } from 'lucide-react'
 import { API_URL, API_BASE_URL } from '../config/api'
@@ -27,7 +28,7 @@ const AdminBannerManagement = () => {
     try {
       setLoading(true)
       const token = localStorage.getItem('adminToken')
-      const res = await fetch(`${API_URL}/banners`, {
+      const res = await adminFetch(`${API_URL}/banners`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const data = await res.json()
@@ -112,7 +113,7 @@ const AdminBannerManagement = () => {
 
     try {
       const token = localStorage.getItem('adminToken')
-      const res = await fetch(`${API_URL}/banners/${id}`, {
+      const res = await adminFetch(`${API_URL}/banners/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       })
@@ -128,7 +129,7 @@ const AdminBannerManagement = () => {
   const handleToggle = async (id) => {
     try {
       const token = localStorage.getItem('adminToken')
-      const res = await fetch(`${API_URL}/banners/${id}/toggle`, {
+      const res = await adminFetch(`${API_URL}/banners/${id}/toggle`, {
         method: 'PATCH',
         headers: { 'Authorization': `Bearer ${token}` }
       })

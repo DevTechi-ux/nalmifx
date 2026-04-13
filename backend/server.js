@@ -577,7 +577,7 @@ mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('Connected to MongoDB'))
   .catch((err) => console.error('MongoDB connection error:', err))
 
-// Routes — public (no auth)
+// Routes — public (read endpoints are public, write endpoints need per-route auth)
 app.use('/api/auth', authRoutes)
 app.use('/api/prices', pricesRoutes)
 app.use('/api/theme', themeRoutes)
@@ -586,27 +586,29 @@ app.use('/api/banners', bannerRoutes)
 // Routes — admin-mgmt handles its own auth internally (login, brand, init)
 app.use('/api/admin-mgmt', adminManagementRoutes)
 
-// Routes — user-authenticated
-app.use('/api/account-types', authUser, accountTypesRoutes)
-app.use('/api/trading-accounts', authUser, tradingAccountsRoutes)
-app.use('/api/wallet', authUser, walletRoutes)
-app.use('/api/payment-methods', authUser, paymentMethodsRoutes)
+// Routes — user-only (no admin endpoints inside)
 app.use('/api/trade', authUser, tradeRoutes)
 app.use('/api/wallet-transfer', authUser, walletTransferRoutes)
-app.use('/api/copy', authUser, copyTradingRoutes)
-app.use('/api/ib', authUser, ibRoutes)
-app.use('/api/prop', propTradingRoutes) // Mixed auth — handled per-route inside
-app.use('/api/support', authUser, supportRoutes)
-app.use('/api/kyc', authUser, kycRoutes)
 app.use('/api/upload', authUser, uploadRoutes)
+
+// Routes — mixed (both user + admin endpoints inside, so use authAny)
+app.use('/api/account-types', authAny, accountTypesRoutes)
+app.use('/api/trading-accounts', authAny, tradingAccountsRoutes)
+app.use('/api/wallet', authAny, walletRoutes)
+app.use('/api/payment-methods', authAny, paymentMethodsRoutes)
+app.use('/api/copy', authAny, copyTradingRoutes)
+app.use('/api/ib', authAny, ibRoutes)
+app.use('/api/support', authAny, supportRoutes)
+app.use('/api/kyc', authAny, kycRoutes)
+app.use('/api/prop', propTradingRoutes) // Mixed auth — handled per-route inside
 
 // Routes — admin-authenticated
 app.use('/api/admin', authAdmin, adminRoutes)
 app.use('/api/admin/trade', authAdmin, adminTradeRoutes)
-app.use('/api/charges', authAdmin, chargesRoutes)
+app.use('/api/charges', authAny, chargesRoutes)    // user reads spreads, admin manages
 app.use('/api/earnings', authAdmin, earningsRoutes)
 app.use('/api/email-templates', authAdmin, emailTemplatesRoutes)
-app.use('/api/bonus', authAdmin, bonusRoutes)
+app.use('/api/bonus', authAny, bonusRoutes)        // user calculates bonus, admin manages
 app.use('/api/reports', authAdmin, reportRoutes)
 app.use('/api/settlements', authAdmin, settlementRoutes)
 

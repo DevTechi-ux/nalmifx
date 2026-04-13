@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import userFetch from '../utils/userFetch.js'
 import { useNavigate } from 'react-router-dom'
 import { 
   LayoutDashboard, 
@@ -108,7 +109,7 @@ const ProfilePage = () => {
   // Fetch user's bank accounts
   const fetchUserBankAccounts = async () => {
     try {
-      const res = await fetch(`${API_URL}/payment-methods/user-banks/${storedUser._id}`)
+      const res = await userFetch(`${API_URL}/payment-methods/user-banks/${storedUser._id}`)
       const data = await res.json()
       setUserBankAccounts(data.accounts || [])
     } catch (error) {
@@ -122,7 +123,7 @@ const ProfilePage = () => {
     try {
       const formData = new FormData()
       formData.append('document', file)
-      const res = await fetch(`${API_URL}/upload/document`, {
+      const res = await userFetch(`${API_URL}/upload/document`, {
         method: 'POST',
         body: formData
       })
@@ -189,7 +190,7 @@ const ProfilePage = () => {
 
     setBankLoading(true)
     try {
-      const res = await fetch(`${API_URL}/payment-methods/user-banks`, {
+      const res = await userFetch(`${API_URL}/payment-methods/user-banks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -226,7 +227,7 @@ const ProfilePage = () => {
   const handleDeleteBankAccount = async (id) => {
     if (!confirm('Are you sure you want to delete this bank account?')) return
     try {
-      const res = await fetch(`${API_URL}/payment-methods/user-banks/${id}`, { method: 'DELETE' })
+      const res = await userFetch(`${API_URL}/payment-methods/user-banks/${id}`, { method: 'DELETE' })
       const data = await res.json()
       if (data.success) {
         fetchUserBankAccounts()
@@ -239,7 +240,7 @@ const ProfilePage = () => {
   // Fetch KYC status
   const fetchKycStatus = async () => {
     try {
-      const res = await fetch(`${API_URL}/kyc/status/${storedUser._id}`)
+      const res = await userFetch(`${API_URL}/kyc/status/${storedUser._id}`)
       const data = await res.json()
       if (data.success && data.hasKYC) {
         setKycStatus(data.kyc)
@@ -274,7 +275,7 @@ const ProfilePage = () => {
     
     setKycLoading(true)
     try {
-      const res = await fetch(`${API_URL}/kyc/submit`, {
+      const res = await userFetch(`${API_URL}/kyc/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -299,7 +300,7 @@ const ProfilePage = () => {
 
   const fetchChallengeStatus = async () => {
     try {
-      const res = await fetch(`${API_URL}/prop/status`)
+      const res = await userFetch(`${API_URL}/prop/status`)
       const data = await res.json()
       if (data.success) {
         setChallengeModeEnabled(data.enabled)
@@ -339,7 +340,7 @@ const ProfilePage = () => {
         const token = localStorage.getItem('token')
         if (!token) return
         
-        const res = await fetch(`${API_URL}/auth/me`, {
+        const res = await userFetch(`${API_URL}/auth/me`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         const data = await res.json()
@@ -380,7 +381,7 @@ const ProfilePage = () => {
       formData.append('userId', storedUser._id)
       formData.append('profileImage', file)
 
-      const res = await fetch(`${API_URL}/upload/profile-image`, {
+      const res = await userFetch(`${API_URL}/upload/profile-image`, {
         method: 'POST',
         body: formData
       })
@@ -431,7 +432,7 @@ const ProfilePage = () => {
   const handleSave = async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${API_URL}/auth/update-profile`, {
+      const res = await userFetch(`${API_URL}/auth/update-profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -474,7 +475,7 @@ const ProfilePage = () => {
     
     setLoading(true)
     try {
-      const res = await fetch(`${API_URL}/auth/change-password`, {
+      const res = await userFetch(`${API_URL}/auth/change-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

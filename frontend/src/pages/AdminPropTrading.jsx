@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import adminFetch from '../utils/adminFetch.js'
 import { 
   Trophy, Settings, Users, Plus, Edit, Trash2, Eye, Check, X,
   TrendingUp, TrendingDown, Clock, AlertTriangle, RefreshCw,
@@ -35,7 +36,7 @@ export default function AdminPropTrading() {
 
   const fetchSettings = async () => {
     try {
-      const res = await fetch(`${API_URL}/prop/admin/settings`)
+      const res = await adminFetch(`${API_URL}/prop/admin/settings`)
       const data = await res.json()
       if (data.success) setSettings(data.settings)
     } catch (error) {
@@ -45,7 +46,7 @@ export default function AdminPropTrading() {
 
   const fetchChallenges = async () => {
     try {
-      const res = await fetch(`${API_URL}/prop/admin/challenges`)
+      const res = await adminFetch(`${API_URL}/prop/admin/challenges`)
       const data = await res.json()
       if (data.success) setChallenges(data.challenges || [])
     } catch (error) {
@@ -55,7 +56,7 @@ export default function AdminPropTrading() {
 
   const fetchAccounts = async () => {
     try {
-      const res = await fetch(`${API_URL}/prop/admin/accounts?limit=100`)
+      const res = await adminFetch(`${API_URL}/prop/admin/accounts?limit=100`)
       const data = await res.json()
       if (data.success) setAccounts(data.accounts || [])
     } catch (error) {
@@ -65,7 +66,7 @@ export default function AdminPropTrading() {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch(`${API_URL}/prop/admin/dashboard`)
+      const res = await adminFetch(`${API_URL}/prop/admin/dashboard`)
       const data = await res.json()
       if (data.success) setStats(data.stats)
     } catch (error) {
@@ -75,7 +76,7 @@ export default function AdminPropTrading() {
 
   const toggleChallengeMode = async () => {
     try {
-      const res = await fetch(`${API_URL}/prop/admin/settings`, {
+      const res = await adminFetch(`${API_URL}/prop/admin/settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -95,7 +96,7 @@ export default function AdminPropTrading() {
   const handleForcePass = async (accountId) => {
     if (!confirm('Are you sure you want to force pass this challenge?')) return
     try {
-      const res = await fetch(`${API_URL}/prop/admin/force-pass/${accountId}`, {
+      const res = await adminFetch(`${API_URL}/prop/admin/force-pass/${accountId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminId: 'admin' })
@@ -115,7 +116,7 @@ export default function AdminPropTrading() {
     const reason = prompt('Enter reason for failing this challenge:')
     if (!reason) return
     try {
-      const res = await fetch(`${API_URL}/prop/admin/force-fail/${accountId}`, {
+      const res = await adminFetch(`${API_URL}/prop/admin/force-fail/${accountId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminId: 'admin', reason })
@@ -135,7 +136,7 @@ export default function AdminPropTrading() {
     const days = prompt('Enter number of days to extend:')
     if (!days || isNaN(days)) return
     try {
-      const res = await fetch(`${API_URL}/prop/admin/extend-time/${accountId}`, {
+      const res = await adminFetch(`${API_URL}/prop/admin/extend-time/${accountId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminId: 'admin', days: parseInt(days) })
@@ -153,7 +154,7 @@ export default function AdminPropTrading() {
   const handleResetChallenge = async (accountId) => {
     if (!confirm('Are you sure you want to reset this challenge? All progress will be lost.')) return
     try {
-      const res = await fetch(`${API_URL}/prop/admin/reset/${accountId}`, {
+      const res = await adminFetch(`${API_URL}/prop/admin/reset/${accountId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminId: 'admin' })
