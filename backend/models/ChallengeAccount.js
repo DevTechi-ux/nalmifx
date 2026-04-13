@@ -52,6 +52,10 @@ const challengeAccountSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  adminNotified: {
+    type: Boolean,
+    default: false
+  },
   
   // Balance tracking
   initialBalance: {

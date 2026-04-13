@@ -5,6 +5,7 @@ import User from '../models/User.js'
 import Transaction from '../models/Transaction.js'
 import Admin from '../models/Admin.js'
 import Trade from '../models/Trade.js'
+import ChallengeAccount from '../models/ChallengeAccount.js'
 
 const router = express.Router()
 
@@ -510,6 +511,91 @@ router.get('/earnings', async (req, res) => {
     res.end()
   } catch (error) {
     console.error('Earnings report error:', error)
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
+// ==================== PROP FIRM PARTICIPANTS REPORT ====================
+router.get('/prop-participants', async (req, res) => {
+  try {
+    const { format = 'excel', period } = req.query
+    const dateFilter = getDateFilter(period)
+
+    let query = {}
+    if (dateFilter) query.createdAt = dateFilter
+
+    const accounts = await ChallengeAccount.find(query)
+      .populate('userId', 'firstName email')
+      .populate('challengeId', 'name fundSize stepsCount')
+      .sort({ createdAt: -1 })
+
+    const headers = ['User', 'Email', 'Challenge', 'Account ID', 'Account Size', 'Balance', 'P&L', 'Status', 'Phase', 'Daily DD%', 'Overall DD%', 'Profit%', 'Trading Days', 'Total Trades', 'Start Date', 'Expires']
+
+    const mapRow = (a) => {
+      const pnl = (a.currentBalance || 0) - (a.initialBalance || 0)
+      return [
+        a.userId?.firstName || 'Unknown',
+        a.userId?.email || '-',
+        a.challengeId?.name || '-',
+        a.accountId || '-',
+        `$${(a.initialBalance || 0).toLocaleString()}`,
+        `$${(a.currentBalance || 0).toLocaleString()}`,
+        `${pnl >= 0 ? '+' : ''}$${pnl.toLocaleString()}`,
+        a.status || '-',
+        `${a.currentPhase || 1}/${a.totalPhases || 2}`,
+        `${(a.currentDailyDrawdownPercent || 0).toFixed(2)}%`,
+        `${(a.currentOverallDrawdownPercent || 0).toFixed(2)}%`,
+        `${(a.currentProfitPercent || 0).toFixed(2)}%`,
+        a.tradingDaysCount || 0,
+        a.totalTrades || 0,
+        a.createdAt ? new Date(a.createdAt).toLocaleDateString() : '-',
+        a.expiresAt ? new Date(a.expiresAt).toLocaleDateString() : '-'
+      ]
+    }
+
+    if (format === 'pdf') {
+      const rows = accounts.map(mapRow)
+      return buildPDF(res, 'Prop Firm Participants Report', headers, rows, `prop_participants_${period || 'all'}.pdf`)
+    }
+
+    // Excel
+    const workbook = new ExcelJS.Workbook()
+    const sheet = workbook.addWorksheet('Participants')
+    sheet.columns = [
+      { header: 'User', key: 'user', width: 18 },
+      { header: 'Email', key: 'email', width: 24 },
+      { header: 'Challenge', key: 'challenge', width: 20 },
+      { header: 'Account ID', key: 'accountId', width: 14 },
+      { header: 'Account Size', key: 'accountSize', width: 14 },
+      { header: 'Balance', key: 'balance', width: 14 },
+      { header: 'P&L', key: 'pnl', width: 14 },
+      { header: 'Status', key: 'status', width: 12 },
+      { header: 'Phase', key: 'phase', width: 10 },
+      { header: 'Daily DD%', key: 'dailyDD', width: 12 },
+      { header: 'Overall DD%', key: 'overallDD', width: 12 },
+      { header: 'Profit%', key: 'profitPct', width: 12 },
+      { header: 'Trading Days', key: 'tradingDays', width: 14 },
+      { header: 'Total Trades', key: 'totalTrades', width: 14 },
+      { header: 'Start Date', key: 'startDate', width: 14 },
+      { header: 'Expires', key: 'expires', width: 14 }
+    ]
+    styleHeader(sheet)
+    accounts.forEach(a => {
+      const row = mapRow(a)
+      sheet.addRow({
+        user: row[0], email: row[1], challenge: row[2], accountId: row[3],
+        accountSize: row[4], balance: row[5], pnl: row[6], status: row[7],
+        phase: row[8], dailyDD: row[9], overallDD: row[10], profitPct: row[11],
+        tradingDays: row[12], totalTrades: row[13], startDate: row[14], expires: row[15]
+      })
+    })
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.setHeader('Content-Disposition', `attachment; filename="prop_participants_${period || 'all'}.xlsx"`)
+    await workbook.xlsx.write(res)
+    res.end()
+  } catch (error) {
+    console.error('Prop participants report error:', error)
     res.status(500).json({ success: false, message: error.message })
   }
 })

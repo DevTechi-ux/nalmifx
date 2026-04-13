@@ -541,4 +541,30 @@ router.get('/admin/dashboard', async (req, res) => {
   }
 })
 
+// GET /api/prop/account-trades/:id - Get trades for a challenge account
+router.get('/account-trades/:id', async (req, res) => {
+  try {
+    const Trade = (await import('../models/Trade.js')).default
+    const trades = await Trade.find({ tradingAccountId: req.params.id })
+      .sort({ createdAt: -1 })
+      .limit(100)
+    res.json({ success: true, trades })
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
+// PUT /api/prop/admin/mark-notified - Mark all passed challenges as admin-notified
+router.put('/admin/mark-notified', async (req, res) => {
+  try {
+    await ChallengeAccount.updateMany(
+      { status: 'PASSED', adminNotified: false },
+      { $set: { adminNotified: true } }
+    )
+    res.json({ success: true })
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
 export default router

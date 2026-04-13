@@ -36,7 +36,7 @@ const AdminLayout = ({ children, title, subtitle }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [expandedSections, setExpandedSections] = useState({})
   const [pendingCounts, setPendingCounts] = useState({
-    funds: 0, kyc: 0, ib: 0, copyTrade: 0, support: 0, bankRequests: 0
+    funds: 0, kyc: 0, ib: 0, copyTrade: 0, support: 0, bankRequests: 0, propFirm: 0
   })
 
   const fetchPendingCounts = useCallback(async () => {
@@ -70,7 +70,7 @@ const AdminLayout = ({ children, title, subtitle }) => {
     { name: 'Forex Charges', icon: DollarSign, path: '/admin/forex-charges' },
     { name: 'Earnings Report', icon: TrendingUp, path: '/admin/earnings' },
     { name: 'Copy Trade Management', icon: Copy, path: '/admin/copy-trade', badge: pendingCounts.copyTrade },
-    { name: 'Prop Firm Challenges', icon: Trophy, path: '/admin/prop-firm' },
+    { name: 'Prop Firm Challenges', icon: Trophy, path: '/admin/prop-firm', badge: pendingCounts.propFirm },
     { name: 'Account Types', icon: CreditCard, path: '/admin/account-types' },
     { name: 'Theme Settings', icon: Palette, path: '/admin/theme' },
     { name: 'Email Templates', icon: Mail, path: '/admin/email-templates' },

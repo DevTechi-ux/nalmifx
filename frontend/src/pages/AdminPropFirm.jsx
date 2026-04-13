@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import AdminLayout from '../components/AdminLayout'
-import { 
+import {
   Trophy,
   Plus,
   Search,
@@ -16,9 +16,14 @@ import {
   ToggleLeft,
   ToggleRight,
   Settings,
-  X
+  X,
+  AlertTriangle,
+  TrendingUp,
+  TrendingDown,
+  Calendar
 } from 'lucide-react'
 import { API_URL } from '../config/api'
+import ReportDownload from '../components/ReportDownload'
 
 const AdminPropFirm = () => {
   const [searchTerm, setSearchTerm] = useState('')
@@ -72,9 +77,38 @@ const AdminPropFirm = () => {
   }
   
   const [challengeForm, setChallengeForm] = useState(defaultChallengeForm)
+  const [showDetailModal, setShowDetailModal] = useState(false)
+  const [accountDetail, setAccountDetail] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [accountTrades, setAccountTrades] = useState([])
+
+  const viewAccountDetail = async (accountId) => {
+    setDetailLoading(true)
+    setShowDetailModal(true)
+    setAccountDetail(null)
+    setAccountTrades([])
+    try {
+      const res = await fetch(`${API_URL}/prop/admin/account/${accountId}`)
+      const data = await res.json()
+      if (data.success) {
+        setAccountDetail(data)
+      }
+      // Fetch trades for this account
+      const tradesRes = await fetch(`${API_URL}/prop/account-trades/${accountId}`)
+      const tradesData = await tradesRes.json()
+      if (tradesData.success) {
+        setAccountTrades(tradesData.trades || [])
+      }
+    } catch (error) {
+      console.error('Error fetching account details:', error)
+    }
+    setDetailLoading(false)
+  }
 
   useEffect(() => {
     fetchData()
+    // Mark challenge pass notifications as seen
+    fetch(`${API_URL}/prop/admin/mark-notified`, { method: 'PUT' }).catch(() => {})
   }, [])
 
   const fetchData = async () => {
@@ -445,15 +479,18 @@ const AdminPropFirm = () => {
         <div className="bg-dark-800 rounded-xl border border-gray-800 overflow-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 border-b border-gray-800">
             <h2 className="text-white font-semibold text-lg">Challenge Participants</h2>
-            <div className="relative">
-              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-              <input
-                type="text"
-                placeholder="Search participants..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full sm:w-64 bg-dark-700 border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-gray-600"
-              />
+            <div className="flex items-center gap-3">
+              <ReportDownload endpoint="prop-participants" label="Download" />
+              <div className="relative">
+                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                <input
+                  type="text"
+                  placeholder="Search participants..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full sm:w-64 bg-dark-700 border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-gray-600"
+                />
+              </div>
             </div>
           </div>
 
@@ -466,7 +503,7 @@ const AdminPropFirm = () => {
               </div>
             ) : (
               participants.map((p) => (
-                <div key={p._id} className="bg-dark-700 rounded-xl p-4 border border-gray-700">
+                <div key={p._id} className="bg-dark-700 rounded-xl p-4 border border-gray-700" onClick={() => viewAccountDetail(p._id)} style={{ cursor: 'pointer' }}>
                   <div className="flex items-center justify-between mb-3">
                     <div>
                       <p className="text-white font-medium">{p.userId?.firstName || p.userId?.email || 'Unknown'}</p>
@@ -483,7 +520,7 @@ const AdminPropFirm = () => {
                       <span className="text-white">${(p.currentBalance || 0).toLocaleString()}</span>
                     </div>
                     <div className="w-full bg-dark-600 rounded-full h-2">
-                      <div 
+                      <div
                         className={`h-2 rounded-full ${p.status === 'FAILED' ? 'bg-red-500' : p.status === 'PASSED' ? 'bg-green-500' : 'bg-blue-500'}`}
                         style={{ width: `${Math.min(((p.currentBalance - p.initialBalance) / p.initialBalance * 100) + 50, 100)}%` }}
                       />
@@ -538,7 +575,11 @@ const AdminPropFirm = () => {
                         </td>
                         <td className="py-4 px-4 text-gray-400">{new Date(p.createdAt).toLocaleDateString()}</td>
                         <td className="py-4 px-4">
-                          <button className="p-2 hover:bg-dark-600 rounded-lg transition-colors text-gray-400 hover:text-white">
+                          <button
+                            onClick={() => viewAccountDetail(p._id)}
+                            className="p-2 hover:bg-dark-600 rounded-lg transition-colors text-gray-400 hover:text-white"
+                            title="View Details"
+                          >
                             <Eye size={16} />
                           </button>
                         </td>
@@ -926,6 +967,260 @@ const AdminPropFirm = () => {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Account Detail Modal */}
+      {showDetailModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-800 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-800 flex items-center justify-between sticky top-0 bg-dark-800 z-10">
+              <h2 className="text-xl font-bold text-white">
+                Account Details {accountDetail?.account?.accountId ? `- ${accountDetail.account.accountId}` : ''}
+              </h2>
+              <button onClick={() => setShowDetailModal(false)} className="text-gray-400 hover:text-white">
+                <X size={24} />
+              </button>
+            </div>
+
+            {detailLoading ? (
+              <div className="p-12 text-center">
+                <div className="animate-spin w-8 h-8 border-2 border-yellow-500 border-t-transparent rounded-full mx-auto mb-4" />
+                <p className="text-gray-400">Loading account details...</p>
+              </div>
+            ) : accountDetail ? (
+              <div className="p-6 space-y-6">
+                {/* Account Info & Status */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-dark-700 rounded-xl p-4 border border-gray-700">
+                    <p className="text-gray-500 text-sm mb-1">Status</p>
+                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(accountDetail.account?.status)}`}>
+                      {getStatusIcon(accountDetail.account?.status)}
+                      {accountDetail.account?.status}
+                    </span>
+                  </div>
+                  <div className="bg-dark-700 rounded-xl p-4 border border-gray-700">
+                    <p className="text-gray-500 text-sm mb-1">Phase</p>
+                    <p className="text-white font-semibold">{accountDetail.account?.currentPhase || 1} / {accountDetail.account?.totalPhases || 2}</p>
+                  </div>
+                  <div className="bg-dark-700 rounded-xl p-4 border border-gray-700">
+                    <p className="text-gray-500 text-sm mb-1">Challenge</p>
+                    <p className="text-white font-semibold text-sm">{accountDetail.challenge?.name || '-'}</p>
+                  </div>
+                  <div className="bg-dark-700 rounded-xl p-4 border border-gray-700">
+                    <p className="text-gray-500 text-sm mb-1">Time Left</p>
+                    <p className="text-white font-semibold flex items-center gap-1">
+                      <Calendar size={14} className="text-gray-500" />
+                      {accountDetail.time?.remainingDays || 0} days
+                    </p>
+                  </div>
+                </div>
+
+                {/* Balance Section */}
+                <div className="bg-dark-700 rounded-xl p-5 border border-gray-700">
+                  <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                    <DollarSign size={18} className="text-yellow-500" />
+                    Balance & P&L
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-gray-500 text-sm">Initial Balance</p>
+                      <p className="text-white font-semibold">${(accountDetail.balance?.initial || 0).toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-sm">Current Balance</p>
+                      <p className="text-white font-semibold">${(accountDetail.balance?.current || 0).toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-sm">Equity</p>
+                      <p className="text-white font-semibold">${(accountDetail.balance?.equity || 0).toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-sm">Total P&L</p>
+                      <p className={`font-semibold ${(accountDetail.balance?.profitLoss || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {(accountDetail.balance?.profitLoss || 0) >= 0 ? '+' : ''}${(accountDetail.balance?.profitLoss || 0).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Drawdown Section */}
+                <div className="bg-dark-700 rounded-xl p-5 border border-gray-700">
+                  <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                    <TrendingDown size={18} className="text-red-500" />
+                    Drawdown
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className="text-gray-500">Daily Drawdown</span>
+                        <span className="text-white">{(accountDetail.drawdown?.dailyUsed || 0).toFixed(2)}% / {accountDetail.drawdown?.dailyMax || 5}%</span>
+                      </div>
+                      <div className="w-full bg-dark-600 rounded-full h-3">
+                        <div
+                          className={`h-3 rounded-full transition-all ${(accountDetail.drawdown?.dailyUsed || 0) > (accountDetail.drawdown?.dailyMax || 5) * 0.8 ? 'bg-red-500' : 'bg-orange-500'}`}
+                          style={{ width: `${Math.min(((accountDetail.drawdown?.dailyUsed || 0) / (accountDetail.drawdown?.dailyMax || 5)) * 100, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className="text-gray-500">Overall Drawdown</span>
+                        <span className="text-white">{(accountDetail.drawdown?.overallUsed || 0).toFixed(2)}% / {accountDetail.drawdown?.overallMax || 10}%</span>
+                      </div>
+                      <div className="w-full bg-dark-600 rounded-full h-3">
+                        <div
+                          className={`h-3 rounded-full transition-all ${(accountDetail.drawdown?.overallUsed || 0) > (accountDetail.drawdown?.overallMax || 10) * 0.8 ? 'bg-red-500' : 'bg-orange-500'}`}
+                          style={{ width: `${Math.min(((accountDetail.drawdown?.overallUsed || 0) / (accountDetail.drawdown?.overallMax || 10)) * 100, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Profit Target Section */}
+                <div className="bg-dark-700 rounded-xl p-5 border border-gray-700">
+                  <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                    <TrendingUp size={18} className="text-green-500" />
+                    Profit Target
+                  </h3>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="text-gray-500">Progress</span>
+                    <span className="text-white">{(accountDetail.profit?.currentPercent || 0).toFixed(2)}% / {accountDetail.profit?.targetPercent || 8}%</span>
+                  </div>
+                  <div className="w-full bg-dark-600 rounded-full h-3">
+                    <div
+                      className="h-3 rounded-full bg-green-500 transition-all"
+                      style={{ width: `${Math.min(accountDetail.profit?.targetProgress || 0, 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-gray-500 text-sm mt-2">
+                    Amount to target: ${(accountDetail.profit?.amountToTarget || 0).toFixed(2)}
+                  </p>
+                </div>
+
+                {/* Trade Stats */}
+                <div className="bg-dark-700 rounded-xl p-5 border border-gray-700">
+                  <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                    <Target size={18} className="text-blue-500" />
+                    Trade Statistics
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-gray-500 text-sm">Total Trades</p>
+                      <p className="text-white font-semibold">{accountDetail.trades?.total || 0}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-sm">Open Trades</p>
+                      <p className="text-white font-semibold">{accountDetail.trades?.openCount || 0}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-sm">Today's Trades</p>
+                      <p className="text-white font-semibold">{accountDetail.trades?.today || 0}{accountDetail.trades?.maxPerDay ? ` / ${accountDetail.trades.maxPerDay}` : ''}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-sm">Trading Days</p>
+                      <p className="text-white font-semibold">{accountDetail.trades?.tradingDays || 0}{accountDetail.trades?.requiredDays ? ` / ${accountDetail.trades.requiredDays}` : ''}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rules */}
+                <div className="bg-dark-700 rounded-xl p-5 border border-gray-700">
+                  <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                    <Settings size={18} className="text-gray-400" />
+                    Rules
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${accountDetail.rules?.stopLossMandatory ? 'bg-yellow-500' : 'bg-gray-600'}`} />
+                      <span className="text-gray-400">SL Mandatory: {accountDetail.rules?.stopLossMandatory ? 'Yes' : 'No'}</span>
+                    </div>
+                    <div className="text-gray-400">Lot: {accountDetail.rules?.minLotSize} - {accountDetail.rules?.maxLotSize}</div>
+                    <div className="text-gray-400">Max Leverage: {accountDetail.rules?.maxLeverage}x</div>
+                    <div className="text-gray-400">Min Hold: {accountDetail.rules?.minHoldTimeSeconds || 0}s</div>
+                  </div>
+                </div>
+
+                {/* Violations */}
+                {accountDetail.violations && accountDetail.violations.length > 0 && (
+                  <div className="bg-dark-700 rounded-xl p-5 border border-gray-700">
+                    <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                      <AlertTriangle size={18} className="text-orange-500" />
+                      Violations ({accountDetail.violations.length})
+                    </h3>
+                    <div className="space-y-2">
+                      {accountDetail.violations.map((v, i) => (
+                        <div key={i} className={`flex items-start gap-3 p-3 rounded-lg ${v.severity === 'FAIL' ? 'bg-red-500/10 border border-red-500/20' : 'bg-orange-500/10 border border-orange-500/20'}`}>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded ${v.severity === 'FAIL' ? 'bg-red-500/20 text-red-500' : 'bg-orange-500/20 text-orange-500'}`}>
+                            {v.severity}
+                          </span>
+                          <div>
+                            <p className="text-white text-sm font-medium">{v.rule}</p>
+                            <p className="text-gray-400 text-sm">{v.description}</p>
+                            <p className="text-gray-600 text-xs mt-1">{new Date(v.timestamp).toLocaleString()}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Trade History */}
+                <div className="bg-dark-700 rounded-xl p-5 border border-gray-700">
+                  <h3 className="text-white font-semibold mb-4">Trade History</h3>
+                  {accountTrades.length === 0 ? (
+                    <p className="text-gray-500 text-center py-6">No trades found for this account</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-gray-600">
+                            <th className="text-left text-gray-500 font-medium py-2 px-3">Symbol</th>
+                            <th className="text-left text-gray-500 font-medium py-2 px-3">Side</th>
+                            <th className="text-left text-gray-500 font-medium py-2 px-3">Qty</th>
+                            <th className="text-left text-gray-500 font-medium py-2 px-3">Open Price</th>
+                            <th className="text-left text-gray-500 font-medium py-2 px-3">Close Price</th>
+                            <th className="text-left text-gray-500 font-medium py-2 px-3">P&L</th>
+                            <th className="text-left text-gray-500 font-medium py-2 px-3">Status</th>
+                            <th className="text-left text-gray-500 font-medium py-2 px-3">Opened</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {accountTrades.map((t) => (
+                            <tr key={t._id} className="border-b border-gray-700/50 hover:bg-dark-600/50">
+                              <td className="py-2 px-3 text-white font-medium">{t.symbol}</td>
+                              <td className="py-2 px-3">
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${t.side === 'BUY' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
+                                  {t.side}
+                                </span>
+                              </td>
+                              <td className="py-2 px-3 text-gray-300">{t.quantity}</td>
+                              <td className="py-2 px-3 text-gray-300">{t.openPrice?.toFixed(5)}</td>
+                              <td className="py-2 px-3 text-gray-300">{t.closePrice ? t.closePrice.toFixed(5) : '-'}</td>
+                              <td className={`py-2 px-3 font-medium ${(t.pnl || t.currentPnl || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                {(t.pnl || t.currentPnl || 0) >= 0 ? '+' : ''}${(t.pnl || t.currentPnl || 0).toFixed(2)}
+                              </td>
+                              <td className="py-2 px-3">
+                                <span className={`px-2 py-0.5 rounded text-xs ${t.status === 'OPEN' ? 'bg-blue-500/20 text-blue-500' : 'bg-gray-500/20 text-gray-400'}`}>
+                                  {t.status}
+                                </span>
+                              </td>
+                              <td className="py-2 px-3 text-gray-500 text-xs">{new Date(t.openedAt || t.createdAt).toLocaleString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="p-12 text-center">
+                <XCircle size={48} className="text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-500">Failed to load account details</p>
+              </div>
+            )}
           </div>
         </div>
       )}
