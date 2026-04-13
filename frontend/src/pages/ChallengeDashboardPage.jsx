@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { 
+import {
   Trophy, Target, TrendingUp, TrendingDown, Clock, AlertTriangle,
   ChevronRight, Activity, BarChart3, Shield, Calendar, XCircle,
-  CheckCircle, AlertCircle, RefreshCw
+  CheckCircle, AlertCircle, RefreshCw, Wallet, DollarSign, Lock
 } from 'lucide-react'
 import { API_URL } from '../config/api'
 
@@ -13,6 +13,10 @@ export default function ChallengeDashboardPage() {
   const [selectedAccount, setSelectedAccount] = useState(null)
   const [dashboard, setDashboard] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [fundedInfo, setFundedInfo] = useState(null)
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false)
+  const [withdrawAmount, setWithdrawAmount] = useState('')
+  const [withdrawing, setWithdrawing] = useState(false)
   const user = JSON.parse(localStorage.getItem('user') || '{}')
 
   useEffect(() => {
@@ -51,6 +55,58 @@ export default function ChallengeDashboardPage() {
     } catch (error) {
       console.error('Error fetching dashboard:', error)
     }
+  }
+
+  const fetchFundedInfo = async (accountId) => {
+    try {
+      const res = await fetch(`${API_URL}/prop/funded-info/${accountId}`)
+      const data = await res.json()
+      if (data.success) {
+        setFundedInfo(data.fundedInfo)
+      }
+    } catch (error) {
+      setFundedInfo(null)
+    }
+  }
+
+  useEffect(() => {
+    if (selectedAccount && selectedAccount.accountType === 'FUNDED') {
+      fetchFundedInfo(selectedAccount._id)
+    } else {
+      setFundedInfo(null)
+    }
+  }, [selectedAccount])
+
+  const handleWithdrawProfit = async () => {
+    const amt = parseFloat(withdrawAmount)
+    if (!amt || amt <= 0) return alert('Enter a valid amount')
+    if (amt > (fundedInfo?.withdrawableAmount || 0)) return alert(`Maximum withdrawable: $${fundedInfo.withdrawableAmount.toFixed(2)}`)
+
+    setWithdrawing(true)
+    try {
+      const res = await fetch(`${API_URL}/prop/withdraw-profit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user._id,
+          challengeAccountId: selectedAccount._id,
+          amount: amt
+        })
+      })
+      const data = await res.json()
+      if (data.success) {
+        alert(data.message)
+        setShowWithdrawModal(false)
+        setWithdrawAmount('')
+        fetchDashboard(selectedAccount._id)
+        fetchFundedInfo(selectedAccount._id)
+      } else {
+        alert(data.message || 'Withdrawal failed')
+      }
+    } catch (error) {
+      alert('Withdrawal failed')
+    }
+    setWithdrawing(false)
   }
 
   const getStatusColor = (status) => {
@@ -163,6 +219,73 @@ export default function ChallengeDashboardPage() {
                 <div>
                   <p className="text-green-500 font-bold">Challenge Passed!</p>
                   <p className="text-gray-400 text-sm">Congratulations! Your funded account is being prepared.</p>
+                </div>
+              </div>
+            )}
+
+            {dashboard.account.status === 'FUNDED' && fundedInfo && (
+              <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-5 mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <Trophy size={24} className="text-purple-500" />
+                    <div>
+                      <p className="text-purple-500 font-bold text-lg">Funded Account</p>
+                      <p className="text-gray-400 text-sm">Trade with real capital. Withdraw your profits anytime.</p>
+                    </div>
+                  </div>
+                  <span className="px-3 py-1 bg-purple-500/20 text-purple-500 rounded-full text-sm font-medium">
+                    {fundedInfo.profitSplitPercent}% Profit Split
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                  <div className="bg-dark-800 rounded-lg p-3">
+                    <div className="flex items-center gap-1 mb-1">
+                      <Lock size={14} className="text-gray-500" />
+                      <p className="text-gray-400 text-sm">Capital (Locked)</p>
+                    </div>
+                    <p className="text-white font-bold">${fundedInfo.initialCapital.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-dark-800 rounded-lg p-3">
+                    <div className="flex items-center gap-1 mb-1">
+                      <TrendingUp size={14} className="text-green-500" />
+                      <p className="text-gray-400 text-sm">Total Profit</p>
+                    </div>
+                    <p className={`font-bold ${fundedInfo.totalProfit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      ${fundedInfo.totalProfit.toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="bg-dark-800 rounded-lg p-3">
+                    <div className="flex items-center gap-1 mb-1">
+                      <DollarSign size={14} className="text-yellow-500" />
+                      <p className="text-gray-400 text-sm">Your Share ({fundedInfo.profitSplitPercent}%)</p>
+                    </div>
+                    <p className="text-yellow-500 font-bold">${fundedInfo.withdrawableAmount.toFixed(2)}</p>
+                  </div>
+                  <div className="bg-dark-800 rounded-lg p-3">
+                    <div className="flex items-center gap-1 mb-1">
+                      <Wallet size={14} className="text-blue-500" />
+                      <p className="text-gray-400 text-sm">Total Withdrawn</p>
+                    </div>
+                    <p className="text-white font-bold">${(fundedInfo.totalWithdrawn || 0).toFixed(2)}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => { setWithdrawAmount(''); setShowWithdrawModal(true) }}
+                    disabled={!fundedInfo.canWithdraw || fundedInfo.withdrawableAmount <= 0}
+                    className="px-5 py-2.5 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    <Wallet size={16} />
+                    Withdraw Profit
+                  </button>
+                  {!fundedInfo.canWithdraw && fundedInfo.nextWithdrawalDate && (
+                    <p className="text-gray-500 text-sm">
+                      Next withdrawal: {new Date(fundedInfo.nextWithdrawalDate).toLocaleDateString()}
+                    </p>
+                  )}
+                  {fundedInfo.withdrawableAmount <= 0 && fundedInfo.canWithdraw && (
+                    <p className="text-gray-500 text-sm">No profit available to withdraw</p>
+                  )}
                 </div>
               </div>
             )}
@@ -400,20 +523,90 @@ export default function ChallengeDashboardPage() {
             </div>
 
             {/* Trade Button */}
-            {dashboard.account.status === 'ACTIVE' && (
+            {(dashboard.account.status === 'ACTIVE' || dashboard.account.status === 'FUNDED') && (
               <div className="mt-6">
                 <button
                   onClick={() => navigate('/trading')}
                   className="w-full py-4 bg-primary-500 hover:bg-primary-600 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
                 >
                   <TrendingUp size={20} />
-                  Start Trading
+                  {dashboard.account.status === 'FUNDED' ? 'Trade Funded Account' : 'Start Trading'}
                 </button>
               </div>
             )}
           </>
         )}
       </div>
+
+      {/* Withdraw Profit Modal */}
+      {showWithdrawModal && fundedInfo && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-800 rounded-2xl w-full max-w-md">
+            <div className="p-6 border-b border-gray-800 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white">Withdraw Profit</h2>
+              <button onClick={() => setShowWithdrawModal(false)} className="text-gray-400 hover:text-white">
+                <XCircle size={24} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-dark-700 rounded-xl p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Total Profit</span>
+                  <span className="text-white">${fundedInfo.totalProfit.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Your Share ({fundedInfo.profitSplitPercent}%)</span>
+                  <span className="text-green-500 font-medium">${fundedInfo.withdrawableAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Platform Share ({100 - fundedInfo.profitSplitPercent}%)</span>
+                  <span className="text-gray-400">${(fundedInfo.totalProfit - fundedInfo.withdrawableAmount).toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-400 text-sm mb-2">Withdrawal Amount ($)</label>
+                <input
+                  type="number"
+                  value={withdrawAmount}
+                  onChange={(e) => setWithdrawAmount(e.target.value)}
+                  placeholder={`Max: $${fundedInfo.withdrawableAmount.toFixed(2)}`}
+                  max={fundedInfo.withdrawableAmount}
+                  min={0.01}
+                  step="0.01"
+                  className="w-full bg-dark-700 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-primary-500"
+                />
+                <button
+                  onClick={() => setWithdrawAmount(fundedInfo.withdrawableAmount.toFixed(2))}
+                  className="text-primary-500 text-sm mt-1 hover:underline"
+                >
+                  Withdraw max
+                </button>
+              </div>
+
+              <p className="text-gray-500 text-xs">
+                Profit will be credited to your wallet. Capital of ${fundedInfo.initialCapital.toLocaleString()} remains locked in the funded account. Same drawdown rules still apply.
+              </p>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setShowWithdrawModal(false)}
+                  className="flex-1 py-3 bg-dark-700 text-white rounded-lg hover:bg-dark-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleWithdrawProfit}
+                  disabled={withdrawing || !withdrawAmount || parseFloat(withdrawAmount) <= 0}
+                  className="flex-1 py-3 bg-green-500 text-white font-medium rounded-lg hover:bg-green-600 disabled:opacity-50"
+                >
+                  {withdrawing ? 'Processing...' : 'Confirm Withdrawal'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

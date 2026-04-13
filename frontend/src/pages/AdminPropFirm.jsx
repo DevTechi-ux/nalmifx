@@ -31,6 +31,7 @@ const AdminPropFirm = () => {
   const [challengeModeEnabled, setChallengeModeEnabled] = useState(false)
   const [challenges, setChallenges] = useState([])
   const [participants, setParticipants] = useState([])
+  const [fundedAccounts, setFundedAccounts] = useState([])
   const [stats, setStats] = useState({})
   const [loading, setLoading] = useState(true)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
@@ -133,11 +134,13 @@ const AdminPropFirm = () => {
         setChallenges(challengesData.challenges || [])
       }
 
-      // Fetch participants
+      // Fetch participants (challenge accounts)
       const accountsRes = await fetch(`${API_URL}/prop/admin/accounts?limit=50`)
       const accountsData = await accountsRes.json()
       if (accountsData.success) {
-        setParticipants(accountsData.accounts || [])
+        const allAccounts = accountsData.accounts || []
+        setParticipants(allAccounts.filter(a => a.accountType !== 'FUNDED'))
+        setFundedAccounts(allAccounts.filter(a => a.accountType === 'FUNDED'))
       }
 
       // Fetch dashboard stats
@@ -348,7 +351,7 @@ const AdminPropFirm = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
         <div className="bg-dark-800 rounded-xl p-5 border border-gray-800">
           <div className="flex items-center gap-2 mb-2">
             <Trophy size={18} className="text-yellow-500" />
@@ -377,6 +380,13 @@ const AdminPropFirm = () => {
           </div>
           <p className="text-white text-2xl font-bold">{stats.failedAccounts || 0}</p>
         </div>
+        <div className="bg-dark-800 rounded-xl p-5 border border-gray-800">
+          <div className="flex items-center gap-2 mb-2">
+            <Trophy size={18} className="text-purple-500" />
+            <p className="text-gray-500 text-sm">Funded</p>
+          </div>
+          <p className="text-white text-2xl font-bold">{stats.fundedAccounts || 0}</p>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -396,6 +406,14 @@ const AdminPropFirm = () => {
           }`}
         >
           Participants
+        </button>
+        <button
+          onClick={() => setActiveTab('funded')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            activeTab === 'funded' ? 'bg-yellow-500 text-black' : 'bg-dark-700 text-gray-400 hover:text-white'
+          }`}
+        >
+          Funded Accounts ({fundedAccounts.length})
         </button>
       </div>
 
@@ -574,6 +592,121 @@ const AdminPropFirm = () => {
                           </span>
                         </td>
                         <td className="py-4 px-4 text-gray-400">{new Date(p.createdAt).toLocaleDateString()}</td>
+                        <td className="py-4 px-4">
+                          <button
+                            onClick={() => viewAccountDetail(p._id)}
+                            className="p-2 hover:bg-dark-600 rounded-lg transition-colors text-gray-400 hover:text-white"
+                            title="View Details"
+                          >
+                            <Eye size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Funded Accounts Tab */}
+      {activeTab === 'funded' && (
+        <div className="bg-dark-800 rounded-xl border border-gray-800 overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 border-b border-gray-800">
+            <h2 className="text-white font-semibold text-lg">Funded Accounts</h2>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="block lg:hidden p-4 space-y-3">
+            {fundedAccounts.length === 0 ? (
+              <div className="text-center py-12">
+                <Trophy size={48} className="text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-500">No funded accounts yet</p>
+              </div>
+            ) : (
+              fundedAccounts.map((p) => {
+                const profit = (p.currentBalance || 0) - (p.initialBalance || 0)
+                return (
+                  <div key={p._id} className="bg-dark-700 rounded-xl p-4 border border-gray-700 cursor-pointer" onClick={() => viewAccountDetail(p._id)}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <p className="text-white font-medium">{p.userId?.firstName || p.userId?.email || 'Unknown'}</p>
+                        <p className="text-purple-400 text-sm">{p.accountId} - {p.challengeId?.name || 'Funded'}</p>
+                      </div>
+                      <span className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-purple-500/20 text-purple-500">
+                        <Trophy size={12} />
+                        FUNDED
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-gray-500">Capital</span>
+                        <p className="text-white">${(p.initialBalance || 0).toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Balance</span>
+                        <p className="text-white">${(p.currentBalance || 0).toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Profit</span>
+                        <p className={profit >= 0 ? 'text-green-500' : 'text-red-500'}>{profit >= 0 ? '+' : ''}${profit.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Withdrawn</span>
+                        <p className="text-white">${(p.totalWithdrawn || 0).toFixed(2)}</p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          {/* Desktop Table */}
+          <div className="hidden lg:block overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-700">
+                  <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">User</th>
+                  <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Account</th>
+                  <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Challenge</th>
+                  <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Capital</th>
+                  <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Balance</th>
+                  <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Profit</th>
+                  <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Withdrawn</th>
+                  <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Split</th>
+                  <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Status</th>
+                  <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fundedAccounts.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="py-12 text-center text-gray-500">No funded accounts yet</td>
+                  </tr>
+                ) : (
+                  fundedAccounts.map((p) => {
+                    const profit = (p.currentBalance || 0) - (p.initialBalance || 0)
+                    return (
+                      <tr key={p._id} className="border-b border-gray-800 hover:bg-dark-700/50">
+                        <td className="py-4 px-4 text-white font-medium">{p.userId?.firstName || p.userId?.email || 'Unknown'}</td>
+                        <td className="py-4 px-4 text-purple-400 font-mono text-sm">{p.accountId}</td>
+                        <td className="py-4 px-4 text-gray-400">{p.challengeId?.name || '-'}</td>
+                        <td className="py-4 px-4 text-white">${(p.initialBalance || 0).toLocaleString()}</td>
+                        <td className="py-4 px-4 text-white">${(p.currentBalance || 0).toLocaleString()}</td>
+                        <td className={`py-4 px-4 font-medium ${profit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {profit >= 0 ? '+' : ''}${profit.toFixed(2)}
+                        </td>
+                        <td className="py-4 px-4 text-gray-400">${(p.totalWithdrawn || 0).toFixed(2)}</td>
+                        <td className="py-4 px-4 text-yellow-500">{p.profitSplitPercent || 80}%</td>
+                        <td className="py-4 px-4">
+                          <span className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs w-fit ${getStatusColor(p.status)}`}>
+                            {getStatusIcon(p.status)}
+                            {p.status}
+                          </span>
+                        </td>
                         <td className="py-4 px-4">
                           <button
                             onClick={() => viewAccountDetail(p._id)}

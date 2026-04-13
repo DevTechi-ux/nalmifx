@@ -448,7 +448,7 @@ class PropTradingEngine {
     const account = await ChallengeAccount.findById(challengeAccountId)
       .populate('challengeId')
     
-    if (!account || account.status !== 'ACTIVE') return null
+    if (!account || (account.status !== 'ACTIVE' && account.status !== 'FUNDED')) return null
 
     const rules = account.challengeId.rules
 
@@ -550,8 +550,8 @@ class PropTradingEngine {
   async checkProfitTarget(account, challenge) {
     const rules = challenge.rules
     
-    // Zero step (instant fund) - no profit target
-    if (challenge.stepsCount === 0) {
+    // Zero step (instant fund) or funded accounts - no profit target
+    if (challenge.stepsCount === 0 || account.accountType === 'FUNDED') {
       return { targetReached: false }
     }
 

@@ -337,6 +337,155 @@ router.post('/update-equity', async (req, res) => {
   }
 })
 
+// POST /api/prop/withdraw-profit - Withdraw profit from funded account
+router.post('/withdraw-profit', async (req, res) => {
+  try {
+    const { userId, challengeAccountId, amount } = req.body
+
+    if (!userId || !challengeAccountId || !amount || amount <= 0) {
+      return res.status(400).json({ success: false, message: 'User ID, account ID, and a positive amount are required' })
+    }
+
+    const account = await ChallengeAccount.findById(challengeAccountId)
+      .populate('challengeId')
+    if (!account) {
+      return res.status(404).json({ success: false, message: 'Account not found' })
+    }
+
+    if (account.userId.toString() !== userId) {
+      return res.status(403).json({ success: false, message: 'Not your account' })
+    }
+
+    if (account.accountType !== 'FUNDED' || account.status !== 'FUNDED') {
+      return res.status(400).json({ success: false, message: 'Only active funded accounts can withdraw profit' })
+    }
+
+    // Check withdrawal frequency
+    const challenge = account.challengeId
+    const withdrawalFrequencyDays = challenge.fundedSettings?.withdrawalFrequencyDays || 14
+    if (account.lastWithdrawalDate) {
+      const daysSinceLastWithdrawal = (Date.now() - new Date(account.lastWithdrawalDate).getTime()) / (1000 * 60 * 60 * 24)
+      if (daysSinceLastWithdrawal < withdrawalFrequencyDays) {
+        const nextDate = new Date(account.lastWithdrawalDate)
+        nextDate.setDate(nextDate.getDate() + withdrawalFrequencyDays)
+        return res.status(400).json({
+          success: false,
+          message: `You can withdraw once every ${withdrawalFrequencyDays} days. Next withdrawal available on ${nextDate.toLocaleDateString()}`
+        })
+      }
+    }
+
+    // Calculate available profit (equity - initial balance)
+    const profit = account.currentBalance - account.initialBalance
+    if (profit <= 0) {
+      return res.status(400).json({ success: false, message: 'No profit available to withdraw' })
+    }
+
+    // Apply profit split (user gets profitSplitPercent, platform keeps rest)
+    const userShare = (account.profitSplitPercent / 100) * profit
+    if (amount > userShare) {
+      return res.status(400).json({
+        success: false,
+        message: `Maximum withdrawable amount is $${userShare.toFixed(2)} (${account.profitSplitPercent}% of $${profit.toFixed(2)} profit)`
+      })
+    }
+
+    // Deduct from funded account balance (full profit amount, not just user share)
+    // The amount the user requests is their share, so the total deducted = amount / (profitSplitPercent / 100)
+    const totalDeduction = amount / (account.profitSplitPercent / 100)
+    account.currentBalance -= totalDeduction
+    account.currentEquity -= totalDeduction
+    account.totalWithdrawn += amount
+    account.lastWithdrawalDate = new Date()
+    await account.save()
+
+    // Credit user's wallet
+    let wallet = await Wallet.findOne({ userId })
+    if (!wallet) {
+      wallet = new Wallet({ userId, balance: 0 })
+    }
+    wallet.balance += amount
+    await wallet.save()
+
+    // Create transaction record
+    const transaction = new Transaction({
+      userId,
+      walletId: wallet._id,
+      type: 'Funded_Profit_Withdrawal',
+      amount,
+      status: 'Approved',
+      paymentMethod: 'Funded Account',
+      description: `Profit withdrawal from funded account ${account.accountId} (${account.profitSplitPercent}% of $${profit.toFixed(2)} profit)`,
+      processedAt: new Date()
+    })
+    await transaction.save()
+
+    res.json({
+      success: true,
+      message: `$${amount.toFixed(2)} profit withdrawn to your wallet`,
+      withdrawnAmount: amount,
+      platformFee: totalDeduction - amount,
+      newBalance: account.currentBalance,
+      walletBalance: wallet.balance
+    })
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
+// GET /api/prop/funded-info/:accountId - Get funded account withdrawal info
+router.get('/funded-info/:accountId', async (req, res) => {
+  try {
+    const account = await ChallengeAccount.findById(req.params.accountId)
+      .populate('challengeId')
+    if (!account) {
+      return res.status(404).json({ success: false, message: 'Account not found' })
+    }
+
+    if (account.accountType !== 'FUNDED') {
+      return res.status(400).json({ success: false, message: 'Not a funded account' })
+    }
+
+    const challenge = account.challengeId
+    const profit = Math.max(0, account.currentBalance - account.initialBalance)
+    const userShare = (account.profitSplitPercent / 100) * profit
+    const withdrawalFrequencyDays = challenge.fundedSettings?.withdrawalFrequencyDays || 14
+
+    let canWithdraw = profit > 0 && account.status === 'FUNDED'
+    let nextWithdrawalDate = null
+    if (account.lastWithdrawalDate) {
+      nextWithdrawalDate = new Date(account.lastWithdrawalDate)
+      nextWithdrawalDate.setDate(nextWithdrawalDate.getDate() + withdrawalFrequencyDays)
+      if (new Date() < nextWithdrawalDate) {
+        canWithdraw = false
+      }
+    }
+
+    res.json({
+      success: true,
+      fundedInfo: {
+        accountId: account.accountId,
+        initialCapital: account.initialBalance,
+        currentBalance: account.currentBalance,
+        currentEquity: account.currentEquity,
+        totalProfit: profit,
+        profitSplitPercent: account.profitSplitPercent,
+        withdrawableAmount: userShare,
+        totalWithdrawn: account.totalWithdrawn || 0,
+        canWithdraw,
+        nextWithdrawalDate: nextWithdrawalDate?.toISOString() || null,
+        withdrawalFrequencyDays,
+        rules: {
+          maxDailyDrawdownPercent: challenge.rules?.maxDailyDrawdownPercent || 5,
+          maxOverallDrawdownPercent: challenge.rules?.maxOverallDrawdownPercent || 10
+        }
+      }
+    })
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
 // ==================== ADMIN ROUTES ====================
 
 // GET /api/prop/admin/settings - Get prop settings
