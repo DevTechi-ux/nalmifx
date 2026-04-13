@@ -123,7 +123,7 @@ router.get('/otp-settings', async (req, res) => {
 // POST /api/auth/signup
 router.post('/signup', async (req, res) => {
   try {
-    const { firstName, email, phone, countryCode, password, adminSlug, referralCode, otpVerified } = req.body
+    const { firstName, email, phone, countryCode, password, adminSlug, referralCode } = req.body
 
     // Check if user already exists
     const existingUser = await User.findOne({ email })
@@ -134,15 +134,13 @@ router.post('/signup', async (req, res) => {
     // Check if OTP verification is required
     const otpEnabled = await isOTPEnabled()
     if (otpEnabled) {
-      // Verify OTP was completed
+      // Verify OTP was completed — must exist in DB as verified, never trust client
       const otpRecord = await OTP.findOne({ email, purpose: 'signup', verified: true })
-      if (!otpRecord && !otpVerified) {
+      if (!otpRecord) {
         return res.status(400).json({ message: 'Email verification required. Please verify your email first.' })
       }
       // Clean up OTP record
-      if (otpRecord) {
-        await OTP.deleteOne({ _id: otpRecord._id })
-      }
+      await OTP.deleteOne({ _id: otpRecord._id })
     }
 
     // Find admin by slug if provided
@@ -337,7 +335,20 @@ router.get('/me', async (req, res) => {
 // PUT /api/auth/update-profile - Update user profile
 router.put('/update-profile', async (req, res) => {
   try {
-    const { userId, firstName, lastName, phone, address, city, country, dateOfBirth, bankDetails, upiId } = req.body
+    // Authenticate via token
+    const token = req.headers.authorization?.split(' ')[1]
+    if (!token) {
+      return res.status(401).json({ message: 'No token provided' })
+    }
+    let decoded
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET)
+    } catch (e) {
+      return res.status(401).json({ message: 'Invalid token' })
+    }
+    const userId = decoded.id
+
+    const { firstName, lastName, phone, address, city, country, dateOfBirth, bankDetails, upiId } = req.body
 
     const user = await User.findById(userId)
     if (!user) {
@@ -392,9 +403,20 @@ router.put('/update-profile', async (req, res) => {
   }
 })
 
-// GET /api/auth/user/:userId - Get user by ID (for admin)
+// GET /api/auth/user/:userId - Get user by ID (requires valid token)
 router.get('/user/:userId', async (req, res) => {
   try {
+    // Require authentication
+    const token = req.headers.authorization?.split(' ')[1]
+    if (!token) {
+      return res.status(401).json({ message: 'Authentication required' })
+    }
+    try {
+      jwt.verify(token, process.env.JWT_SECRET)
+    } catch (e) {
+      return res.status(401).json({ message: 'Invalid token' })
+    }
+
     const user = await User.findById(req.params.userId).select('-password')
     if (!user) {
       return res.status(404).json({ message: 'User not found' })
@@ -554,9 +576,22 @@ router.post('/verify-reset-otp', async (req, res) => {
 // POST /api/auth/change-password - Change password from profile
 router.post('/change-password', async (req, res) => {
   try {
-    const { userId, currentPassword, newPassword } = req.body
+    // Authenticate via token — never trust client-supplied userId
+    const token = req.headers.authorization?.split(' ')[1]
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'No token provided' })
+    }
+    let decoded
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET)
+    } catch (e) {
+      return res.status(401).json({ success: false, message: 'Invalid token' })
+    }
+    const userId = decoded.id
 
-    if (!userId || !currentPassword || !newPassword) {
+    const { currentPassword, newPassword } = req.body
+
+    if (!currentPassword || !newPassword) {
       return res.status(400).json({ success: false, message: 'All fields are required' })
     }
 

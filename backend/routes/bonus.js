@@ -1,27 +1,9 @@
 import express from 'express'
 import Bonus from '../models/Bonus.js'
 import UserBonus from '../models/UserBonus.js'
-import User from '../models/User.js'
-import jwt from 'jsonwebtoken'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
-
-// Simple auth middleware
-const authMiddleware = (req, res, next) => {
-  const token = req.headers.authorization?.replace('Bearer ', '')
-  
-  if (!token) {
-    return res.status(401).json({ success: false, message: 'No token provided' })
-  }
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET)
-    req.admin = decoded
-    next()
-  } catch (error) {
-    return res.status(401).json({ success: false, message: 'Invalid token' })
-  }
-}
+// Note: Auth is applied at the router level in server.js (authAdmin).
+// The inline authMiddleware here was redundant and has been removed.
 
 const router = express.Router()
 

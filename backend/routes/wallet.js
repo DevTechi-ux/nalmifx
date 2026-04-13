@@ -109,9 +109,8 @@ router.post('/deposit', async (req, res) => {
     })
     await transaction.save()
 
-    // Update pending deposits
-    wallet.pendingDeposits += amount
-    await wallet.save()
+    // Atomic update pending deposits
+    await Wallet.findByIdAndUpdate(wallet._id, { $inc: { pendingDeposits: amount } })
 
     // Send deposit pending email
     try {
@@ -162,15 +161,21 @@ router.post('/withdraw', async (req, res) => {
       return res.status(404).json({ message: 'Wallet not found' })
     }
 
-    // Check balance
-    if (wallet.balance < amount) {
+    // Atomic deduct from balance — only succeeds if sufficient balance (prevents double-spend)
+    const updatedWallet = await Wallet.findOneAndUpdate(
+      { userId, balance: { $gte: amount } },
+      { $inc: { balance: -amount, pendingWithdrawals: amount } },
+      { new: true }
+    )
+
+    if (!updatedWallet) {
       return res.status(400).json({ message: 'Insufficient balance' })
     }
 
     // Create transaction with bank account details
     const transaction = new Transaction({
       userId,
-      walletId: wallet._id,
+      walletId: updatedWallet._id,
       type: 'Withdrawal',
       amount,
       paymentMethod,
@@ -179,11 +184,6 @@ router.post('/withdraw', async (req, res) => {
       bankAccountDetails
     })
     await transaction.save()
-
-    // Deduct from balance and add to pending
-    wallet.balance -= amount
-    wallet.pendingWithdrawals += amount
-    await wallet.save()
 
     // Send withdrawal pending email
     try {
@@ -226,33 +226,39 @@ router.post('/transfer-to-trading', async (req, res) => {
       return res.status(404).json({ message: 'Wallet not found' })
     }
 
-    // Check wallet balance
-    if (wallet.balance < amount) {
-      return res.status(400).json({ message: 'Insufficient wallet balance' })
-    }
-
     // Get trading account
     const tradingAccount = await TradingAccount.findById(tradingAccountId)
     if (!tradingAccount) {
       return res.status(404).json({ message: 'Trading account not found' })
     }
 
-    // Verify ownership
-    if (tradingAccount.userId.toString() !== userId) {
+    // Verify ownership using auth token userId
+    if (tradingAccount.userId.toString() !== (req.userId || userId)) {
       return res.status(403).json({ message: 'Unauthorized' })
     }
 
-    // Transfer funds
-    wallet.balance -= amount
-    tradingAccount.balance += amount
+    // Atomic deduct from wallet — prevents double-spend
+    const updatedWallet = await Wallet.findOneAndUpdate(
+      { userId, balance: { $gte: amount } },
+      { $inc: { balance: -amount } },
+      { new: true }
+    )
 
-    await wallet.save()
-    await tradingAccount.save()
+    if (!updatedWallet) {
+      return res.status(400).json({ message: 'Insufficient wallet balance' })
+    }
 
-    res.json({ 
+    // Atomic credit to trading account
+    const updatedAccount = await TradingAccount.findByIdAndUpdate(
+      tradingAccountId,
+      { $inc: { balance: amount } },
+      { new: true }
+    )
+
+    res.json({
       message: 'Funds transferred successfully',
-      walletBalance: wallet.balance,
-      tradingAccountBalance: tradingAccount.balance
+      walletBalance: updatedWallet.balance,
+      tradingAccountBalance: updatedAccount.balance
     })
   } catch (error) {
     res.status(500).json({ message: 'Error transferring funds', error: error.message })
@@ -275,32 +281,32 @@ router.post('/transfer-from-trading', async (req, res) => {
     }
 
     // Verify ownership
-    if (tradingAccount.userId.toString() !== userId) {
+    if (tradingAccount.userId.toString() !== (req.userId || userId)) {
       return res.status(403).json({ message: 'Unauthorized' })
     }
 
-    // Check trading account balance
-    if (tradingAccount.balance < amount) {
+    // Atomic deduct from trading account — prevents double-spend
+    const updatedAccount = await TradingAccount.findOneAndUpdate(
+      { _id: tradingAccountId, balance: { $gte: amount } },
+      { $inc: { balance: -amount } },
+      { new: true }
+    )
+
+    if (!updatedAccount) {
       return res.status(400).json({ message: 'Insufficient trading account balance' })
     }
 
-    // Get or create wallet
-    let wallet = await Wallet.findOne({ userId })
-    if (!wallet) {
-      wallet = new Wallet({ userId, balance: 0 })
-    }
+    // Atomic credit to wallet (upsert to auto-create if needed)
+    const updatedWallet = await Wallet.findOneAndUpdate(
+      { userId },
+      { $inc: { balance: amount } },
+      { new: true, upsert: true }
+    )
 
-    // Transfer funds
-    tradingAccount.balance -= amount
-    wallet.balance += amount
-
-    await tradingAccount.save()
-    await wallet.save()
-
-    res.json({ 
+    res.json({
       message: 'Funds transferred successfully',
-      walletBalance: wallet.balance,
-      tradingAccountBalance: tradingAccount.balance
+      walletBalance: updatedWallet.balance,
+      tradingAccountBalance: updatedAccount.balance
     })
   } catch (error) {
     res.status(500).json({ message: 'Error transferring funds', error: error.message })

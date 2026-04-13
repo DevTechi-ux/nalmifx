@@ -588,11 +588,10 @@ router.post('/login-as-user/:userId', async (req, res) => {
       }
     }
     
-    // Generate a simple token (in production, use JWT)
     const jwt = (await import('jsonwebtoken')).default
     const token = jwt.sign(
       { userId: user._id, email: user.email, isAdminSession: true },
-      process.env.JWT_SECRET || 'your-secret-key',
+      process.env.JWT_SECRET,
       { expiresIn: '2h' }
     )
     

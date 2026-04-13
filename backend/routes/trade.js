@@ -10,7 +10,7 @@ import ibEngine from '../services/ibEngineNew.js'
 import MasterTrader from '../models/MasterTrader.js'
 
 // AllTick API config for fresh price fetching
-const ALLTICK_API_TOKEN = process.env.ALLTICK_API_TOKEN || '1b2b3ad1b5c8c28b9d956652ecb4111d-c-app'
+const ALLTICK_API_TOKEN = process.env.ALLTICK_API_TOKEN || ''
 const ALLTICK_FOREX_API = 'https://quote.alltick.co/quote-b-api/depth-tick'
 const ALLTICK_MAP = { 'XAUUSD': 'GOLD', 'XAGUSD': 'Silver', 'BTCUSD': 'BTCUSDT', 'ETHUSD': 'ETHUSDT' }
 
@@ -55,46 +55,43 @@ const router = express.Router()
 // POST /api/trade/open - Open a new trade
 router.post('/open', async (req, res) => {
   try {
-    const { 
-      userId, 
-      tradingAccountId, 
-      symbol, 
-      segment, 
-      side, 
-      orderType, 
-      quantity, 
-      bid, 
-      ask, 
+    const {
+      tradingAccountId,
+      symbol,
+      segment,
+      side,
+      orderType,
+      quantity,
       leverage,
-      sl, 
-      tp 
+      sl,
+      tp
     } = req.body
 
+    // Use authenticated userId from middleware — never trust client-supplied userId
+    const userId = req.userId
+
     // Validate required fields
-    if (!userId || !tradingAccountId || !symbol || !side || !orderType || !quantity) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Missing required fields' 
+    if (!tradingAccountId || !symbol || !side || !orderType || !quantity) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields'
       })
     }
 
-    // Check if market data is available (bid/ask must be valid numbers > 0)
-    if (!bid || !ask || parseFloat(bid) <= 0 || parseFloat(ask) <= 0 || isNaN(parseFloat(bid)) || isNaN(parseFloat(ask))) {
-      return res.status(400).json({ 
-        success: false, 
+    // Fetch server-side prices from priceCache — never trust client-supplied prices
+    const priceCache = req.app.get('priceCache')
+    const serverPrice = priceCache?.get(symbol)
+
+    if (!serverPrice || !serverPrice.bid || !serverPrice.ask || serverPrice.bid <= 0 || serverPrice.ask <= 0) {
+      return res.status(400).json({
+        success: false,
         message: 'Market is closed or no price data available. Please try again when market is open.',
         code: 'MARKET_CLOSED'
       })
     }
 
-    // Check for stale prices (if bid equals ask exactly, likely no real data)
-    if (parseFloat(bid) === parseFloat(ask) && parseFloat(bid) === 0) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'No live market data. Trading is not available at this time.',
-        code: 'NO_DATA_FEED'
-      })
-    }
+    const bid = serverPrice.bid
+    const ask = serverPrice.ask
 
     // Validate side
     if (!['BUY', 'SELL'].includes(side)) {
@@ -188,6 +185,9 @@ router.post('/open', async (req, res) => {
     let copyResults = []
     if (master) {
       try {
+        // Attach server-side bid/ask so followers get proper spread
+        trade.bid = bid
+        trade.ask = ask
         copyResults = await copyTradingEngine.copyTradeToFollowers(trade, master._id)
         console.log(`Copied trade to ${copyResults.filter(r => r.status === 'SUCCESS').length} followers`)
       } catch (copyError) {
@@ -213,33 +213,44 @@ router.post('/open', async (req, res) => {
 // POST /api/trade/close - Close a trade
 router.post('/close', async (req, res) => {
   try {
-    const { tradeId, bid, ask } = req.body
+    const { tradeId } = req.body
 
     if (!tradeId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Trade ID is required' 
+      return res.status(400).json({
+        success: false,
+        message: 'Trade ID is required'
       })
     }
 
-    // Check if market data is available
-    if (!bid || !ask || parseFloat(bid) <= 0 || parseFloat(ask) <= 0 || isNaN(parseFloat(bid)) || isNaN(parseFloat(ask))) {
-      return res.status(400).json({ 
-        success: false, 
+    // Get trade first to check ownership and get symbol for price lookup
+    const tradeToClose = await Trade.findById(tradeId)
+
+    if (!tradeToClose) {
+      return res.status(404).json({
+        success: false,
+        message: 'Trade not found'
+      })
+    }
+
+    // Verify the trade belongs to the authenticated user
+    if (tradeToClose.userId.toString() !== req.userId) {
+      return res.status(403).json({ success: false, message: 'Not authorized to close this trade' })
+    }
+
+    // Fetch server-side prices — never trust client-supplied prices
+    const priceCache = req.app.get('priceCache')
+    const serverPrice = priceCache?.get(tradeToClose.symbol)
+
+    if (!serverPrice || !serverPrice.bid || !serverPrice.ask || serverPrice.bid <= 0 || serverPrice.ask <= 0) {
+      return res.status(400).json({
+        success: false,
         message: 'Market is closed or no price data available. Cannot close trade.',
         code: 'MARKET_CLOSED'
       })
     }
 
-    // Get trade first to check if it's a challenge or master trade
-    const tradeToClose = await Trade.findById(tradeId)
-    
-    if (!tradeToClose) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Trade not found' 
-      })
-    }
+    const bid = serverPrice.bid
+    const ask = serverPrice.ask
 
     // Check if this is a challenge account trade
     const challengeAccount = await ChallengeAccount.findById(tradeToClose.tradingAccountId)
@@ -315,9 +326,9 @@ router.post('/close', async (req, res) => {
       
       if (master) {
         try {
-          const closePrice = tradeToClose.side === 'BUY' ? parseFloat(bid) : parseFloat(ask)
+          const closePrice = tradeToClose.side === 'BUY' ? bid : ask
           console.log(`[CopyTrade] Calling closeFollowerTrades for master trade ${tradeId} at price ${closePrice}`)
-          const copyResults = await copyTradingEngine.closeFollowerTrades(tradeId, closePrice)
+          const copyResults = await copyTradingEngine.closeFollowerTrades(tradeId, closePrice, bid, ask)
           console.log(`[CopyTrade] Closed ${copyResults.length} follower trades for master trade ${tradeId}`)
         } catch (copyError) {
           console.error('[CopyTrade] Error closing follower trades:', copyError)
@@ -353,33 +364,38 @@ router.post('/close', async (req, res) => {
 // PUT /api/trade/modify - Modify trade SL/TP
 router.put('/modify', async (req, res) => {
   try {
-    const { tradeId, sl, tp, bid, ask } = req.body
-    console.log('Modify trade request:', { tradeId, sl, tp, bid, ask })
+    const { tradeId, sl, tp } = req.body
 
     if (!tradeId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Trade ID is required' 
+      return res.status(400).json({
+        success: false,
+        message: 'Trade ID is required'
       })
     }
 
-    // First check if trade exists
+    // First check if trade exists and belongs to user
     const existingTrade = await Trade.findById(tradeId)
     if (!existingTrade) {
-      console.log('Trade not found:', tradeId)
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Trade not found' 
+      return res.status(404).json({
+        success: false,
+        message: 'Trade not found'
       })
     }
-    console.log('Found trade:', existingTrade.tradeId, existingTrade.status)
+
+    if (existingTrade.userId.toString() !== req.userId) {
+      return res.status(403).json({ success: false, message: 'Not authorized to modify this trade' })
+    }
+
+    // Fetch server-side prices for SL/TP validation
+    const priceCache = req.app.get('priceCache')
+    const serverPrice = priceCache?.get(existingTrade.symbol)
+    const currentBid = serverPrice?.bid || null
+    const currentAsk = serverPrice?.ask || null
 
     // Parse values and handle NaN
     const parsedSl = sl !== undefined && sl !== null && sl !== '' ? parseFloat(sl) : null
     const parsedTp = tp !== undefined && tp !== null && tp !== '' ? parseFloat(tp) : null
-    const currentBid = bid ? parseFloat(bid) : null
-    const currentAsk = ask ? parseFloat(ask) : null
-    
+
     const trade = await tradeEngine.modifyTrade(
       tradeId,
       parsedSl !== null && !isNaN(parsedSl) ? parsedSl : null,
@@ -651,10 +667,14 @@ router.post('/cancel', async (req, res) => {
 
     const trade = await Trade.findById(tradeId)
     if (!trade) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Trade not found' 
+      return res.status(404).json({
+        success: false,
+        message: 'Trade not found'
       })
+    }
+
+    if (trade.userId.toString() !== req.userId) {
+      return res.status(403).json({ success: false, message: 'Not authorized to cancel this trade' })
     }
 
     if (trade.status !== 'PENDING') {
@@ -683,30 +703,7 @@ router.post('/cancel', async (req, res) => {
   }
 })
 
-// GET /api/trade/debug-open - Debug endpoint to see all open trades with SL/TP
-router.get('/debug-open', async (req, res) => {
-  try {
-    const openTrades = await Trade.find({ status: 'OPEN' })
-    res.json({
-      success: true,
-      count: openTrades.length,
-      trades: openTrades.map(t => ({
-        tradeId: t.tradeId,
-        symbol: t.symbol,
-        side: t.side,
-        openPrice: t.openPrice,
-        sl: t.sl,
-        stopLoss: t.stopLoss,
-        tp: t.tp,
-        takeProfit: t.takeProfit,
-        isChallengeAccount: t.isChallengeAccount,
-        status: t.status
-      }))
-    })
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message })
-  }
-})
+// Debug endpoint removed for security — was exposing all open trades without auth
 
 // POST /api/trade/check-sltp - Check and trigger SL/TP for all trades
 router.post('/check-sltp', async (req, res) => {

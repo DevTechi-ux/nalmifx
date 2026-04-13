@@ -1,8 +1,10 @@
+import dotenv from 'dotenv'
+dotenv.config()
+
 import express from 'express'
 import mongoose from 'mongoose'
 import cors from 'cors'
 import compression from 'compression'
-import dotenv from 'dotenv'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
 import WebSocket from 'ws'
@@ -34,6 +36,7 @@ import reportRoutes from './routes/reports.js'
 import settlementRoutes from './routes/settlement.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { authUser, authAdmin, authAny } from './middleware/auth.js'
 import copyTradingEngine from './services/copyTradingEngine.js'
 import tradeEngine from './services/tradeEngine.js'
 import propTradingEngine from './services/propTradingEngine.js'
@@ -41,15 +44,15 @@ import propTradingEngine from './services/propTradingEngine.js'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-dotenv.config()
-
 const app = express()
 const httpServer = createServer(app)
 
 // Socket.IO for real-time updates
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:3000').split(',').map(o => o.trim())
+
 const io = new Server(httpServer, {
   cors: {
-    origin: '*',
+    origin: ALLOWED_ORIGINS,
     methods: ['GET', 'POST']
   }
 })
@@ -559,46 +562,53 @@ io.on('connection', (socket) => {
   })
 })
 
-// Make io accessible to routes
+// Make io and priceCache accessible to routes
 app.set('io', io)
+app.set('priceCache', priceCache)
 
 // Middleware
-app.use(compression()) // Enable gzip compression for faster API responses
-app.use(cors())
-app.use(express.json({ limit: '50mb' }))
-app.use(express.urlencoded({ limit: '50mb', extended: true }))
+app.use(compression())
+app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }))
+app.use(express.json({ limit: '5mb' }))
+app.use(express.urlencoded({ limit: '5mb', extended: true }))
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('Connected to MongoDB'))
   .catch((err) => console.error('MongoDB connection error:', err))
 
-// Routes
+// Routes — public (no auth)
 app.use('/api/auth', authRoutes)
-app.use('/api/admin', adminRoutes)
-app.use('/api/account-types', accountTypesRoutes)
-app.use('/api/trading-accounts', tradingAccountsRoutes)
-app.use('/api/wallet', walletRoutes)
-app.use('/api/payment-methods', paymentMethodsRoutes)
-app.use('/api/trade', tradeRoutes)
-app.use('/api/wallet-transfer', walletTransferRoutes)
-app.use('/api/admin/trade', adminTradeRoutes)
-app.use('/api/copy', copyTradingRoutes)
-app.use('/api/ib', ibRoutes)
-app.use('/api/prop', propTradingRoutes)
-app.use('/api/charges', chargesRoutes)
 app.use('/api/prices', pricesRoutes)
-app.use('/api/earnings', earningsRoutes)
-app.use('/api/support', supportRoutes)
-app.use('/api/kyc', kycRoutes)
 app.use('/api/theme', themeRoutes)
-app.use('/api/admin-mgmt', adminManagementRoutes)
-app.use('/api/upload', uploadRoutes)
-app.use('/api/email-templates', emailTemplatesRoutes)
-app.use('/api/bonus', bonusRoutes)
 app.use('/api/banners', bannerRoutes)
-app.use('/api/reports', reportRoutes)
-app.use('/api/settlements', settlementRoutes)
+
+// Routes — admin-mgmt handles its own auth internally (login, brand, init)
+app.use('/api/admin-mgmt', adminManagementRoutes)
+
+// Routes — user-authenticated
+app.use('/api/account-types', authUser, accountTypesRoutes)
+app.use('/api/trading-accounts', authUser, tradingAccountsRoutes)
+app.use('/api/wallet', authUser, walletRoutes)
+app.use('/api/payment-methods', authUser, paymentMethodsRoutes)
+app.use('/api/trade', authUser, tradeRoutes)
+app.use('/api/wallet-transfer', authUser, walletTransferRoutes)
+app.use('/api/copy', authUser, copyTradingRoutes)
+app.use('/api/ib', authUser, ibRoutes)
+app.use('/api/prop', propTradingRoutes) // Mixed auth — handled per-route inside
+app.use('/api/support', authUser, supportRoutes)
+app.use('/api/kyc', authUser, kycRoutes)
+app.use('/api/upload', authUser, uploadRoutes)
+
+// Routes — admin-authenticated
+app.use('/api/admin', authAdmin, adminRoutes)
+app.use('/api/admin/trade', authAdmin, adminTradeRoutes)
+app.use('/api/charges', authAdmin, chargesRoutes)
+app.use('/api/earnings', authAdmin, earningsRoutes)
+app.use('/api/email-templates', authAdmin, emailTemplatesRoutes)
+app.use('/api/bonus', authAdmin, bonusRoutes)
+app.use('/api/reports', authAdmin, reportRoutes)
+app.use('/api/settlements', authAdmin, settlementRoutes)
 
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')))

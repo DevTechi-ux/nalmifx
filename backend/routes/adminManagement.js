@@ -5,10 +5,16 @@ import Admin from '../models/Admin.js'
 import AdminWallet from '../models/AdminWallet.js'
 import AdminWalletTransaction from '../models/AdminWalletTransaction.js'
 import User from '../models/User.js'
+import { authAdmin, authSuperAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
+// Lazy getter — env vars may not be ready at ES-module import time
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET
+  if (!secret) throw new Error('FATAL: JWT_SECRET is not set.')
+  return secret
+}
 
 // ==================== ADMIN AUTH ====================
 
@@ -40,7 +46,7 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign(
       { adminId: admin._id, role: admin.role, email: admin.email },
-      JWT_SECRET,
+      getJwtSecret(),
       { expiresIn: '24h' }
     )
 
@@ -77,7 +83,7 @@ router.get('/me', async (req, res) => {
     
     let decoded
     try {
-      decoded = jwt.verify(token, JWT_SECRET)
+      decoded = jwt.verify(token, getJwtSecret())
     } catch (jwtError) {
       return res.status(401).json({ message: 'Invalid or expired token' })
     }
@@ -98,7 +104,7 @@ router.put('/me', async (req, res) => {
     const token = req.headers.authorization?.replace('Bearer ', '')
     if (!token) return res.status(401).json({ message: 'No token provided' })
     
-    const decoded = jwt.verify(token, JWT_SECRET)
+    const decoded = jwt.verify(token, getJwtSecret())
     const admin = await Admin.findById(decoded.adminId)
     if (!admin) return res.status(404).json({ message: 'Admin not found' })
     
@@ -143,7 +149,7 @@ router.put('/me/password', async (req, res) => {
     const token = req.headers.authorization?.replace('Bearer ', '')
     if (!token) return res.status(401).json({ message: 'No token provided' })
     
-    const decoded = jwt.verify(token, JWT_SECRET)
+    const decoded = jwt.verify(token, getJwtSecret())
     const admin = await Admin.findById(decoded.adminId)
     if (!admin) return res.status(404).json({ message: 'Admin not found' })
     
@@ -174,7 +180,7 @@ router.put('/me/password', async (req, res) => {
 // ==================== SUPER ADMIN - ADMIN MANAGEMENT ====================
 
 // GET /api/admin-mgmt/admins - Get all admins (super admin only)
-router.get('/admins', async (req, res) => {
+router.get('/admins', authSuperAdmin, async (req, res) => {
   try {
     const admins = await Admin.find({ role: 'ADMIN' })
       .select('-password')
@@ -200,7 +206,7 @@ router.get('/admins', async (req, res) => {
 })
 
 // GET /api/admin-mgmt/admins/:id - Get single admin details
-router.get('/admins/:id', async (req, res) => {
+router.get('/admins/:id', authSuperAdmin, async (req, res) => {
   try {
     const admin = await Admin.findById(req.params.id).select('-password')
     if (!admin) {
@@ -226,7 +232,7 @@ router.get('/admins/:id', async (req, res) => {
 })
 
 // POST /api/admin-mgmt/admins - Create new admin (super admin only)
-router.post('/admins', async (req, res) => {
+router.post('/admins', authSuperAdmin, async (req, res) => {
   try {
     const {
       email,
@@ -300,7 +306,7 @@ router.post('/admins', async (req, res) => {
 })
 
 // PUT /api/admin-mgmt/admins/:id - Update admin
-router.put('/admins/:id', async (req, res) => {
+router.put('/admins/:id', authSuperAdmin, async (req, res) => {
   try {
     const {
       firstName,
@@ -346,7 +352,7 @@ router.put('/admins/:id', async (req, res) => {
 })
 
 // PUT /api/admin-mgmt/admins/:id/permissions - Update admin permissions
-router.put('/admins/:id/permissions', async (req, res) => {
+router.put('/admins/:id/permissions', authSuperAdmin, async (req, res) => {
   try {
     const { permissions } = req.body
 
@@ -369,7 +375,7 @@ router.put('/admins/:id/permissions', async (req, res) => {
 })
 
 // PUT /api/admin-mgmt/admins/:id/reset-password - Reset admin password
-router.put('/admins/:id/reset-password', async (req, res) => {
+router.put('/admins/:id/reset-password', authSuperAdmin, async (req, res) => {
   try {
     const { newPassword } = req.body
 
@@ -396,7 +402,7 @@ router.put('/admins/:id/reset-password', async (req, res) => {
 })
 
 // PUT /api/admin-mgmt/admins/:id/status - Suspend/Activate admin
-router.put('/admins/:id/status', async (req, res) => {
+router.put('/admins/:id/status', authSuperAdmin, async (req, res) => {
   try {
     const { status } = req.body
 
@@ -431,7 +437,7 @@ router.put('/admins/:id/status', async (req, res) => {
 })
 
 // DELETE /api/admin-mgmt/admins/:id - Delete admin
-router.delete('/admins/:id', async (req, res) => {
+router.delete('/admins/:id', authSuperAdmin, async (req, res) => {
   try {
     const admin = await Admin.findById(req.params.id)
     if (!admin) {
@@ -466,7 +472,7 @@ router.delete('/admins/:id', async (req, res) => {
 // ==================== ADMIN WALLET MANAGEMENT ====================
 
 // GET /api/admin-mgmt/wallet/:adminId - Get admin wallet
-router.get('/wallet/:adminId', async (req, res) => {
+router.get('/wallet/:adminId', authAdmin, async (req, res) => {
   try {
     const wallet = await AdminWallet.findOne({ adminId: req.params.adminId })
     if (!wallet) {
@@ -480,7 +486,7 @@ router.get('/wallet/:adminId', async (req, res) => {
 })
 
 // POST /api/admin-mgmt/wallet/fund - Fund admin wallet (super admin only)
-router.post('/wallet/fund', async (req, res) => {
+router.post('/wallet/fund', authSuperAdmin, async (req, res) => {
   try {
     const { adminId, amount, description } = req.body
 
@@ -493,15 +499,12 @@ router.post('/wallet/fund', async (req, res) => {
       return res.status(404).json({ message: 'Admin not found' })
     }
 
-    let wallet = await AdminWallet.findOne({ adminId })
-    if (!wallet) {
-      wallet = new AdminWallet({ adminId, balance: 0 })
-    }
-
-    // Update wallet balance
-    wallet.balance += amount
-    wallet.totalReceived += amount
-    await wallet.save()
+    // Atomic increment — prevents race conditions
+    let wallet = await AdminWallet.findOneAndUpdate(
+      { adminId },
+      { $inc: { balance: amount, totalReceived: amount } },
+      { new: true, upsert: true }
+    )
 
     // Create transaction record
     const transaction = new AdminWalletTransaction({
@@ -527,7 +530,7 @@ router.post('/wallet/fund', async (req, res) => {
 })
 
 // POST /api/admin-mgmt/wallet/deduct - Deduct from admin wallet (super admin only)
-router.post('/wallet/deduct', async (req, res) => {
+router.post('/wallet/deduct', authSuperAdmin, async (req, res) => {
   try {
     const { adminId, amount, description } = req.body
 
@@ -535,17 +538,16 @@ router.post('/wallet/deduct', async (req, res) => {
       return res.status(400).json({ message: 'Invalid admin ID or amount' })
     }
 
-    const wallet = await AdminWallet.findOne({ adminId })
+    // Atomic deduct — only succeeds if sufficient balance
+    const wallet = await AdminWallet.findOneAndUpdate(
+      { adminId, balance: { $gte: amount } },
+      { $inc: { balance: -amount } },
+      { new: true }
+    )
+
     if (!wallet) {
-      return res.status(404).json({ message: 'Wallet not found' })
+      return res.status(400).json({ message: 'Wallet not found or insufficient balance' })
     }
-
-    if (wallet.balance < amount) {
-      return res.status(400).json({ message: 'Insufficient balance' })
-    }
-
-    wallet.balance -= amount
-    await wallet.save()
 
     // Create transaction record
     const transaction = new AdminWalletTransaction({
@@ -570,7 +572,7 @@ router.post('/wallet/deduct', async (req, res) => {
 })
 
 // GET /api/admin-mgmt/wallet/:adminId/transactions - Get wallet transactions
-router.get('/wallet/:adminId/transactions', async (req, res) => {
+router.get('/wallet/:adminId/transactions', authAdmin, async (req, res) => {
   try {
     const { limit = 50, type } = req.query
 
@@ -664,6 +666,12 @@ router.get('/check-slug/:slug', async (req, res) => {
 // POST /api/admin-mgmt/init-super-admin - Create initial super admin
 router.post('/init-super-admin', async (req, res) => {
   try {
+    // Require init secret to prevent unauthorized super admin creation
+    const initSecret = process.env.INIT_SECRET
+    if (initSecret && req.body.initSecret !== initSecret) {
+      return res.status(403).json({ message: 'Invalid initialization secret' })
+    }
+
     // Check if super admin already exists
     const existingSuperAdmin = await Admin.findOne({ role: 'SUPER_ADMIN' })
     if (existingSuperAdmin) {

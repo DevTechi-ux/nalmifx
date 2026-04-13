@@ -311,7 +311,7 @@ router.post('/reset', async (req, res) => {
     // 'all' = no date filter
 
     const result = await Trade.updateMany(
-      { ...dateFilter, status: { $in: ['OPEN', 'CLOSED'] } },
+      { ...dateFilter, status: 'CLOSED' },
       { $set: { commission: 0, swap: 0, spread: 0 } }
     )
 

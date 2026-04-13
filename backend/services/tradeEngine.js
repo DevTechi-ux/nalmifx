@@ -352,11 +352,11 @@ class TradeEngine {
       pendingPrice: orderType !== 'MARKET' ? openPrice : null
     })
 
-    // Deduct commission from trading account balance when trade opens
+    // Atomic deduct commission from trading account balance when trade opens
     if (orderType === 'MARKET' && commission > 0) {
-      account.balance -= commission
-      if (account.balance < 0) account.balance = 0
-      await account.save()
+      await TradingAccount.findByIdAndUpdate(tradingAccountId, {
+        $inc: { balance: -commission },
+      })
     }
 
     return trade
@@ -567,17 +567,20 @@ class TradeEngine {
         }
       }
 
-      // When equity is zero, balance should also be zero
+      // Re-fetch account to get the actual balance after all trades closed
       const finalAccount = await TradingAccount.findById(tradingAccountId)
-      finalAccount.balance = 0  // Set balance to zero when equity-based stop-out
-      await finalAccount.save()
+      // Only zero out if balance is negative (can't owe the broker)
+      if (finalAccount.balance < 0) {
+        finalAccount.balance = 0
+        await finalAccount.save()
+      }
 
-      return { 
-        stopOutTriggered: true, 
+      return {
+        stopOutTriggered: true,
         closedTrades,
         reason: 'EQUITY_ZERO',
         finalEquity: summary.equity,
-        finalBalance: 0
+        finalBalance: finalAccount.balance
       }
     }
 

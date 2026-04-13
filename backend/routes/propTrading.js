@@ -5,6 +5,7 @@ import PropSettings from '../models/PropSettings.js'
 import Wallet from '../models/Wallet.js'
 import Transaction from '../models/Transaction.js'
 import propTradingEngine from '../services/propTradingEngine.js'
+import { authUser, authAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -58,7 +59,7 @@ router.get('/challenge/:id', async (req, res) => {
 // ==================== USER ROUTES ====================
 
 // POST /api/prop/buy - Buy a challenge
-router.post('/buy', async (req, res) => {
+router.post('/buy', authUser, async (req, res) => {
   try {
     const { userId, challengeId } = req.body
 
@@ -147,7 +148,7 @@ router.post('/buy', async (req, res) => {
 })
 
 // GET /api/prop/my-accounts/:userId - Get user's challenge accounts
-router.get('/my-accounts/:userId', async (req, res) => {
+router.get('/my-accounts/:userId', authUser, async (req, res) => {
   try {
     const { userId } = req.params
     const { status } = req.query
@@ -242,7 +243,7 @@ router.get('/my-accounts/:userId', async (req, res) => {
 })
 
 // GET /api/prop/account/:accountId - Get challenge account dashboard
-router.get('/account/:accountId', async (req, res) => {
+router.get('/account/:accountId', authUser, async (req, res) => {
   try {
     const { accountId } = req.params
     const dashboard = await propTradingEngine.getAccountDashboard(accountId)
@@ -258,7 +259,7 @@ router.get('/account/:accountId', async (req, res) => {
 })
 
 // POST /api/prop/validate-trade - Validate trade before opening
-router.post('/validate-trade', async (req, res) => {
+router.post('/validate-trade', authUser, async (req, res) => {
   try {
     const { challengeAccountId, tradeParams } = req.body
 
@@ -281,7 +282,7 @@ router.post('/validate-trade', async (req, res) => {
 })
 
 // POST /api/prop/validate-close - Validate trade close (for min hold time)
-router.post('/validate-close', async (req, res) => {
+router.post('/validate-close', authUser, async (req, res) => {
   try {
     const { challengeAccountId, tradeId } = req.body
 
@@ -305,7 +306,7 @@ router.post('/validate-close', async (req, res) => {
 })
 
 // POST /api/prop/update-equity - Update real-time equity
-router.post('/update-equity', async (req, res) => {
+router.post('/update-equity', authUser, async (req, res) => {
   try {
     const { challengeAccountId, newEquity } = req.body
 
@@ -338,7 +339,7 @@ router.post('/update-equity', async (req, res) => {
 })
 
 // POST /api/prop/withdraw-profit - Withdraw profit from funded account
-router.post('/withdraw-profit', async (req, res) => {
+router.post('/withdraw-profit', authUser, async (req, res) => {
   try {
     const { userId, challengeAccountId, amount } = req.body
 
@@ -434,7 +435,7 @@ router.post('/withdraw-profit', async (req, res) => {
 })
 
 // GET /api/prop/funded-info/:accountId - Get funded account withdrawal info
-router.get('/funded-info/:accountId', async (req, res) => {
+router.get('/funded-info/:accountId', authUser, async (req, res) => {
   try {
     const account = await ChallengeAccount.findById(req.params.accountId)
       .populate('challengeId')
@@ -489,7 +490,7 @@ router.get('/funded-info/:accountId', async (req, res) => {
 // ==================== ADMIN ROUTES ====================
 
 // GET /api/prop/admin/settings - Get prop settings
-router.get('/admin/settings', async (req, res) => {
+router.get('/admin/settings', authAdmin, async (req, res) => {
   try {
     const settings = await PropSettings.getSettings()
     res.json({ success: true, settings })
@@ -499,7 +500,7 @@ router.get('/admin/settings', async (req, res) => {
 })
 
 // PUT /api/prop/admin/settings - Update prop settings
-router.put('/admin/settings', async (req, res) => {
+router.put('/admin/settings', authAdmin, async (req, res) => {
   try {
     const { challengeModeEnabled, displayName, description, termsAndConditions, adminId } = req.body
     
@@ -517,7 +518,7 @@ router.put('/admin/settings', async (req, res) => {
 })
 
 // POST /api/prop/admin/challenges - Create new challenge
-router.post('/admin/challenges', async (req, res) => {
+router.post('/admin/challenges', authAdmin, async (req, res) => {
   try {
     const challengeData = req.body
     const challenge = await Challenge.create(challengeData)
@@ -528,7 +529,7 @@ router.post('/admin/challenges', async (req, res) => {
 })
 
 // GET /api/prop/admin/challenges - Get all challenges (admin)
-router.get('/admin/challenges', async (req, res) => {
+router.get('/admin/challenges', authAdmin, async (req, res) => {
   try {
     const challenges = await Challenge.find().sort({ sortOrder: 1, fundSize: 1 })
     res.json({ success: true, challenges })
@@ -538,7 +539,7 @@ router.get('/admin/challenges', async (req, res) => {
 })
 
 // PUT /api/prop/admin/challenges/:id - Update challenge
-router.put('/admin/challenges/:id', async (req, res) => {
+router.put('/admin/challenges/:id', authAdmin, async (req, res) => {
   try {
     const challenge = await Challenge.findByIdAndUpdate(
       req.params.id,
@@ -555,7 +556,7 @@ router.put('/admin/challenges/:id', async (req, res) => {
 })
 
 // DELETE /api/prop/admin/challenges/:id - Delete challenge
-router.delete('/admin/challenges/:id', async (req, res) => {
+router.delete('/admin/challenges/:id', authAdmin, async (req, res) => {
   try {
     const accountsCount = await ChallengeAccount.countDocuments({ challengeId: req.params.id })
     if (accountsCount > 0) {
@@ -573,7 +574,7 @@ router.delete('/admin/challenges/:id', async (req, res) => {
 })
 
 // GET /api/prop/admin/accounts - Get all challenge accounts
-router.get('/admin/accounts', async (req, res) => {
+router.get('/admin/accounts', authAdmin, async (req, res) => {
   try {
     const { status, challengeId, limit = 50, offset = 0 } = req.query
 
@@ -597,7 +598,7 @@ router.get('/admin/accounts', async (req, res) => {
 })
 
 // GET /api/prop/admin/account/:id - Get single account details
-router.get('/admin/account/:id', async (req, res) => {
+router.get('/admin/account/:id', authAdmin, async (req, res) => {
   try {
     const dashboard = await propTradingEngine.getAccountDashboard(req.params.id)
     if (!dashboard) {
@@ -610,7 +611,7 @@ router.get('/admin/account/:id', async (req, res) => {
 })
 
 // POST /api/prop/admin/force-pass/:id - Force pass a challenge
-router.post('/admin/force-pass/:id', async (req, res) => {
+router.post('/admin/force-pass/:id', authAdmin, async (req, res) => {
   try {
     const { adminId } = req.body
     const result = await propTradingEngine.forcePass(req.params.id, adminId)
@@ -626,7 +627,7 @@ router.post('/admin/force-pass/:id', async (req, res) => {
 })
 
 // POST /api/prop/admin/force-fail/:id - Force fail a challenge
-router.post('/admin/force-fail/:id', async (req, res) => {
+router.post('/admin/force-fail/:id', authAdmin, async (req, res) => {
   try {
     const { adminId, reason } = req.body
     const account = await propTradingEngine.forceFail(req.params.id, adminId, reason)
@@ -637,7 +638,7 @@ router.post('/admin/force-fail/:id', async (req, res) => {
 })
 
 // POST /api/prop/admin/extend-time/:id - Extend challenge time
-router.post('/admin/extend-time/:id', async (req, res) => {
+router.post('/admin/extend-time/:id', authAdmin, async (req, res) => {
   try {
     const { adminId, days } = req.body
     if (!days || days <= 0) {
@@ -651,7 +652,7 @@ router.post('/admin/extend-time/:id', async (req, res) => {
 })
 
 // POST /api/prop/admin/reset/:id - Reset challenge
-router.post('/admin/reset/:id', async (req, res) => {
+router.post('/admin/reset/:id', authAdmin, async (req, res) => {
   try {
     const { adminId } = req.body
     const account = await propTradingEngine.resetChallenge(req.params.id, adminId)
@@ -662,7 +663,7 @@ router.post('/admin/reset/:id', async (req, res) => {
 })
 
 // GET /api/prop/admin/dashboard - Admin dashboard stats
-router.get('/admin/dashboard', async (req, res) => {
+router.get('/admin/dashboard', authAdmin, async (req, res) => {
   try {
     const totalChallenges = await Challenge.countDocuments({ isActive: true })
     const totalAccounts = await ChallengeAccount.countDocuments()
@@ -691,7 +692,7 @@ router.get('/admin/dashboard', async (req, res) => {
 })
 
 // GET /api/prop/account-trades/:id - Get trades for a challenge account
-router.get('/account-trades/:id', async (req, res) => {
+router.get('/account-trades/:id', authAdmin, async (req, res) => {
   try {
     const Trade = (await import('../models/Trade.js')).default
     const trades = await Trade.find({ tradingAccountId: req.params.id })
@@ -704,7 +705,7 @@ router.get('/account-trades/:id', async (req, res) => {
 })
 
 // PUT /api/prop/admin/mark-notified - Mark all passed challenges as admin-notified
-router.put('/admin/mark-notified', async (req, res) => {
+router.put('/admin/mark-notified', authAdmin, async (req, res) => {
   try {
     await ChallengeAccount.updateMany(
       { status: 'PASSED', adminNotified: false },

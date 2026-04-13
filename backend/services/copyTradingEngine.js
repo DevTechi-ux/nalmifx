@@ -255,8 +255,10 @@ class CopyTradingEngine {
           }
         }
 
-        // Execute trade for follower
+        // Execute trade for follower — use original bid/ask from master trade if available
         console.log(`[CopyTrade] Opening trade for follower ${follower._id}: ${followerLotSize} lots ${masterTrade.symbol}`)
+        const copyBid = masterTrade.bid || masterTrade.openPrice
+        const copyAsk = masterTrade.ask || masterTrade.openPrice
         const followerTrade = await tradeEngine.openTrade(
           follower.followerId,
           follower.followerAccountId._id || follower.followerAccountId,
@@ -265,8 +267,8 @@ class CopyTradingEngine {
           masterTrade.side,
           'MARKET',
           followerLotSize,
-          masterTrade.openPrice, // Use master's price as bid
-          masterTrade.openPrice, // Use master's price as ask
+          copyBid,
+          copyAsk,
           masterTrade.stopLoss,
           masterTrade.takeProfit
         )
@@ -363,9 +365,9 @@ class CopyTradingEngine {
   }
 
   // Close all follower trades when master closes (PARALLEL for speed)
-  async closeFollowerTrades(masterTradeId, masterClosePrice) {
+  async closeFollowerTrades(masterTradeId, masterClosePrice, masterCloseBid, masterCloseAsk) {
     console.log(`[CopyTrade] closeFollowerTrades called with masterTradeId: ${masterTradeId}, price: ${masterClosePrice}`)
-    
+
     const copyTrades = await CopyTrade.find({
       masterTradeId,
       status: 'OPEN'
@@ -376,11 +378,13 @@ class CopyTradingEngine {
     // Process ALL in parallel for instant close
     const results = await Promise.all(copyTrades.map(async (copyTrade) => {
       try {
-        // Close the follower trade
+        // Close the follower trade using master's bid/ask prices
+        const closeBid = masterCloseBid || masterClosePrice
+        const closeAsk = masterCloseAsk || masterClosePrice
         const result = await tradeEngine.closeTrade(
           copyTrade.followerTradeId,
-          masterClosePrice,
-          masterClosePrice,
+          closeBid,
+          closeAsk,
           'USER'
         )
 
