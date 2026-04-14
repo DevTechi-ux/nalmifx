@@ -9,6 +9,7 @@ import Bonus from '../models/Bonus.js'
 import UserBonus from '../models/UserBonus.js'
 import { sendTemplateEmail } from '../services/emailService.js'
 import EmailSettings from '../models/EmailSettings.js'
+import { getScopedUserIds, requirePermission } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -324,10 +325,12 @@ router.get('/transactions/:userId', async (req, res) => {
   }
 })
 
-// GET /api/wallet/transactions/all - Get all transactions (admin)
-router.get('/admin/transactions', async (req, res) => {
+// GET /api/wallet/admin/transactions - Get all transactions (admin, scoped)
+router.get('/admin/transactions', requirePermission('canManageDeposits'), async (req, res) => {
   try {
-    const transactions = await Transaction.find()
+    const userIds = await getScopedUserIds(req)
+    const query = userIds !== null ? { userId: { $in: userIds } } : {}
+    const transactions = await Transaction.find(query)
       .populate('userId', 'firstName lastName email')
       .sort({ createdAt: -1 })
     res.json({ transactions })
@@ -337,7 +340,7 @@ router.get('/admin/transactions', async (req, res) => {
 })
 
 // PUT /api/wallet/admin/approve/:id - Approve transaction (admin)
-router.put('/admin/approve/:id', async (req, res) => {
+router.put('/admin/approve/:id', requirePermission('canApproveDeposits'), async (req, res) => {
   try {
     const transaction = await Transaction.findById(req.params.id)
     
@@ -428,7 +431,7 @@ router.put('/admin/approve/:id', async (req, res) => {
 })
 
 // PUT /api/wallet/admin/reject/:id - Reject transaction (admin)
-router.put('/admin/reject/:id', async (req, res) => {
+router.put('/admin/reject/:id', requirePermission('canApproveWithdrawals'), async (req, res) => {
   try {
     const transaction = await Transaction.findById(req.params.id)
     

@@ -1,6 +1,7 @@
 import express from 'express'
 import Trade from '../models/Trade.js'
 import mongoose from 'mongoose'
+import { getScopedUserIds } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -8,7 +9,7 @@ const router = express.Router()
 router.get('/summary', async (req, res) => {
   try {
     const now = new Date()
-    
+
     // Calculate date ranges
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const weekStart = new Date(todayStart)
@@ -16,13 +17,18 @@ router.get('/summary', async (req, res) => {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
     const yearStart = new Date(now.getFullYear(), 0, 1)
 
+    // Scope filter for sub-admins
+    const userIds = await getScopedUserIds(req)
+    const userIdMatch = userIds !== null ? { userId: { $in: userIds } } : {}
+
     // Aggregate earnings from trades
     const aggregateEarnings = async (startDate, endDate = now) => {
       const result = await Trade.aggregate([
         {
           $match: {
             openedAt: { $gte: startDate, $lte: endDate },
-            status: { $in: ['OPEN', 'CLOSED'] }
+            status: { $in: ['OPEN', 'CLOSED'] },
+            ...userIdMatch
           }
         },
         {

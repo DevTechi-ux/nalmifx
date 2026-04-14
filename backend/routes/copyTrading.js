@@ -7,6 +7,7 @@ import CopySettings from '../models/CopySettings.js'
 import TradingAccount from '../models/TradingAccount.js'
 import Trade from '../models/Trade.js'
 import copyTradingEngine from '../services/copyTradingEngine.js'
+import { getScopedUserIds, requirePermission } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -500,10 +501,12 @@ router.get('/my-followers/:masterId', async (req, res) => {
 
 // ==================== ADMIN ROUTES ====================
 
-// GET /api/copy/admin/applications - Get pending master applications
-router.get('/admin/applications', async (req, res) => {
+// GET /api/copy/admin/applications - Get pending master applications (scoped)
+router.get('/admin/applications', requirePermission('canManageCopyTrading'), async (req, res) => {
   try {
-    const applications = await MasterTrader.find({ status: 'PENDING' })
+    const userIds = await getScopedUserIds(req)
+    const scopeFilter = userIds !== null ? { userId: { $in: userIds } } : {}
+    const applications = await MasterTrader.find({ status: 'PENDING', ...scopeFilter })
       .populate('userId', 'firstName lastName email')
       .populate('tradingAccountId', 'accountId balance')
       .sort({ createdAt: -1 })
@@ -515,7 +518,7 @@ router.get('/admin/applications', async (req, res) => {
 })
 
 // PUT /api/copy/admin/approve/:id - Approve master application
-router.put('/admin/approve/:id', async (req, res) => {
+router.put('/admin/approve/:id', requirePermission('canApproveMasters'), async (req, res) => {
   try {
     const { adminId, approvedCommissionPercentage, visibility, adminSharePercentage } = req.body
 
@@ -543,7 +546,7 @@ router.put('/admin/approve/:id', async (req, res) => {
 })
 
 // PUT /api/copy/admin/reject/:id - Reject master application
-router.put('/admin/reject/:id', async (req, res) => {
+router.put('/admin/reject/:id', requirePermission('canApproveMasters'), async (req, res) => {
   try {
     const { adminId, rejectionReason } = req.body
 
@@ -593,10 +596,12 @@ router.put('/admin/suspend/:id', async (req, res) => {
   }
 })
 
-// GET /api/copy/admin/masters - Get all masters (admin view)
-router.get('/admin/masters', async (req, res) => {
+// GET /api/copy/admin/masters - Get all masters (admin view, scoped)
+router.get('/admin/masters', requirePermission('canManageCopyTrading'), async (req, res) => {
   try {
-    const masters = await MasterTrader.find()
+    const userIds = await getScopedUserIds(req)
+    const scopeFilter = userIds !== null ? { userId: { $in: userIds } } : {}
+    const masters = await MasterTrader.find(scopeFilter)
       .populate('userId', 'firstName lastName email')
       .populate('tradingAccountId', 'accountId balance')
       .sort({ createdAt: -1 })
@@ -607,10 +612,12 @@ router.get('/admin/masters', async (req, res) => {
   }
 })
 
-// GET /api/copy/admin/followers - Get all followers (admin view)
-router.get('/admin/followers', async (req, res) => {
+// GET /api/copy/admin/followers - Get all followers (admin view, scoped)
+router.get('/admin/followers', requirePermission('canManageCopyTrading'), async (req, res) => {
   try {
-    const followers = await CopyFollower.find()
+    const userIds = await getScopedUserIds(req)
+    const scopeFilter = userIds !== null ? { followerId: { $in: userIds } } : {}
+    const followers = await CopyFollower.find(scopeFilter)
       .populate('followerId', 'firstName lastName email')
       .populate('masterId', 'displayName')
       .populate('followerAccountId', 'accountId balance')

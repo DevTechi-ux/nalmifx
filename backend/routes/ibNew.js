@@ -7,6 +7,7 @@ import IBLevel from '../models/IBLevel.js'
 import IBSettings from '../models/IBSettings.js'
 import ibEngine from '../services/ibEngineNew.js'
 import mongoose from 'mongoose'
+import { getScopedUserIds, requirePermission } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -198,13 +199,17 @@ router.post('/withdraw', async (req, res) => {
 
 // ==================== ADMIN ROUTES ====================
 
-// GET /api/ib/admin/all - Get all IBs
-router.get('/admin/all', async (req, res) => {
+// GET /api/ib/admin/all - Get all IBs (scoped to branch)
+router.get('/admin/all', requirePermission('canManageIB'), async (req, res) => {
   try {
     const { status, limit = 50, offset = 0 } = req.query
 
     let query = { isIB: true }
     if (status) query.ibStatus = status
+
+    // Scope to sub-admin's users
+    const userIds = await getScopedUserIds(req)
+    if (userIds !== null) query._id = { $in: userIds }
 
     const ibs = await User.find(query)
       .populate('ibPlanId', 'name')
@@ -232,10 +237,12 @@ router.get('/admin/all', async (req, res) => {
   }
 })
 
-// GET /api/ib/admin/pending - Get pending IB applications
-router.get('/admin/pending', async (req, res) => {
+// GET /api/ib/admin/pending - Get pending IB applications (scoped to branch)
+router.get('/admin/pending', requirePermission('canManageIB'), async (req, res) => {
   try {
-    const pending = await User.find({ isIB: true, ibStatus: 'PENDING' })
+    const userIds = await getScopedUserIds(req)
+    const scopeFilter = userIds !== null ? { _id: { $in: userIds } } : {}
+    const pending = await User.find({ isIB: true, ibStatus: 'PENDING', ...scopeFilter })
       .select('firstName lastName email referralCode ibLevel createdAt')
       .sort({ createdAt: -1 })
 

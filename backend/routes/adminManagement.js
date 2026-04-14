@@ -231,7 +231,7 @@ router.get('/admins/:id', authSuperAdmin, async (req, res) => {
   }
 })
 
-// POST /api/admin-mgmt/admins - Create new admin (super admin only)
+// POST /api/admin-mgmt/admins - Create new sub-admin / branch (super admin only)
 router.post('/admins', authSuperAdmin, async (req, res) => {
   try {
     const {
@@ -242,6 +242,12 @@ router.post('/admins', authSuperAdmin, async (req, res) => {
       phone,
       urlSlug,
       brandName,
+      branchName,
+      branchLocation,
+      branchAddress,
+      branchPhone,
+      branchEmail,
+      maxFundLimit,
       permissions
     } = req.body
 
@@ -274,7 +280,14 @@ router.post('/admins', authSuperAdmin, async (req, res) => {
       phone: phone || '',
       urlSlug: urlSlug.toLowerCase(),
       brandName: brandName || firstName + "'s Trading",
+      branchName: branchName || '',
+      branchLocation: branchLocation || '',
+      branchAddress: branchAddress || '',
+      branchPhone: branchPhone || '',
+      branchEmail: branchEmail || '',
+      maxFundLimit: maxFundLimit || 0,
       role: 'ADMIN',
+      parentAdmin: req.adminId,
       permissions: permissions || {}
     })
 
@@ -289,7 +302,7 @@ router.post('/admins', authSuperAdmin, async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Admin created successfully',
+      message: 'Branch admin created successfully',
       admin: {
         _id: admin._id,
         email: admin.email,
@@ -297,6 +310,9 @@ router.post('/admins', authSuperAdmin, async (req, res) => {
         lastName: admin.lastName,
         urlSlug: admin.urlSlug,
         brandName: admin.brandName,
+        branchName: admin.branchName,
+        branchLocation: admin.branchLocation,
+        maxFundLimit: admin.maxFundLimit,
         permissions: admin.permissions
       }
     })
@@ -305,7 +321,7 @@ router.post('/admins', authSuperAdmin, async (req, res) => {
   }
 })
 
-// PUT /api/admin-mgmt/admins/:id - Update admin
+// PUT /api/admin-mgmt/admins/:id - Update admin / branch
 router.put('/admins/:id', authSuperAdmin, async (req, res) => {
   try {
     const {
@@ -313,6 +329,12 @@ router.put('/admins/:id', authSuperAdmin, async (req, res) => {
       lastName,
       phone,
       brandName,
+      branchName,
+      branchLocation,
+      branchAddress,
+      branchPhone,
+      branchEmail,
+      maxFundLimit,
       permissions,
       status
     } = req.body
@@ -327,6 +349,12 @@ router.put('/admins/:id', authSuperAdmin, async (req, res) => {
     if (lastName) admin.lastName = lastName
     if (phone !== undefined) admin.phone = phone
     if (brandName) admin.brandName = brandName
+    if (branchName !== undefined) admin.branchName = branchName
+    if (branchLocation !== undefined) admin.branchLocation = branchLocation
+    if (branchAddress !== undefined) admin.branchAddress = branchAddress
+    if (branchPhone !== undefined) admin.branchPhone = branchPhone
+    if (branchEmail !== undefined) admin.branchEmail = branchEmail
+    if (maxFundLimit !== undefined) admin.maxFundLimit = maxFundLimit
     if (permissions) admin.permissions = { ...admin.permissions, ...permissions }
     if (status) admin.status = status
 
@@ -334,7 +362,7 @@ router.put('/admins/:id', authSuperAdmin, async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Admin updated successfully',
+      message: 'Branch updated successfully',
       admin: {
         _id: admin._id,
         email: admin.email,
@@ -342,6 +370,12 @@ router.put('/admins/:id', authSuperAdmin, async (req, res) => {
         lastName: admin.lastName,
         urlSlug: admin.urlSlug,
         brandName: admin.brandName,
+        branchName: admin.branchName,
+        branchLocation: admin.branchLocation,
+        branchAddress: admin.branchAddress,
+        branchPhone: admin.branchPhone,
+        branchEmail: admin.branchEmail,
+        maxFundLimit: admin.maxFundLimit,
         permissions: admin.permissions,
         status: admin.status
       }
@@ -499,6 +533,17 @@ router.post('/wallet/fund', authSuperAdmin, async (req, res) => {
       return res.status(404).json({ message: 'Admin not found' })
     }
 
+    // Check fund limit if set
+    if (admin.maxFundLimit > 0) {
+      const currentWallet = await AdminWallet.findOne({ adminId })
+      const currentBalance = currentWallet?.balance || 0
+      if (currentBalance + amount > admin.maxFundLimit) {
+        return res.status(400).json({
+          message: `Fund limit exceeded. Max allowed: $${admin.maxFundLimit}, Current: $${currentBalance}, Requested: $${amount}`
+        })
+      }
+    }
+
     // Atomic increment — prevents race conditions
     let wallet = await AdminWallet.findOneAndUpdate(
       { adminId },
@@ -595,6 +640,94 @@ router.get('/wallet/:adminId/transactions', authAdmin, async (req, res) => {
     res.json({ success: true, transactions })
   } catch (error) {
     res.status(500).json({ message: 'Error fetching transactions', error: error.message })
+  }
+})
+
+// ==================== BRANCH USERS & OVERVIEW ====================
+
+// GET /api/admin-mgmt/admins/:id/users - Get users belonging to a branch admin
+router.get('/admins/:id/users', authSuperAdmin, async (req, res) => {
+  try {
+    const admin = await Admin.findById(req.params.id)
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found' })
+    }
+
+    const users = await User.find({ assignedAdmin: req.params.id })
+      .select('-password')
+      .sort({ createdAt: -1 })
+
+    res.json({ success: true, users, total: users.length })
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching branch users', error: error.message })
+  }
+})
+
+// GET /api/admin-mgmt/branch-overview - Full branch overview for super admin dashboard
+router.get('/branch-overview', authSuperAdmin, async (req, res) => {
+  try {
+    const admins = await Admin.find({ role: 'ADMIN' })
+      .select('-password')
+      .sort({ createdAt: -1 })
+
+    const TradingAccount = (await import('../models/TradingAccount.js')).default
+    const Trade = (await import('../models/Trade.js')).default
+
+    const branches = await Promise.all(admins.map(async (admin) => {
+      const wallet = await AdminWallet.findOne({ adminId: admin._id })
+      const userCount = await User.countDocuments({ assignedAdmin: admin._id })
+
+      // Get user IDs for this branch
+      const userIds = await User.find({ assignedAdmin: admin._id }).distinct('_id')
+
+      // Count trading accounts and active trades for branch users
+      const accountCount = await TradingAccount.countDocuments({ userId: { $in: userIds } })
+      const activeTradeCount = await Trade.countDocuments({
+        userId: { $in: userIds },
+        status: 'OPEN'
+      })
+
+      return {
+        _id: admin._id,
+        firstName: admin.firstName,
+        lastName: admin.lastName,
+        email: admin.email,
+        urlSlug: admin.urlSlug,
+        brandName: admin.brandName,
+        branchName: admin.branchName,
+        branchLocation: admin.branchLocation,
+        branchAddress: admin.branchAddress,
+        branchPhone: admin.branchPhone,
+        branchEmail: admin.branchEmail,
+        maxFundLimit: admin.maxFundLimit,
+        status: admin.status,
+        lastLogin: admin.lastLogin,
+        createdAt: admin.createdAt,
+        permissions: admin.permissions,
+        walletBalance: wallet?.balance || 0,
+        totalReceived: wallet?.totalReceived || 0,
+        totalGivenToUsers: wallet?.totalGivenToUsers || 0,
+        walletStatus: wallet?.status || 'N/A',
+        userCount,
+        accountCount,
+        activeTradeCount
+      }
+    }))
+
+    // Compute totals
+    const totals = {
+      totalBranches: branches.length,
+      activeBranches: branches.filter(b => b.status === 'ACTIVE').length,
+      totalUsers: branches.reduce((s, b) => s + b.userCount, 0),
+      totalFundsAllocated: branches.reduce((s, b) => s + b.totalReceived, 0),
+      totalWalletBalance: branches.reduce((s, b) => s + b.walletBalance, 0),
+      totalAccounts: branches.reduce((s, b) => s + b.accountCount, 0),
+      totalActiveTrades: branches.reduce((s, b) => s + b.activeTradeCount, 0)
+    }
+
+    res.json({ success: true, branches, totals })
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching branch overview', error: error.message })
   }
 })
 

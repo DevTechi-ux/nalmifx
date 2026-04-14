@@ -123,4 +123,40 @@ export const authAny = async (req, res, next) => {
   }
 }
 
-export default { authUser, authAdmin, authSuperAdmin, authAny }
+// Permission gate — use after authAdmin to enforce a specific permission.
+// Usage: router.get('/users', authAdmin, requirePermission('canManageUsers'), handler)
+export const requirePermission = (permissionName) => (req, res, next) => {
+  // Super admins bypass all permission checks
+  if (req.admin && req.admin.role === 'SUPER_ADMIN') return next()
+
+  // Sub-admins must have the specific permission enabled
+  if (req.admin && req.admin.permissions && req.admin.permissions[permissionName]) {
+    return next()
+  }
+
+  return res.status(403).json({
+    success: false,
+    message: `Access denied: you do not have the '${permissionName}' permission`
+  })
+}
+
+// Scope helper — returns a MongoDB filter that limits queries to the admin's
+// assigned users.  Super admins see everything; sub-admins only their users.
+// Import this in route files:
+//   import { scopeToAdmin } from '../middleware/auth.js'
+//   const scope = scopeToAdmin(req)          // { assignedAdmin: <id> } or {}
+//   const users = await User.find(scope)
+export function scopeToAdmin(req) {
+  if (req.admin && req.admin.role === 'SUPER_ADMIN') return {}
+  return { assignedAdmin: req.adminId }
+}
+
+// Convenience: get scoped user IDs for downstream model queries (Trade, Transaction, etc.)
+// Returns an array of ObjectIds.
+export async function getScopedUserIds(req) {
+  if (req.admin && req.admin.role === 'SUPER_ADMIN') return null // null = no filter
+  const User = (await import('../models/User.js')).default
+  return User.find({ assignedAdmin: req.adminId }).distinct('_id')
+}
+
+export default { authUser, authAdmin, authSuperAdmin, authAny, requirePermission, scopeToAdmin, getScopedUserIds }

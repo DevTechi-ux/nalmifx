@@ -49,7 +49,35 @@ const adminSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
-  
+
+  // Branch Info (for sub-admin branches)
+  branchName: {
+    type: String,
+    default: ''
+  },
+  branchLocation: {
+    type: String,
+    default: ''
+  },
+  branchAddress: {
+    type: String,
+    default: ''
+  },
+  branchPhone: {
+    type: String,
+    default: ''
+  },
+  branchEmail: {
+    type: String,
+    default: ''
+  },
+
+  // Fund limit — max balance super admin allows this branch to hold
+  maxFundLimit: {
+    type: Number,
+    default: 0
+  },
+
   // Parent admin (for sub-admins created by super admin)
   parentAdmin: {
     type: mongoose.Schema.Types.ObjectId,

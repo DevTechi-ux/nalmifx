@@ -40,6 +40,14 @@ const AdminLayout = ({ children, title, subtitle }) => {
     funds: 0, kyc: 0, ib: 0, copyTrade: 0, support: 0, bankRequests: 0, propFirm: 0
   })
 
+  // Load admin role + permissions from localStorage (set at login)
+  const adminUser = JSON.parse(localStorage.getItem('adminUser') || '{}')
+  const isSuperAdmin = adminUser?.role === 'SUPER_ADMIN'
+  const perms = adminUser?.permissions || {}
+
+  // Check if the admin has a specific permission (super admin always passes)
+  const can = (permissionKey) => isSuperAdmin || !!perms[permissionKey]
+
   const fetchPendingCounts = useCallback(async () => {
     try {
       const res = await adminFetch(`${API_URL}/admin/pending-counts`)
@@ -61,26 +69,36 @@ const AdminLayout = ({ children, title, subtitle }) => {
     return () => clearInterval(interval)
   }, [navigate, fetchPendingCounts])
 
-  const menuItems = [
-    { name: 'Overview Dashboard', icon: LayoutDashboard, path: '/admin/dashboard' },
-    { name: 'User Management', icon: Users, path: '/admin/users' },
-    { name: 'Trade Management', icon: TrendingUp, path: '/admin/trades' },
-    { name: 'Fund Management', icon: Wallet, path: '/admin/funds', badge: pendingCounts.funds },
-    { name: 'Bank Settings', icon: Building2, path: '/admin/bank-settings', badge: pendingCounts.bankRequests },
-    { name: 'IB Management', icon: UserCog, path: '/admin/ib-management', badge: pendingCounts.ib },
-    { name: 'Forex Charges', icon: DollarSign, path: '/admin/forex-charges' },
-    { name: 'Earnings Report', icon: TrendingUp, path: '/admin/earnings' },
-    { name: 'Copy Trade Management', icon: Copy, path: '/admin/copy-trade', badge: pendingCounts.copyTrade },
-    { name: 'Prop Firm Challenges', icon: Trophy, path: '/admin/prop-firm', badge: pendingCounts.propFirm },
-    { name: 'Account Types', icon: CreditCard, path: '/admin/account-types' },
-    { name: 'Theme Settings', icon: Palette, path: '/admin/theme' },
-    { name: 'Email Templates', icon: Mail, path: '/admin/email-templates' },
-    { name: 'Bonus Management', icon: Gift, path: '/admin/bonus-management' },
-    { name: 'Banner Management', icon: Image, path: '/admin/banners' },
-    { name: 'Admin Management', icon: Shield, path: '/admin/admin-management' },
-    { name: 'KYC Verification', icon: FileCheck, path: '/admin/kyc', badge: pendingCounts.kyc },
-    { name: 'Support Tickets', icon: HeadphonesIcon, path: '/admin/support', badge: pendingCounts.support },
+  // All possible menu items with their required permission key.
+  // Items with permKey: null are always visible to any authenticated admin.
+  // Items with superOnly: true are only visible to SUPER_ADMIN.
+  const allMenuItems = [
+    { name: 'Overview Dashboard',    icon: LayoutDashboard, path: '/admin/dashboard',        permKey: null },
+    { name: 'User Management',       icon: Users,           path: '/admin/users',             permKey: 'canManageUsers' },
+    { name: 'Trade Management',      icon: TrendingUp,      path: '/admin/trades',            permKey: 'canManageTrades' },
+    { name: 'Fund Management',       icon: Wallet,          path: '/admin/funds',             permKey: 'canManageDeposits', badge: pendingCounts.funds },
+    { name: 'Bank Settings',         icon: Building2,       path: '/admin/bank-settings',     permKey: 'canManageDeposits', badge: pendingCounts.bankRequests },
+    { name: 'IB Management',         icon: UserCog,         path: '/admin/ib-management',     permKey: 'canManageIB', badge: pendingCounts.ib },
+    { name: 'Forex Charges',         icon: DollarSign,      path: '/admin/forex-charges',     permKey: 'canManageSymbols' },
+    { name: 'Earnings Report',       icon: TrendingUp,      path: '/admin/earnings',          permKey: 'canViewReports' },
+    { name: 'Copy Trade Management', icon: Copy,            path: '/admin/copy-trade',        permKey: 'canManageCopyTrading', badge: pendingCounts.copyTrade },
+    { name: 'Prop Firm Challenges',  icon: Trophy,          path: '/admin/prop-firm',         permKey: 'canManageTrades', badge: pendingCounts.propFirm },
+    { name: 'Account Types',         icon: CreditCard,      path: '/admin/account-types',     permKey: 'canManageAccounts' },
+    { name: 'Theme Settings',        icon: Palette,         path: '/admin/theme',             permKey: 'canManageTheme' },
+    { name: 'Email Templates',       icon: Mail,            path: '/admin/email-templates',   permKey: 'canManageSettings' },
+    { name: 'Bonus Management',      icon: Gift,            path: '/admin/bonus-management',  permKey: 'canManageSettings' },
+    { name: 'Banner Management',     icon: Image,           path: '/admin/banners',           permKey: 'canManageTheme' },
+    { name: 'Employee Management',   icon: Shield,          path: '/admin/admin-management',  superOnly: true },
+    { name: 'KYC Verification',      icon: FileCheck,       path: '/admin/kyc',               permKey: 'canManageKYC', badge: pendingCounts.kyc },
+    { name: 'Support Tickets',       icon: HeadphonesIcon,  path: '/admin/support',           permKey: null, badge: pendingCounts.support },
   ]
+
+  // Filter menu based on role / permissions
+  const menuItems = allMenuItems.filter(item => {
+    if (item.superOnly) return isSuperAdmin
+    if (item.permKey === null) return true // always visible
+    return can(item.permKey)
+  })
 
   const handleLogout = () => {
     localStorage.removeItem('adminToken')
@@ -216,9 +234,9 @@ const AdminLayout = ({ children, title, subtitle }) => {
               {subtitle && <p className="text-gray-500 text-sm hidden sm:block">{subtitle}</p>}
             </div>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1 bg-red-500/20 text-red-500 rounded-full text-xs sm:text-sm">
-            <span className="w-2 h-2 bg-red-500 rounded-full"></span>
-            <span className="hidden sm:inline">Admin Mode</span>
+          <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs sm:text-sm ${isSuperAdmin ? 'bg-red-500/20 text-red-500' : 'bg-yellow-500/20 text-yellow-400'}`}>
+            <span className={`w-2 h-2 rounded-full ${isSuperAdmin ? 'bg-red-500' : 'bg-yellow-400'}`}></span>
+            <span className="hidden sm:inline">{isSuperAdmin ? 'Super Admin' : 'Branch Admin'}</span>
           </div>
         </header>
 

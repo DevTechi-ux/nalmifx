@@ -1,6 +1,7 @@
 import express from 'express'
 import SupportTicket from '../models/SupportTicket.js'
 import User from '../models/User.js'
+import { getScopedUserIds } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -152,7 +153,7 @@ router.post('/reply/:ticketId', async (req, res) => {
 
 // ==================== ADMIN ROUTES ====================
 
-// GET /api/support/admin/all - Get all tickets (admin)
+// GET /api/support/admin/all - Get all tickets (admin, scoped)
 router.get('/admin/all', async (req, res) => {
   try {
     const { status, priority, category, limit = 50, offset = 0 } = req.query
@@ -161,6 +162,12 @@ router.get('/admin/all', async (req, res) => {
     if (status) query.status = status
     if (priority) query.priority = priority
     if (category) query.category = category
+
+    // Scope to sub-admin's users
+    const userIds = await getScopedUserIds(req)
+    if (userIds !== null) {
+      query.userId = { $in: userIds }
+    }
 
     const tickets = await SupportTicket.find(query)
       .populate('userId', 'firstName email')

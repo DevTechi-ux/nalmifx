@@ -9,15 +9,23 @@ import AdminLog from '../models/AdminLog.js'
 import tradeEngine from '../services/tradeEngine.js'
 import copyTradingEngine from '../services/copyTradingEngine.js'
 import MasterTrader from '../models/MasterTrader.js'
+import { getScopedUserIds, requirePermission } from '../middleware/auth.js'
 
 const router = express.Router()
 
+// Get scoped userId filter for Trade/TradingAccount queries
+async function userIdFilter(req) {
+  const ids = await getScopedUserIds(req)
+  if (ids === null) return {} // super admin — no filter
+  return { userId: { $in: ids } }
+}
+
 // GET /api/admin/trade/all - Get all trades with pagination (for admin dashboard)
-router.get('/all', async (req, res) => {
+router.get('/all', requirePermission('canManageTrades'), async (req, res) => {
   try {
     const { status, limit = 20, offset = 0, dateFrom, dateTo } = req.query
 
-    let query = {}
+    let query = await userIdFilter(req)
     if (status) query.status = status
     if (dateFrom || dateTo) {
       query.openedAt = {}
@@ -321,20 +329,28 @@ router.post('/close/:tradeId', async (req, res) => {
 })
 
 // GET /api/admin/trades - Get all trades with filters
-router.get('/trades', async (req, res) => {
+router.get('/trades', requirePermission('canManageTrades'), async (req, res) => {
   try {
-    const { 
-      status, 
-      userId, 
-      symbol, 
-      side, 
-      limit = 50, 
-      offset = 0 
+    const {
+      status,
+      userId,
+      symbol,
+      side,
+      limit = 50,
+      offset = 0
     } = req.query
 
-    let query = {}
+    let query = await userIdFilter(req)
+    // If a specific userId is requested, only allow it if it's in scope
+    if (userId) {
+      if (query.userId) {
+        // sub-admin: ensure the requested userId is within their set
+        const inScope = query.userId.$in.some(id => id.toString() === userId)
+        if (!inScope) return res.status(403).json({ success: false, message: 'Access denied' })
+      }
+      query.userId = userId
+    }
     if (status) query.status = status
-    if (userId) query.userId = userId
     if (symbol) query.symbol = symbol
     if (side) query.side = side
 
@@ -361,9 +377,10 @@ router.get('/trades', async (req, res) => {
 })
 
 // GET /api/admin/trades/open - Get all open trades
-router.get('/trades/open', async (req, res) => {
+router.get('/trades/open', requirePermission('canManageTrades'), async (req, res) => {
   try {
-    const trades = await Trade.find({ status: 'OPEN' })
+    const scopeFilter = await userIdFilter(req)
+    const trades = await Trade.find({ status: 'OPEN', ...scopeFilter })
       .populate('userId', 'firstName email')
       .populate('tradingAccountId', 'accountId balance leverage')
       .sort({ openedAt: -1 })

@@ -10,21 +10,49 @@ import UserBankAccount from '../models/UserBankAccount.js'
 import ChallengeAccount from '../models/ChallengeAccount.js'
 import { sendTemplateEmail } from '../services/emailService.js'
 import EmailSettings from '../models/EmailSettings.js'
+import { requirePermission } from '../middleware/auth.js'
 
 const router = express.Router()
+
+// Helper: returns a Mongo filter that scopes queries to the calling admin's users.
+// Super admins see everything; sub-admins only see users assigned to them.
+function scopeFilter(req) {
+  if (req.admin && req.admin.role === 'SUPER_ADMIN') return {}
+  return { assignedAdmin: req.adminId }
+}
+
+// Verify that a user belongs to the calling admin's scope.
+// Returns the user or throws a 403 response.
+async function assertUserInScope(req, res, userId) {
+  if (req.admin && req.admin.role === 'SUPER_ADMIN') return true
+  const user = await User.findOne({ _id: userId, assignedAdmin: req.adminId })
+  if (!user) {
+    res.status(403).json({ success: false, message: 'Access denied: user not in your branch' })
+    return false
+  }
+  return true
+}
 
 // GET /api/admin/pending-counts - Get pending item counts for sidebar badges
 router.get('/pending-counts', async (req, res) => {
   try {
+    const scope = scopeFilter(req)
+    // If sub-admin, get their user IDs first
+    let userIdFilter = {}
+    if (scope.assignedAdmin) {
+      const userIds = await User.find(scope).distinct('_id')
+      userIdFilter = { userId: { $in: userIds } }
+    }
+
     const [pendingDeposits, pendingWithdrawals, pendingKYC, pendingIB, pendingMasters, openTickets, pendingBankRequests, challengesPassed] = await Promise.all([
-      Transaction.countDocuments({ type: 'Deposit', status: 'Pending' }),
-      Transaction.countDocuments({ type: 'Withdrawal', status: 'Pending' }),
-      KYC.countDocuments({ status: 'pending' }),
-      User.countDocuments({ isIB: true, ibStatus: 'PENDING' }),
-      MasterTrader.countDocuments({ status: 'PENDING' }),
-      SupportTicket.countDocuments({ status: { $in: ['OPEN', 'IN_PROGRESS'] } }),
-      UserBankAccount.countDocuments({ status: 'Pending' }),
-      ChallengeAccount.countDocuments({ status: 'PASSED', adminNotified: false })
+      Transaction.countDocuments({ type: 'Deposit', status: 'Pending', ...userIdFilter }),
+      Transaction.countDocuments({ type: 'Withdrawal', status: 'Pending', ...userIdFilter }),
+      KYC.countDocuments({ status: 'pending', ...(scope.assignedAdmin ? { userId: { $in: await User.find(scope).distinct('_id') } } : {}) }),
+      User.countDocuments({ isIB: true, ibStatus: 'PENDING', ...scope }),
+      MasterTrader.countDocuments({ status: 'PENDING', ...userIdFilter }),
+      SupportTicket.countDocuments({ status: { $in: ['OPEN', 'IN_PROGRESS'] }, ...userIdFilter }),
+      UserBankAccount.countDocuments({ status: 'Pending', ...userIdFilter }),
+      ChallengeAccount.countDocuments({ status: 'PASSED', adminNotified: false, ...userIdFilter })
     ])
 
     res.json({
@@ -50,26 +78,35 @@ router.get('/pending-counts', async (req, res) => {
 // GET /api/admin/dashboard-stats - Get dashboard statistics
 router.get('/dashboard-stats', async (req, res) => {
   try {
-    // Get user stats
-    const totalUsers = await User.countDocuments()
+    const scope = scopeFilter(req)
+
+    // Get user stats (scoped)
+    const totalUsers = await User.countDocuments(scope)
     const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-    const newThisWeek = await User.countDocuments({ createdAt: { $gte: oneWeekAgo } })
-    const pendingKYC = await User.countDocuments({ kycStatus: { $in: ['pending', 'Pending', null] } })
-    
-    // Get transaction stats (using correct capitalized enum values)
+    const newThisWeek = await User.countDocuments({ ...scope, createdAt: { $gte: oneWeekAgo } })
+    const pendingKYC = await User.countDocuments({ ...scope, kycStatus: { $in: ['pending', 'Pending', null] } })
+
+    // Scope transactions/trades by user IDs
+    let txFilter = {}
+    let tradeFilter = {}
+    if (scope.assignedAdmin) {
+      const userIds = await User.find(scope).distinct('_id')
+      txFilter = { userId: { $in: userIds } }
+      tradeFilter = { userId: { $in: userIds } }
+    }
+
     const depositStats = await Transaction.aggregate([
-      { $match: { type: 'Deposit', status: { $in: ['Approved', 'Completed'] } } },
+      { $match: { type: 'Deposit', status: { $in: ['Approved', 'Completed'] }, ...txFilter } },
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ])
     const withdrawalStats = await Transaction.aggregate([
-      { $match: { type: 'Withdrawal', status: { $in: ['Approved', 'Completed'] } } },
+      { $match: { type: 'Withdrawal', status: { $in: ['Approved', 'Completed'] }, ...txFilter } },
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ])
-    const pendingWithdrawals = await Transaction.countDocuments({ type: 'Withdrawal', status: 'Pending' })
-    
-    // Get active trades count
-    const activeTrades = await Trade.countDocuments({ status: { $in: ['OPEN', 'PENDING'] } })
-    
+    const pendingWithdrawals = await Transaction.countDocuments({ type: 'Withdrawal', status: 'Pending', ...txFilter })
+
+    const activeTrades = await Trade.countDocuments({ status: { $in: ['OPEN', 'PENDING'] }, ...tradeFilter })
+
     res.json({
       success: true,
       stats: {
@@ -88,10 +125,11 @@ router.get('/dashboard-stats', async (req, res) => {
   }
 })
 
-// GET /api/admin/users - Get all users
+// GET /api/admin/users - Get users (scoped to branch for sub-admins)
 router.get('/users', async (req, res) => {
   try {
-    const users = await User.find().select('-password').sort({ createdAt: -1 })
+    const scope = scopeFilter(req)
+    const users = await User.find(scope).select('-password').sort({ createdAt: -1 })
     res.json({
       success: true,
       message: 'Users fetched successfully',
@@ -107,7 +145,8 @@ router.get('/users', async (req, res) => {
 // GET /api/admin/users/:id - Get single user
 router.get('/users/:id', async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('-password')
+    const scope = scopeFilter(req)
+    const user = await User.findOne({ _id: req.params.id, ...scope }).select('-password')
     if (!user) {
       return res.status(404).json({ message: 'User not found' })
     }
@@ -141,7 +180,7 @@ router.put('/users/:id/password', async (req, res) => {
 })
 
 // POST /api/admin/users/:id/deduct - Deduct funds from user wallet
-router.post('/users/:id/deduct', async (req, res) => {
+router.post('/users/:id/deduct', requirePermission('canManageDeposits'), async (req, res) => {
   try {
     const { amount, reason } = req.body
     if (!amount || amount <= 0) {
@@ -192,7 +231,7 @@ router.post('/users/:id/deduct', async (req, res) => {
 })
 
 // POST /api/admin/users/:id/add-fund - Add funds to user wallet (Admin only)
-router.post('/users/:id/add-fund', async (req, res) => {
+router.post('/users/:id/add-fund', requirePermission('canManageDeposits'), async (req, res) => {
   try {
     const { amount, reason } = req.body
     if (!amount || amount <= 0) {
@@ -245,7 +284,7 @@ router.post('/users/:id/add-fund', async (req, res) => {
 })
 
 // POST /api/admin/trading-account/:id/add-fund - Add funds to trading account (Admin only)
-router.post('/trading-account/:id/add-fund', async (req, res) => {
+router.post('/trading-account/:id/add-fund', requirePermission('canManageAccounts'), async (req, res) => {
   try {
     const { amount, reason } = req.body
     if (!amount || amount <= 0) {
@@ -285,7 +324,7 @@ router.post('/trading-account/:id/add-fund', async (req, res) => {
 })
 
 // POST /api/admin/trading-account/:id/deduct - Deduct funds from trading account (Admin only)
-router.post('/trading-account/:id/deduct', async (req, res) => {
+router.post('/trading-account/:id/deduct', requirePermission('canManageAccounts'), async (req, res) => {
   try {
     const { amount, reason } = req.body
     if (!amount || amount <= 0) {
@@ -402,7 +441,7 @@ router.put('/users/:id/ban', async (req, res) => {
 })
 
 // DELETE /api/admin/users/:id - Delete user
-router.delete('/users/:id', async (req, res) => {
+router.delete('/users/:id', requirePermission('canDeleteUsers'), async (req, res) => {
   try {
     const user = await User.findByIdAndDelete(req.params.id)
     if (!user) {

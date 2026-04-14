@@ -7,6 +7,7 @@ import KYC from '../models/KYC.js'
 import User from '../models/User.js'
 import { sendTemplateEmail } from '../services/emailService.js'
 import EmailSettings from '../models/EmailSettings.js'
+import { getScopedUserIds, requirePermission } from '../middleware/auth.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -287,7 +288,7 @@ router.get('/status/:userId', async (req, res) => {
 })
 
 // GET /api/kyc/all - Get all KYC submissions (Admin)
-router.get('/all', async (req, res) => {
+router.get('/all', requirePermission('canManageKYC'), async (req, res) => {
   try {
     const { status } = req.query
 
@@ -296,15 +297,22 @@ router.get('/all', async (req, res) => {
       filter.status = status
     }
 
+    // Scope to sub-admin's users
+    const userIds = await getScopedUserIds(req)
+    if (userIds !== null) {
+      filter.userId = { $in: userIds }
+    }
+
     const kycList = await KYC.find(filter)
       .populate('userId', 'firstName lastName email phone')
       .sort({ submittedAt: -1 })
 
-    // Get stats
-    const totalCount = await KYC.countDocuments()
-    const pendingCount = await KYC.countDocuments({ status: 'pending' })
-    const approvedCount = await KYC.countDocuments({ status: 'approved' })
-    const rejectedCount = await KYC.countDocuments({ status: 'rejected' })
+    // Get stats (scoped to same userIds filter)
+    const statsFilter = userIds !== null ? { userId: { $in: userIds } } : {}
+    const totalCount = await KYC.countDocuments(statsFilter)
+    const pendingCount = await KYC.countDocuments({ ...statsFilter, status: 'pending' })
+    const approvedCount = await KYC.countDocuments({ ...statsFilter, status: 'approved' })
+    const rejectedCount = await KYC.countDocuments({ ...statsFilter, status: 'rejected' })
 
     res.json({
       success: true,
@@ -343,7 +351,7 @@ router.get('/all', async (req, res) => {
 })
 
 // PUT /api/kyc/approve/:kycId - Approve KYC (Admin)
-router.put('/approve/:kycId', async (req, res) => {
+router.put('/approve/:kycId', requirePermission('canApproveKYC'), async (req, res) => {
   try {
     const { kycId } = req.params
 
@@ -407,7 +415,7 @@ router.put('/approve/:kycId', async (req, res) => {
 })
 
 // PUT /api/kyc/reject/:kycId - Reject KYC (Admin)
-router.put('/reject/:kycId', async (req, res) => {
+router.put('/reject/:kycId', requirePermission('canApproveKYC'), async (req, res) => {
   try {
     const { kycId } = req.params
     const { reason } = req.body

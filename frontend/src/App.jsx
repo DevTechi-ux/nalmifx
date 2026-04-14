@@ -47,6 +47,18 @@ import PrivacyPolicy from './pages/PrivacyPolicy'
 import TermsOfService from './pages/TermsOfService'
 import DataDeletion from './pages/DataDeletion'
 
+// Guard: blocks a route if the admin doesn't have the required permission.
+// superOnly=true means SUPER_ADMIN only.
+function AdminGuard({ children, permKey, superOnly }) {
+  const adminUser = JSON.parse(localStorage.getItem('adminUser') || '{}')
+  const isSuperAdmin = adminUser?.role === 'SUPER_ADMIN'
+  const perms = adminUser?.permissions || {}
+
+  if (superOnly && !isSuperAdmin) return <Navigate to="/admin/dashboard" replace />
+  if (permKey && !isSuperAdmin && !perms[permKey]) return <Navigate to="/admin/dashboard" replace />
+  return children
+}
+
 function App() {
   return (
     <Router>
@@ -70,28 +82,28 @@ function App() {
         <Route path="/instructions" element={<InstructionsPage />} />
         <Route path="/admin" element={<AdminLogin />} />
         <Route path="/admin/dashboard" element={<AdminOverview />} />
-        <Route path="/admin/users" element={<AdminUserManagement />} />
-        <Route path="/admin/accounts" element={<AdminAccounts />} />
-        <Route path="/admin/account-types" element={<AdminAccountTypes />} />
-        <Route path="/admin/transactions" element={<AdminTransactions />} />
-        <Route path="/admin/payment-methods" element={<AdminPaymentMethods />} />
-        <Route path="/admin/trades" element={<AdminTradeManagement />} />
-        <Route path="/admin/funds" element={<AdminFundManagement />} />
-        <Route path="/admin/bank-settings" element={<AdminBankSettings />} />
-        <Route path="/admin/ib-management" element={<AdminIBManagement />} />
-        <Route path="/admin/forex-charges" element={<AdminForexCharges />} />
-        <Route path="/admin/indian-charges" element={<AdminIndianCharges />} />
-        <Route path="/admin/copy-trade" element={<AdminCopyTrade />} />
-        <Route path="/admin/prop-firm" element={<AdminPropFirm />} />
-        <Route path="/admin/admin-management" element={<AdminManagement />} />
-        <Route path="/admin/kyc" element={<AdminKYC />} />
+        <Route path="/admin/users" element={<AdminGuard permKey="canManageUsers"><AdminUserManagement /></AdminGuard>} />
+        <Route path="/admin/accounts" element={<AdminGuard permKey="canManageAccounts"><AdminAccounts /></AdminGuard>} />
+        <Route path="/admin/account-types" element={<AdminGuard permKey="canManageAccounts"><AdminAccountTypes /></AdminGuard>} />
+        <Route path="/admin/transactions" element={<AdminGuard permKey="canManageDeposits"><AdminTransactions /></AdminGuard>} />
+        <Route path="/admin/payment-methods" element={<AdminGuard permKey="canManageDeposits"><AdminPaymentMethods /></AdminGuard>} />
+        <Route path="/admin/trades" element={<AdminGuard permKey="canManageTrades"><AdminTradeManagement /></AdminGuard>} />
+        <Route path="/admin/funds" element={<AdminGuard permKey="canManageDeposits"><AdminFundManagement /></AdminGuard>} />
+        <Route path="/admin/bank-settings" element={<AdminGuard permKey="canManageDeposits"><AdminBankSettings /></AdminGuard>} />
+        <Route path="/admin/ib-management" element={<AdminGuard permKey="canManageIB"><AdminIBManagement /></AdminGuard>} />
+        <Route path="/admin/forex-charges" element={<AdminGuard permKey="canManageSymbols"><AdminForexCharges /></AdminGuard>} />
+        <Route path="/admin/indian-charges" element={<AdminGuard permKey="canManageSymbols"><AdminIndianCharges /></AdminGuard>} />
+        <Route path="/admin/copy-trade" element={<AdminGuard permKey="canManageCopyTrading"><AdminCopyTrade /></AdminGuard>} />
+        <Route path="/admin/prop-firm" element={<AdminGuard permKey="canManageTrades"><AdminPropFirm /></AdminGuard>} />
+        <Route path="/admin/admin-management" element={<AdminGuard superOnly={true}><AdminManagement /></AdminGuard>} />
+        <Route path="/admin/kyc" element={<AdminGuard permKey="canManageKYC"><AdminKYC /></AdminGuard>} />
         <Route path="/admin/support" element={<AdminSupport />} />
-        <Route path="/admin/prop-trading" element={<AdminPropTrading />} />
-        <Route path="/admin/earnings" element={<AdminEarnings />} />
-        <Route path="/admin/theme" element={<AdminThemeSettings />} />
-        <Route path="/admin/email-templates" element={<AdminEmailTemplates />} />
-        <Route path="/admin/bonus-management" element={<AdminBonusManagement />} />
-        <Route path="/admin/banners" element={<AdminBannerManagement />} />
+        <Route path="/admin/prop-trading" element={<AdminGuard permKey="canManageTrades"><AdminPropTrading /></AdminGuard>} />
+        <Route path="/admin/earnings" element={<AdminGuard permKey="canViewReports"><AdminEarnings /></AdminGuard>} />
+        <Route path="/admin/theme" element={<AdminGuard permKey="canManageTheme"><AdminThemeSettings /></AdminGuard>} />
+        <Route path="/admin/email-templates" element={<AdminGuard permKey="canManageSettings"><AdminEmailTemplates /></AdminGuard>} />
+        <Route path="/admin/bonus-management" element={<AdminGuard permKey="canManageSettings"><AdminBonusManagement /></AdminGuard>} />
+        <Route path="/admin/banners" element={<AdminGuard permKey="canManageTheme"><AdminBannerManagement /></AdminGuard>} />
         <Route path="/admin/my-account" element={<AdminMyAccount />} />
         <Route path="/buy-challenge" element={<BuyChallengePage />} />
         <Route path="/challenge-dashboard" element={<ChallengeDashboardPage />} />

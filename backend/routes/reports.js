@@ -6,6 +6,7 @@ import Transaction from '../models/Transaction.js'
 import Admin from '../models/Admin.js'
 import Trade from '../models/Trade.js'
 import ChallengeAccount from '../models/ChallengeAccount.js'
+import { getScopedUserIds, scopeToAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -86,7 +87,8 @@ router.get('/users', async (req, res) => {
   try {
     const { format = 'excel', period } = req.query
     const dateFilter = getDateFilter(period)
-    const query = dateFilter ? { createdAt: dateFilter } : {}
+    const scope = scopeToAdmin(req)
+    const query = { ...scope, ...(dateFilter ? { createdAt: dateFilter } : {}) }
 
     const users = await User.find(query)
       .select('firstName email phone walletBalance isBlocked isBanned kycApproved isIB ibStatus createdAt')
@@ -145,7 +147,11 @@ router.get('/funds', async (req, res) => {
   try {
     const { format = 'excel', period } = req.query
     const dateFilter = getDateFilter(period)
-    const query = dateFilter ? { createdAt: dateFilter } : {}
+    const userIds = await getScopedUserIds(req)
+    const query = {
+      ...(dateFilter ? { createdAt: dateFilter } : {}),
+      ...(userIds !== null ? { userId: { $in: userIds } } : {})
+    }
 
     const transactions = await Transaction.find(query)
       .populate('userId', 'firstName email')

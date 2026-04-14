@@ -2,6 +2,7 @@ import express from 'express'
 import PaymentMethod from '../models/PaymentMethod.js'
 import Currency from '../models/Currency.js'
 import UserBankAccount from '../models/UserBankAccount.js'
+import { getScopedUserIds } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -395,12 +396,16 @@ router.delete('/user-banks/:id', async (req, res) => {
 
 // ==================== ADMIN BANK REQUEST ROUTES ====================
 
-// GET /api/payment-methods/admin/bank-requests - Get all pending bank requests
+// GET /api/payment-methods/admin/bank-requests - Get all pending bank requests (scoped)
 router.get('/admin/bank-requests', async (req, res) => {
   try {
     const { status } = req.query
     const query = status ? { status } : {}
-    
+
+    // Scope to sub-admin's users
+    const userIds = await getScopedUserIds(req)
+    if (userIds !== null) query.userId = { $in: userIds }
+
     const requests = await UserBankAccount.find(query)
       .populate('userId', 'firstName lastName email phone')
       .sort({ createdAt: -1 })

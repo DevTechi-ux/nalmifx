@@ -3,6 +3,7 @@ import TradingAccount from '../models/TradingAccount.js'
 import AccountType from '../models/AccountType.js'
 import Wallet from '../models/Wallet.js'
 import Transaction from '../models/Transaction.js'
+import { getScopedUserIds } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -18,10 +19,12 @@ router.get('/user/:userId', async (req, res) => {
   }
 })
 
-// GET /api/trading-accounts/all - Get all trading accounts (admin)
+// GET /api/trading-accounts/all - Get all trading accounts (admin, scoped)
 router.get('/all', async (req, res) => {
   try {
-    const accounts = await TradingAccount.find()
+    const userIds = await getScopedUserIds(req)
+    const filter = userIds !== null ? { userId: { $in: userIds } } : {}
+    const accounts = await TradingAccount.find(filter)
       .populate('userId', 'firstName email')
       .populate('accountTypeId', 'name')
       .sort({ createdAt: -1 })
