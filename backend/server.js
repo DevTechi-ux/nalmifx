@@ -78,6 +78,33 @@ let infowayMissingKeyLogged = false
 let infoway401HintCrypto = false
 let infoway401HintCommon = false
 
+/** After Infoway returns 401, stop hammering their API (WS + HTTP) until this time (ms). */
+let infowayPausedUntil = 0
+const INFOWAY_401_PAUSE_MS = 10 * 60 * 1000
+
+function pauseInfowayDueTo401(source) {
+  const until = Date.now() + INFOWAY_401_PAUSE_MS
+  if (until <= infowayPausedUntil) return
+  infowayPausedUntil = until
+  if (infowayReconnectTimerCrypto) clearTimeout(infowayReconnectTimerCrypto)
+  if (infowayReconnectTimerCommon) clearTimeout(infowayReconnectTimerCommon)
+  infowayReconnectTimerCrypto = null
+  infowayReconnectTimerCommon = null
+  console.error(
+    `[Infoway] ${source}: HTTP 401 (unauthorized). Your INFOWAY_API_KEY is rejected — ` +
+      'create/rotate a key at https://infoway.io and ensure the plan covers forex + crypto. ' +
+      `Pausing Infoway WS + HTTP polls for ${INFOWAY_401_PAUSE_MS / 60000} minutes, then retry. ` +
+      'After updating .env: pm2 restart nalmifx-backend'
+  )
+}
+
+function getInfowayReconnectDelayMs() {
+  if (Date.now() < infowayPausedUntil) {
+    return Math.max(5000, infowayPausedUntil - Date.now() + 2000)
+  }
+  return 5000
+}
+
 function logInfowayKeyMissingOnce() {
   if (infowayMissingKeyLogged) return
   infowayMissingKeyLogged = true
@@ -183,6 +210,14 @@ function connectInfowayCryptoWebSocket() {
     logInfowayKeyMissingOnce()
     return
   }
+  if (Date.now() < infowayPausedUntil) {
+    if (infowayReconnectTimerCrypto) clearTimeout(infowayReconnectTimerCrypto)
+    infowayReconnectTimerCrypto = setTimeout(
+      connectInfowayCryptoWebSocket,
+      getInfowayReconnectDelayMs()
+    )
+    return
+  }
 
   console.log('[Infoway] Connecting to Crypto WebSocket...')
   infowayWsCrypto = new WebSocket(INFOWAY_WS_CRYPTO)
@@ -226,19 +261,21 @@ function connectInfowayCryptoWebSocket() {
   })
   
   infowayWsCrypto.on('error', (err) => {
+    const msg = String(err.message)
     console.error('[Infoway] Crypto WebSocket error:', err.message)
-    if (!infoway401HintCrypto && String(err.message).includes('401')) {
-      infoway401HintCrypto = true
-      console.error('[Infoway] Crypto: HTTP 401 — check INFOWAY_API_KEY is valid and active at https://infoway.io')
+    if (msg.includes('401')) {
+      if (!infoway401HintCrypto) infoway401HintCrypto = true
+      pauseInfowayDueTo401('Crypto WebSocket')
     }
   })
   
   infowayWsCrypto.on('close', () => {
     if (!INFOWAY_API_KEY_CONFIGURED) return
-    console.log('[Infoway] Crypto WebSocket disconnected, reconnecting in 5s...')
+    const delay = getInfowayReconnectDelayMs()
+    console.log(`[Infoway] Crypto WebSocket disconnected, reconnecting in ${Math.round(delay / 1000)}s...`)
     if (infowayHeartbeatTimerCrypto) clearInterval(infowayHeartbeatTimerCrypto)
     if (infowayReconnectTimerCrypto) clearTimeout(infowayReconnectTimerCrypto)
-    infowayReconnectTimerCrypto = setTimeout(connectInfowayCryptoWebSocket, 5000)
+    infowayReconnectTimerCrypto = setTimeout(connectInfowayCryptoWebSocket, delay)
   })
 }
 
@@ -247,6 +284,14 @@ function connectInfowayCommonWebSocket() {
   if (infowayWsCommon && infowayWsCommon.readyState === WebSocket.OPEN) return
   if (!INFOWAY_API_KEY_CONFIGURED) {
     logInfowayKeyMissingOnce()
+    return
+  }
+  if (Date.now() < infowayPausedUntil) {
+    if (infowayReconnectTimerCommon) clearTimeout(infowayReconnectTimerCommon)
+    infowayReconnectTimerCommon = setTimeout(
+      connectInfowayCommonWebSocket,
+      getInfowayReconnectDelayMs()
+    )
     return
   }
 
@@ -292,19 +337,21 @@ function connectInfowayCommonWebSocket() {
   })
   
   infowayWsCommon.on('error', (err) => {
+    const msg = String(err.message)
     console.error('[Infoway] Common WebSocket error:', err.message)
-    if (!infoway401HintCommon && String(err.message).includes('401')) {
-      infoway401HintCommon = true
-      console.error('[Infoway] Common: HTTP 401 — check INFOWAY_API_KEY is valid and active at https://infoway.io')
+    if (msg.includes('401')) {
+      if (!infoway401HintCommon) infoway401HintCommon = true
+      pauseInfowayDueTo401('Common WebSocket')
     }
   })
   
   infowayWsCommon.on('close', () => {
     if (!INFOWAY_API_KEY_CONFIGURED) return
-    console.log('[Infoway] Common WebSocket disconnected, reconnecting in 5s...')
+    const delay = getInfowayReconnectDelayMs()
+    console.log(`[Infoway] Common WebSocket disconnected, reconnecting in ${Math.round(delay / 1000)}s...`)
     if (infowayHeartbeatTimerCommon) clearInterval(infowayHeartbeatTimerCommon)
     if (infowayReconnectTimerCommon) clearTimeout(infowayReconnectTimerCommon)
-    infowayReconnectTimerCommon = setTimeout(connectInfowayCommonWebSocket, 5000)
+    infowayReconnectTimerCommon = setTimeout(connectInfowayCommonWebSocket, delay)
   })
 }
 
@@ -395,6 +442,9 @@ async function fetchInfowayPricesHTTP() {
     logInfowayKeyMissingOnce()
     return
   }
+  if (Date.now() < infowayPausedUntil) {
+    return
+  }
 
   const now = Date.now()
   let fetchedCount = 0
@@ -407,6 +457,11 @@ async function fetchInfowayPricesHTTP() {
     const commonResponse = await fetch(commonUrl, {
       headers: { 'apiKey': INFOWAY_API_KEY }
     })
+
+    if (commonResponse.status === 401) {
+      pauseInfowayDueTo401('HTTP common')
+      return
+    }
     
     if (commonResponse.ok) {
       const data = await commonResponse.json()
@@ -434,6 +489,11 @@ async function fetchInfowayPricesHTTP() {
     const cryptoResponse = await fetch(cryptoUrl, {
       headers: { 'apiKey': INFOWAY_API_KEY }
     })
+
+    if (cryptoResponse.status === 401) {
+      pauseInfowayDueTo401('HTTP crypto')
+      return
+    }
     
     if (cryptoResponse.ok) {
       const data = await cryptoResponse.json()
