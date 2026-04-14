@@ -69,7 +69,23 @@ const priceCache = new Map()
 // Documentation: https://docs.infoway.io/en-docs/rest-api/websocket
 // ============================================================
 
-const INFOWAY_API_KEY = process.env.INFOWAY_API_KEY || 'your_infoway_api_key_here'
+const INFOWAY_API_KEY = (process.env.INFOWAY_API_KEY || '').trim() || 'your_infoway_api_key_here'
+const INFOWAY_API_KEY_PLACEHOLDER = 'your_infoway_api_key_here'
+const INFOWAY_API_KEY_CONFIGURED =
+  INFOWAY_API_KEY.length > 0 && INFOWAY_API_KEY !== INFOWAY_API_KEY_PLACEHOLDER
+
+let infowayMissingKeyLogged = false
+let infoway401HintCrypto = false
+let infoway401HintCommon = false
+
+function logInfowayKeyMissingOnce() {
+  if (infowayMissingKeyLogged) return
+  infowayMissingKeyLogged = true
+  console.error(
+    '[Infoway] Price feeds disabled: set a valid INFOWAY_API_KEY in backend/.env (see .env.example). ' +
+      'WebSocket HTTP 401 means the key is missing, still the placeholder, or rejected by Infoway.'
+  )
+}
 
 // Infoway.io WebSocket URLs by business type
 const INFOWAY_WS_CRYPTO = `wss://data.infoway.io/ws?business=crypto&apikey=${INFOWAY_API_KEY}`
@@ -163,7 +179,11 @@ let infowayHeartbeatTimerCommon = null
 // Connect to Infoway.io Crypto WebSocket
 function connectInfowayCryptoWebSocket() {
   if (infowayWsCrypto && infowayWsCrypto.readyState === WebSocket.OPEN) return
-  
+  if (!INFOWAY_API_KEY_CONFIGURED) {
+    logInfowayKeyMissingOnce()
+    return
+  }
+
   console.log('[Infoway] Connecting to Crypto WebSocket...')
   infowayWsCrypto = new WebSocket(INFOWAY_WS_CRYPTO)
   
@@ -207,9 +227,14 @@ function connectInfowayCryptoWebSocket() {
   
   infowayWsCrypto.on('error', (err) => {
     console.error('[Infoway] Crypto WebSocket error:', err.message)
+    if (!infoway401HintCrypto && String(err.message).includes('401')) {
+      infoway401HintCrypto = true
+      console.error('[Infoway] Crypto: HTTP 401 — check INFOWAY_API_KEY is valid and active at https://infoway.io')
+    }
   })
   
   infowayWsCrypto.on('close', () => {
+    if (!INFOWAY_API_KEY_CONFIGURED) return
     console.log('[Infoway] Crypto WebSocket disconnected, reconnecting in 5s...')
     if (infowayHeartbeatTimerCrypto) clearInterval(infowayHeartbeatTimerCrypto)
     if (infowayReconnectTimerCrypto) clearTimeout(infowayReconnectTimerCrypto)
@@ -220,7 +245,11 @@ function connectInfowayCryptoWebSocket() {
 // Connect to Infoway.io Common (Forex/Commodities) WebSocket
 function connectInfowayCommonWebSocket() {
   if (infowayWsCommon && infowayWsCommon.readyState === WebSocket.OPEN) return
-  
+  if (!INFOWAY_API_KEY_CONFIGURED) {
+    logInfowayKeyMissingOnce()
+    return
+  }
+
   console.log('[Infoway] Connecting to Common (Forex/Commodities) WebSocket...')
   infowayWsCommon = new WebSocket(INFOWAY_WS_COMMON)
   
@@ -264,9 +293,14 @@ function connectInfowayCommonWebSocket() {
   
   infowayWsCommon.on('error', (err) => {
     console.error('[Infoway] Common WebSocket error:', err.message)
+    if (!infoway401HintCommon && String(err.message).includes('401')) {
+      infoway401HintCommon = true
+      console.error('[Infoway] Common: HTTP 401 — check INFOWAY_API_KEY is valid and active at https://infoway.io')
+    }
   })
   
   infowayWsCommon.on('close', () => {
+    if (!INFOWAY_API_KEY_CONFIGURED) return
     console.log('[Infoway] Common WebSocket disconnected, reconnecting in 5s...')
     if (infowayHeartbeatTimerCommon) clearInterval(infowayHeartbeatTimerCommon)
     if (infowayReconnectTimerCommon) clearTimeout(infowayReconnectTimerCommon)
@@ -357,6 +391,11 @@ function connectInfowayWebSockets() {
 let lastInfowayLogTime = 0
 
 async function fetchInfowayPricesHTTP() {
+  if (!INFOWAY_API_KEY_CONFIGURED) {
+    logInfowayKeyMissingOnce()
+    return
+  }
+
   const now = Date.now()
   let fetchedCount = 0
   

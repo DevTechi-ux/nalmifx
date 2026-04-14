@@ -5,6 +5,15 @@
     <link rel="icon" type="image/png" href="/nalmifx.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NalmiFX</title>
+    <!-- Runs before the app bundle: fixes admin/API when dist was built without VITE_API_URL -->
+    <script>
+      (function () {
+        var h = location.hostname
+        if (h === 'nalmifx.com' || h === 'www.nalmifx.com' || /\.nalmifx\.com$/i.test(h)) {
+          window.__NALMIFX_API_BASE__ = 'https://api.nalmifx.com'
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>
