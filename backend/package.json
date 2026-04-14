@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "seed:superadmin": "node scripts/seed_superadmin.js",
+    "reset:admin-password": "node scripts/resetAdminPassword.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -23,8 +23,14 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body
 
-    const admin = await Admin.findOne({ email: email.toLowerCase() })
+    const normalizedEmail = (email || '').trim().toLowerCase()
+    if (!normalizedEmail || !password) {
+      return res.status(400).json({ message: 'Email and password are required' })
+    }
+
+    const admin = await Admin.findOne({ email: normalizedEmail })
     if (!admin) {
+      console.warn('[admin-mgmt/login] No admin user in DB for email:', normalizedEmail)
       return res.status(401).json({ message: 'Invalid credentials' })
     }
 
@@ -34,6 +40,7 @@ router.post('/login', async (req, res) => {
 
     const isMatch = await bcrypt.compare(password, admin.password)
     if (!isMatch) {
+      console.warn('[admin-mgmt/login] Wrong password for email:', normalizedEmail)
       return res.status(401).json({ message: 'Invalid credentials' })
     }
 
