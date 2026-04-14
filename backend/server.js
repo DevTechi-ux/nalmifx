@@ -48,7 +48,7 @@ const app = express()
 const httpServer = createServer(app)
 
 // Socket.IO for real-time updates
-const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || 'https://nalmifx.com,http://localhost:5173,http://localhost:3000').split(',').map(o => o.trim())
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || 'https://nalmifx.com,https://api.nalmifx.com,http://localhost:5173,http://localhost:3000').split(',').map(o => o.trim())
 
 const io = new Server(httpServer, {
   cors: {
