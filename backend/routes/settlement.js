@@ -4,14 +4,23 @@ import PDFDocument from 'pdfkit'
 import Settlement from '../models/Settlement.js'
 import Transaction from '../models/Transaction.js'
 import Trade from '../models/Trade.js'
+import { getScopedUserIds } from '../middleware/auth.js'
 
 const router = express.Router()
+
+// Helper: returns a settlement filter scoped to the calling admin.
+// Super admins see all settlements; sub-admins see only their own.
+function settlementScope(req) {
+  if (req.admin && req.admin.role === 'SUPER_ADMIN') return {}
+  return { adminId: req.adminId }
+}
 
 // GET /api/settlements - List settlements (with optional source filter)
 router.get('/', async (req, res) => {
   try {
     const { source, page = 1, limit = 50 } = req.query
-    const query = source ? { source } : {}
+    const query = { ...settlementScope(req) }
+    if (source) query.source = source
     const skip = (parseInt(page) - 1) * parseInt(limit)
 
     const [settlements, total] = await Promise.all([
@@ -28,11 +37,14 @@ router.get('/', async (req, res) => {
 // GET /api/settlements/summary - Aggregate totals per source
 router.get('/summary', async (req, res) => {
   try {
+    const scope = settlementScope(req)
     const [bySource, overall] = await Promise.all([
       Settlement.aggregate([
+        { $match: scope },
         { $group: { _id: '$source', total: { $sum: '$amount' }, count: { $sum: 1 } } }
       ]),
       Settlement.aggregate([
+        { $match: scope },
         { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } }
       ])
     ])
@@ -54,21 +66,26 @@ router.get('/summary', async (req, res) => {
   }
 })
 
-// Helper: get max available balance for a source
-async function getSourceBalance(source) {
+// Helper: get max available balance for a source (scoped to admin)
+async function getSourceBalance(req, source) {
+  const scope = settlementScope(req)
   const settledAgg = await Settlement.aggregate([
-    { $match: { source } },
+    { $match: { source, ...scope } },
     { $group: { _id: null, total: { $sum: '$amount' } } }
   ])
   const totalSettled = settledAgg[0]?.total || 0
 
+  // Scope transactions/trades by the admin's users
+  const userIds = await getScopedUserIds(req)
+  const userScope = userIds !== null ? { userId: { $in: userIds } } : {}
+
   if (source === 'fund_management') {
     const deposits = await Transaction.aggregate([
-      { $match: { type: { $in: ['Deposit', 'Admin_Credit'] }, status: { $in: ['Approved', 'Completed'] } } },
+      { $match: { type: { $in: ['Deposit', 'Admin_Credit'] }, status: { $in: ['Approved', 'Completed'] }, ...userScope } },
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ])
     const withdrawals = await Transaction.aggregate([
-      { $match: { type: { $in: ['Withdrawal', 'Admin_Debit'] }, status: { $in: ['Approved', 'Completed'] } } },
+      { $match: { type: { $in: ['Withdrawal', 'Admin_Debit'] }, status: { $in: ['Approved', 'Completed'] }, ...userScope } },
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ])
     const net = (deposits[0]?.total || 0) - (withdrawals[0]?.total || 0)
@@ -77,7 +94,7 @@ async function getSourceBalance(source) {
 
   if (source === 'ib_management') {
     const ibAgg = await Trade.aggregate([
-      { $match: { status: { $in: ['OPEN', 'CLOSED'] } } },
+      { $match: { status: { $in: ['OPEN', 'CLOSED'] }, ...userScope } },
       { $group: { _id: null, total: { $sum: '$commission' } } }
     ])
     return (ibAgg[0]?.total || 0) - totalSettled
@@ -85,7 +102,7 @@ async function getSourceBalance(source) {
 
   if (source === 'earnings') {
     const earningsAgg = await Trade.aggregate([
-      { $match: { status: { $in: ['OPEN', 'CLOSED'] } } },
+      { $match: { status: { $in: ['OPEN', 'CLOSED'] }, ...userScope } },
       { $group: { _id: null, total: { $sum: { $add: ['$commission', '$swap'] } } } }
     ])
     return (earningsAgg[0]?.total || 0) - totalSettled
@@ -108,7 +125,7 @@ router.post('/', async (req, res) => {
     }
 
     const parsedAmount = parseFloat(amount)
-    const available = await getSourceBalance(source)
+    const available = await getSourceBalance(req, source)
     if (parsedAmount > available) {
       return res.status(400).json({
         success: false,
@@ -116,7 +133,15 @@ router.post('/', async (req, res) => {
       })
     }
 
-    const settlement = await Settlement.create({ name, amount: parsedAmount, contact, reason, source, adminName })
+    const settlement = await Settlement.create({
+      name,
+      amount: parsedAmount,
+      contact,
+      reason,
+      source,
+      adminName,
+      adminId: req.adminId
+    })
     res.status(201).json({ success: true, settlement })
   } catch (error) {
     res.status(500).json({ success: false, message: error.message })
@@ -126,7 +151,7 @@ router.post('/', async (req, res) => {
 // DELETE /api/settlements/:id
 router.delete('/:id', async (req, res) => {
   try {
-    const settlement = await Settlement.findByIdAndDelete(req.params.id)
+    const settlement = await Settlement.findOneAndDelete({ _id: req.params.id, ...settlementScope(req) })
     if (!settlement) return res.status(404).json({ success: false, message: 'Settlement not found' })
     res.json({ success: true, message: 'Settlement deleted' })
   } catch (error) {
@@ -138,7 +163,8 @@ router.delete('/:id', async (req, res) => {
 router.get('/export', async (req, res) => {
   try {
     const { format = 'excel', source, period } = req.query
-    const query = source ? { source } : {}
+    const query = { ...settlementScope(req) }
+    if (source) query.source = source
 
     // Date filter
     if (period === 'daily') {

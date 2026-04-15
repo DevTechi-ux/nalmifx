@@ -1,11 +1,18 @@
 import express from 'express'
 import Bonus from '../models/Bonus.js'
 import UserBonus from '../models/UserBonus.js'
+import { getScopedUserIds } from '../middleware/auth.js'
 
-// Note: Auth is applied at the router level in server.js (authAdmin).
-// The inline authMiddleware here was redundant and has been removed.
+// Note: Router is mounted with authAny — user & admin both reach here.
 
 const router = express.Router()
+
+function requireSuperAdmin(req, res, next) {
+  if (!req.admin || req.admin.role !== 'SUPER_ADMIN') {
+    return res.status(403).json({ success: false, message: 'Super admin access required' })
+  }
+  next()
+}
 
 // Get all bonuses
 router.get('/', async (req, res) => {
@@ -41,7 +48,7 @@ router.get('/', async (req, res) => {
 })
 
 // Create new bonus
-router.post('/', async (req, res) => {
+router.post('/', requireSuperAdmin, async (req, res) => {
   try {
     const bonusData = {
       ...req.body
@@ -64,7 +71,7 @@ router.post('/', async (req, res) => {
 })
 
 // Update bonus
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireSuperAdmin, async (req, res) => {
   try {
     const bonus = await Bonus.findByIdAndUpdate(
       req.params.id,
@@ -88,7 +95,7 @@ router.put('/:id', async (req, res) => {
 })
 
 // Delete bonus
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireSuperAdmin, async (req, res) => {
   try {
     const bonus = await Bonus.findByIdAndDelete(req.params.id)
     
@@ -109,14 +116,31 @@ router.delete('/:id', async (req, res) => {
   }
 })
 
-// Get user bonuses
+// Get user bonuses (scoped)
 router.get('/user-bonuses', async (req, res) => {
   try {
     const { page = 1, limit = 10, status, userId } = req.query
     const query = {}
-    
+
+    // Scope by admin's assigned users
+    if (req.admin) {
+      const scopedIds = await getScopedUserIds(req)
+      if (scopedIds !== null) {
+        if (userId) {
+          const inScope = scopedIds.some(id => id.toString() === userId)
+          if (!inScope) return res.status(403).json({ success: false, message: 'Access denied' })
+          query.userId = userId
+        } else {
+          query.userId = { $in: scopedIds }
+        }
+      } else if (userId) {
+        query.userId = userId
+      }
+    } else if (userId) {
+      query.userId = userId
+    }
+
     if (status) query.status = status
-    if (userId) query.userId = userId
 
     const userBonuses = await UserBonus.find(query)
       .populate('userId', 'firstName lastName email')
@@ -199,7 +223,7 @@ router.post('/calculate-bonus', async (req, res) => {
 })
 
 // POST /api/bonus/create-default-bonuses - Create default bonuses
-router.post('/create-default-bonuses', async (req, res) => {
+router.post('/create-default-bonuses', requireSuperAdmin, async (req, res) => {
   try {
     // Check if bonuses already exist
     const existingBonuses = await Bonus.countDocuments()

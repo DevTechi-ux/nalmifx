@@ -39,9 +39,25 @@ const AdminLogin = () => {
           setLoading(false)
           return
         }
-        localStorage.setItem('adminToken', data.token)
-        localStorage.setItem('adminUser', JSON.stringify(data.admin))
-        navigate('/admin/dashboard')
+
+        // Use SEPARATE localStorage buckets so super admin and branch admin
+        // can be logged in simultaneously (different tabs) without clobbering
+        // each other.  /admin/* uses adminToken, /:slug/* uses branchToken.
+        if (data.admin?.role === 'SUPER_ADMIN') {
+          localStorage.setItem('adminToken', data.token)
+          localStorage.setItem('adminUser', JSON.stringify(data.admin))
+          navigate('/admin/dashboard')
+        } else {
+          const adminSlug = data.admin?.urlSlug
+          if (!adminSlug) {
+            setError('This admin does not have a branded URL configured. Please contact super admin.')
+            setLoading(false)
+            return
+          }
+          localStorage.setItem('branchToken', data.token)
+          localStorage.setItem('branchUser', JSON.stringify(data.admin))
+          navigate(`/${adminSlug}/dashboard`)
+        }
       } else {
         setError(data.message || 'Invalid admin credentials')
       }

@@ -3,6 +3,7 @@ import Banner from '../models/Banner.js'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
+import { authSuperAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -78,8 +79,8 @@ router.get('/:id', async (req, res) => {
   }
 })
 
-// Create banner (admin)
-router.post('/', upload.single('image'), async (req, res) => {
+// Create banner (super admin)
+router.post('/', authSuperAdmin, upload.single('image'), async (req, res) => {
   try {
     const { title, link, order, isActive, startDate, endDate } = req.body
     
@@ -105,8 +106,8 @@ router.post('/', upload.single('image'), async (req, res) => {
   }
 })
 
-// Update banner (admin)
-router.put('/:id', upload.single('image'), async (req, res) => {
+// Update banner (super admin)
+router.put('/:id', authSuperAdmin, upload.single('image'), async (req, res) => {
   try {
     const { title, link, order, isActive, startDate, endDate } = req.body
     const banner = await Banner.findById(req.params.id)
@@ -142,8 +143,8 @@ router.put('/:id', upload.single('image'), async (req, res) => {
   }
 })
 
-// Delete banner (admin)
-router.delete('/:id', async (req, res) => {
+// Delete banner (super admin)
+router.delete('/:id', authSuperAdmin, async (req, res) => {
   try {
     const banner = await Banner.findById(req.params.id)
     
@@ -166,8 +167,8 @@ router.delete('/:id', async (req, res) => {
   }
 })
 
-// Toggle banner status (admin)
-router.patch('/:id/toggle', async (req, res) => {
+// Toggle banner status (super admin)
+router.patch('/:id/toggle', authSuperAdmin, async (req, res) => {
   try {
     const banner = await Banner.findById(req.params.id)
     
@@ -184,8 +185,8 @@ router.patch('/:id/toggle', async (req, res) => {
   }
 })
 
-// Reorder banners (admin)
-router.post('/reorder', async (req, res) => {
+// Reorder banners (super admin)
+router.post('/reorder', authSuperAdmin, async (req, res) => {
   try {
     const { bannerIds } = req.body
     

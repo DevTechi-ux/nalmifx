@@ -40,8 +40,16 @@ const AdminLayout = ({ children, title, subtitle }) => {
     funds: 0, kyc: 0, ib: 0, copyTrade: 0, support: 0, bankRequests: 0, propFirm: 0
   })
 
-  // Load admin role + permissions from localStorage (set at login)
-  const adminUser = JSON.parse(localStorage.getItem('adminUser') || '{}')
+  // Route-space detection: /admin/* is super admin, /<slug>/* is sub-admin.
+  // We read from separate localStorage keys so both sessions can coexist.
+  const firstSeg = location.pathname.split('/')[1] || ''
+  const isAdminSpace = firstSeg === 'admin'
+  const isBranchSpace = !isAdminSpace && firstSeg !== ''
+  const storageKey = isBranchSpace ? 'branchUser' : 'adminUser'
+  const tokenKey = isBranchSpace ? 'branchToken' : 'adminToken'
+  const basePath = isAdminSpace ? '/admin' : `/${firstSeg}`
+
+  const adminUser = JSON.parse(localStorage.getItem(storageKey) || '{}')
   const isSuperAdmin = adminUser?.role === 'SUPER_ADMIN'
   const perms = adminUser?.permissions || {}
 
@@ -59,38 +67,39 @@ const AdminLayout = ({ children, title, subtitle }) => {
   }, [])
 
   useEffect(() => {
-    const adminToken = localStorage.getItem('adminToken')
-    if (!adminToken) {
-      navigate('/admin')
+    const token = localStorage.getItem(tokenKey)
+    if (!token) {
+      navigate(isBranchSpace ? `/${firstSeg}/admin` : '/admin')
       return
     }
     fetchPendingCounts()
     const interval = setInterval(fetchPendingCounts, 30000)
     return () => clearInterval(interval)
-  }, [navigate, fetchPendingCounts])
+  }, [navigate, fetchPendingCounts, tokenKey, isBranchSpace, firstSeg])
 
   // All possible menu items with their required permission key.
+  // Paths use `basePath` so sub-admins see /branch/* and super admin sees /admin/*.
   // Items with permKey: null are always visible to any authenticated admin.
   // Items with superOnly: true are only visible to SUPER_ADMIN.
   const allMenuItems = [
-    { name: 'Overview Dashboard',    icon: LayoutDashboard, path: '/admin/dashboard',        permKey: null },
-    { name: 'User Management',       icon: Users,           path: '/admin/users',             permKey: 'canManageUsers' },
-    { name: 'Trade Management',      icon: TrendingUp,      path: '/admin/trades',            permKey: 'canManageTrades' },
-    { name: 'Fund Management',       icon: Wallet,          path: '/admin/funds',             permKey: 'canManageDeposits', badge: pendingCounts.funds },
-    { name: 'Bank Settings',         icon: Building2,       path: '/admin/bank-settings',     permKey: 'canManageDeposits', badge: pendingCounts.bankRequests },
-    { name: 'IB Management',         icon: UserCog,         path: '/admin/ib-management',     permKey: 'canManageIB', badge: pendingCounts.ib },
-    { name: 'Forex Charges',         icon: DollarSign,      path: '/admin/forex-charges',     permKey: 'canManageSymbols' },
-    { name: 'Earnings Report',       icon: TrendingUp,      path: '/admin/earnings',          permKey: 'canViewReports' },
-    { name: 'Copy Trade Management', icon: Copy,            path: '/admin/copy-trade',        permKey: 'canManageCopyTrading', badge: pendingCounts.copyTrade },
-    { name: 'Prop Firm Challenges',  icon: Trophy,          path: '/admin/prop-firm',         permKey: 'canManageTrades', badge: pendingCounts.propFirm },
-    { name: 'Account Types',         icon: CreditCard,      path: '/admin/account-types',     permKey: 'canManageAccounts' },
-    { name: 'Theme Settings',        icon: Palette,         path: '/admin/theme',             permKey: 'canManageTheme' },
-    { name: 'Email Templates',       icon: Mail,            path: '/admin/email-templates',   permKey: 'canManageSettings' },
-    { name: 'Bonus Management',      icon: Gift,            path: '/admin/bonus-management',  permKey: 'canManageSettings' },
-    { name: 'Banner Management',     icon: Image,           path: '/admin/banners',           permKey: 'canManageTheme' },
-    { name: 'Employee Management',   icon: Shield,          path: '/admin/admin-management',  superOnly: true },
-    { name: 'KYC Verification',      icon: FileCheck,       path: '/admin/kyc',               permKey: 'canManageKYC', badge: pendingCounts.kyc },
-    { name: 'Support Tickets',       icon: HeadphonesIcon,  path: '/admin/support',           permKey: null, badge: pendingCounts.support },
+    { name: 'Overview Dashboard',    icon: LayoutDashboard, path: `${basePath}/dashboard`,        permKey: null },
+    { name: 'User Management',       icon: Users,           path: `${basePath}/users`,             permKey: 'canManageUsers' },
+    { name: 'Trade Management',      icon: TrendingUp,      path: `${basePath}/trades`,            permKey: 'canManageTrades' },
+    { name: 'Fund Management',       icon: Wallet,          path: `${basePath}/funds`,             permKey: 'canManageDeposits', badge: pendingCounts.funds },
+    { name: 'Bank Settings',         icon: Building2,       path: `${basePath}/bank-settings`,     permKey: 'canManageDeposits', badge: pendingCounts.bankRequests },
+    { name: 'IB Management',         icon: UserCog,         path: `${basePath}/ib-management`,     permKey: 'canManageIB', badge: pendingCounts.ib },
+    { name: 'Forex Charges',         icon: DollarSign,      path: `${basePath}/forex-charges`,     permKey: 'canManageSymbols' },
+    { name: 'Earnings Report',       icon: TrendingUp,      path: `${basePath}/earnings`,          permKey: 'canViewReports' },
+    { name: 'Copy Trade Management', icon: Copy,            path: `${basePath}/copy-trade`,        permKey: 'canManageCopyTrading', badge: pendingCounts.copyTrade },
+    { name: 'Prop Firm Challenges',  icon: Trophy,          path: `${basePath}/prop-firm`,         permKey: 'canManageTrades', badge: pendingCounts.propFirm },
+    { name: 'Account Types',         icon: CreditCard,      path: `${basePath}/account-types`,     permKey: 'canManageAccounts' },
+    { name: 'Theme Settings',        icon: Palette,         path: `${basePath}/theme`,             permKey: 'canManageTheme' },
+    { name: 'Email Templates',       icon: Mail,            path: `${basePath}/email-templates`,   permKey: 'canManageSettings' },
+    { name: 'Bonus Management',      icon: Gift,            path: `${basePath}/bonus-management`,  permKey: 'canManageSettings' },
+    { name: 'Banner Management',     icon: Image,           path: `${basePath}/banners`,           permKey: 'canManageTheme' },
+    { name: 'Employee Management',   icon: Shield,          path: `${basePath}/admin-management`,  superOnly: true },
+    { name: 'KYC Verification',      icon: FileCheck,       path: `${basePath}/kyc`,               permKey: 'canManageKYC', badge: pendingCounts.kyc },
+    { name: 'Support Tickets',       icon: HeadphonesIcon,  path: `${basePath}/support`,           permKey: null, badge: pendingCounts.support },
   ]
 
   // Filter menu based on role / permissions
@@ -101,9 +110,9 @@ const AdminLayout = ({ children, title, subtitle }) => {
   })
 
   const handleLogout = () => {
-    localStorage.removeItem('adminToken')
-    localStorage.removeItem('adminUser')
-    navigate('/admin')
+    localStorage.removeItem(tokenKey)
+    localStorage.removeItem(storageKey)
+    navigate(isBranchSpace ? `/${firstSeg}/admin` : '/admin')
   }
 
   const isActive = (path) => location.pathname === path
@@ -195,10 +204,10 @@ const AdminLayout = ({ children, title, subtitle }) => {
 
         {/* My Account & Logout */}
         <div className="p-2 border-t border-gray-800 space-y-1">
-          <button 
-            onClick={() => { navigate('/admin/my-account'); setMobileMenuOpen(false); }}
+          <button
+            onClick={() => { navigate(`${basePath}/my-account`); setMobileMenuOpen(false); }}
             className={`w-full flex items-center gap-3 px-3 py-2.5 transition-colors rounded-lg ${
-              isActive('/admin/my-account')
+              isActive(`${basePath}/my-account`)
                 ? 'bg-red-500 text-white'
                 : 'text-gray-400 hover:text-white hover:bg-dark-700'
             }`}

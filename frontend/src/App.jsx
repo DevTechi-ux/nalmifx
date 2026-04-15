@@ -48,14 +48,28 @@ import TermsOfService from './pages/TermsOfService'
 import DataDeletion from './pages/DataDeletion'
 
 // Guard: blocks a route if the admin doesn't have the required permission.
+// Reads from branchUser/adminUser depending on which route space we're in.
+// /admin/* is super admin, /<slug>/* is sub-admin (branded).
 // superOnly=true means SUPER_ADMIN only.
 function AdminGuard({ children, permKey, superOnly }) {
-  const adminUser = JSON.parse(localStorage.getItem('adminUser') || '{}')
+  const path = typeof window !== 'undefined' ? window.location.pathname : ''
+  const firstSeg = path.split('/')[1] || ''
+  const isAdminSpace = firstSeg === 'admin'
+  const isBranchSpace = !isAdminSpace && firstSeg !== ''
+  const storageKey = isBranchSpace ? 'branchUser' : 'adminUser'
+  const tokenKey = isBranchSpace ? 'branchToken' : 'adminToken'
+  const basePath = isAdminSpace ? '/admin' : `/${firstSeg}`
+  const loginPath = isBranchSpace ? `/${firstSeg}/admin` : '/admin'
+
+  // If no token for this space, bounce to login
+  if (!localStorage.getItem(tokenKey)) return <Navigate to={loginPath} replace />
+
+  const adminUser = JSON.parse(localStorage.getItem(storageKey) || '{}')
   const isSuperAdmin = adminUser?.role === 'SUPER_ADMIN'
   const perms = adminUser?.permissions || {}
 
-  if (superOnly && !isSuperAdmin) return <Navigate to="/admin/dashboard" replace />
-  if (permKey && !isSuperAdmin && !perms[permKey]) return <Navigate to="/admin/dashboard" replace />
+  if (superOnly && !isSuperAdmin) return <Navigate to={`${basePath}/dashboard`} replace />
+  if (permKey && !isSuperAdmin && !perms[permKey]) return <Navigate to={`${basePath}/dashboard`} replace />
   return children
 }
 
@@ -105,6 +119,33 @@ function App() {
         <Route path="/admin/bonus-management" element={<AdminGuard permKey="canManageSettings"><AdminBonusManagement /></AdminGuard>} />
         <Route path="/admin/banners" element={<AdminGuard permKey="canManageTheme"><AdminBannerManagement /></AdminGuard>} />
         <Route path="/admin/my-account" element={<AdminMyAccount />} />
+
+        {/* Sub-admin (branded) routes at /:slug/* — a sub-admin session in
+            one tab does not overwrite a super admin session in another tab.
+            Same pages as /admin/* but different URL and localStorage bucket. */}
+        <Route path="/:slug/dashboard" element={<AdminGuard><AdminOverview /></AdminGuard>} />
+        <Route path="/:slug/users" element={<AdminGuard permKey="canManageUsers"><AdminUserManagement /></AdminGuard>} />
+        <Route path="/:slug/accounts" element={<AdminGuard permKey="canManageAccounts"><AdminAccounts /></AdminGuard>} />
+        <Route path="/:slug/account-types" element={<AdminGuard permKey="canManageAccounts"><AdminAccountTypes /></AdminGuard>} />
+        <Route path="/:slug/transactions" element={<AdminGuard permKey="canManageDeposits"><AdminTransactions /></AdminGuard>} />
+        <Route path="/:slug/payment-methods" element={<AdminGuard permKey="canManageDeposits"><AdminPaymentMethods /></AdminGuard>} />
+        <Route path="/:slug/trades" element={<AdminGuard permKey="canManageTrades"><AdminTradeManagement /></AdminGuard>} />
+        <Route path="/:slug/funds" element={<AdminGuard permKey="canManageDeposits"><AdminFundManagement /></AdminGuard>} />
+        <Route path="/:slug/bank-settings" element={<AdminGuard permKey="canManageDeposits"><AdminBankSettings /></AdminGuard>} />
+        <Route path="/:slug/ib-management" element={<AdminGuard permKey="canManageIB"><AdminIBManagement /></AdminGuard>} />
+        <Route path="/:slug/forex-charges" element={<AdminGuard permKey="canManageSymbols"><AdminForexCharges /></AdminGuard>} />
+        <Route path="/:slug/indian-charges" element={<AdminGuard permKey="canManageSymbols"><AdminIndianCharges /></AdminGuard>} />
+        <Route path="/:slug/copy-trade" element={<AdminGuard permKey="canManageCopyTrading"><AdminCopyTrade /></AdminGuard>} />
+        <Route path="/:slug/prop-firm" element={<AdminGuard permKey="canManageTrades"><AdminPropFirm /></AdminGuard>} />
+        <Route path="/:slug/kyc" element={<AdminGuard permKey="canManageKYC"><AdminKYC /></AdminGuard>} />
+        <Route path="/:slug/support" element={<AdminGuard><AdminSupport /></AdminGuard>} />
+        <Route path="/:slug/prop-trading" element={<AdminGuard permKey="canManageTrades"><AdminPropTrading /></AdminGuard>} />
+        <Route path="/:slug/earnings" element={<AdminGuard permKey="canViewReports"><AdminEarnings /></AdminGuard>} />
+        <Route path="/:slug/theme" element={<AdminGuard permKey="canManageTheme"><AdminThemeSettings /></AdminGuard>} />
+        <Route path="/:slug/email-templates" element={<AdminGuard permKey="canManageSettings"><AdminEmailTemplates /></AdminGuard>} />
+        <Route path="/:slug/bonus-management" element={<AdminGuard permKey="canManageSettings"><AdminBonusManagement /></AdminGuard>} />
+        <Route path="/:slug/banners" element={<AdminGuard permKey="canManageTheme"><AdminBannerManagement /></AdminGuard>} />
+        <Route path="/:slug/my-account" element={<AdminGuard><AdminMyAccount /></AdminGuard>} />
         <Route path="/buy-challenge" element={<BuyChallengePage />} />
         <Route path="/challenge-dashboard" element={<ChallengeDashboardPage />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />

@@ -5,6 +5,18 @@ import { getScopedUserIds } from '../middleware/auth.js'
 
 const router = express.Router()
 
+// Assert a ticket's userId is within the calling admin's scope
+async function assertTicketUserInScope(req, res, userId) {
+  if (req.admin && req.admin.role === 'SUPER_ADMIN') return true
+  const ids = await getScopedUserIds(req)
+  const allowed = (ids || []).some(id => id.toString() === userId.toString())
+  if (!allowed) {
+    res.status(403).json({ success: false, message: 'Access denied: ticket not in your branch' })
+    return false
+  }
+  return true
+}
+
 // POST /api/support/create - Create new support ticket
 router.post('/create', async (req, res) => {
   try {
@@ -185,11 +197,21 @@ router.get('/admin/all', async (req, res) => {
   }
 })
 
-// GET /api/support/admin/stats - Get ticket stats
+// GET /api/support/admin/stats - Get ticket stats (scoped)
 router.get('/admin/stats', async (req, res) => {
   try {
-    const stats = await SupportTicket.getStats()
-    res.json({ success: true, stats })
+    const userIds = await getScopedUserIds(req)
+    const scope = userIds !== null ? { userId: { $in: userIds } } : {}
+
+    const [total, open, inProgress, resolved, closed] = await Promise.all([
+      SupportTicket.countDocuments(scope),
+      SupportTicket.countDocuments({ ...scope, status: 'OPEN' }),
+      SupportTicket.countDocuments({ ...scope, status: 'IN_PROGRESS' }),
+      SupportTicket.countDocuments({ ...scope, status: 'RESOLVED' }),
+      SupportTicket.countDocuments({ ...scope, status: 'CLOSED' })
+    ])
+
+    res.json({ success: true, stats: { total, open, inProgress, resolved, closed } })
   } catch (error) {
     console.error('Error fetching stats:', error)
     res.status(500).json({ success: false, message: error.message })
@@ -206,6 +228,8 @@ router.put('/admin/status/:ticketId', async (req, res) => {
     if (!ticket) {
       return res.status(404).json({ success: false, message: 'Ticket not found' })
     }
+
+    if (!(await assertTicketUserInScope(req, res, ticket.userId))) return
 
     ticket.status = status
     if (status === 'RESOLVED') {
@@ -238,6 +262,8 @@ router.put('/admin/assign/:ticketId', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Ticket not found' })
     }
 
+    if (!(await assertTicketUserInScope(req, res, ticket.userId))) return
+
     ticket.assignedTo = adminId
     if (ticket.status === 'OPEN') {
       ticket.status = 'IN_PROGRESS'
@@ -262,20 +288,19 @@ router.put('/admin/priority/:ticketId', async (req, res) => {
     const { ticketId } = req.params
     const { priority } = req.body
 
-    const ticket = await SupportTicket.findOneAndUpdate(
-      { ticketId },
-      { priority },
-      { new: true }
-    )
-
-    if (!ticket) {
+    const existing = await SupportTicket.findOne({ ticketId })
+    if (!existing) {
       return res.status(404).json({ success: false, message: 'Ticket not found' })
     }
+    if (!(await assertTicketUserInScope(req, res, existing.userId))) return
+
+    existing.priority = priority
+    await existing.save()
 
     res.json({
       success: true,
       message: 'Priority updated',
-      ticket
+      ticket: existing
     })
   } catch (error) {
     console.error('Error updating priority:', error)

@@ -113,14 +113,25 @@ router.post('/', async (req, res) => {
 router.put('/:id/admin-update', async (req, res) => {
   try {
     const { leverage, exposureLimit, status } = req.body
+    const existing = await TradingAccount.findById(req.params.id).select('userId')
+    if (!existing) {
+      return res.status(404).json({ message: 'Account not found' })
+    }
+
+    // Scope check for sub-admins
+    if (req.admin && req.admin.role !== 'SUPER_ADMIN') {
+      const ids = await getScopedUserIds(req)
+      const allowed = (ids || []).some(id => id.toString() === existing.userId.toString())
+      if (!allowed) {
+        return res.status(403).json({ message: 'Access denied: account not in your branch' })
+      }
+    }
+
     const account = await TradingAccount.findByIdAndUpdate(
       req.params.id,
       { leverage, exposureLimit, status },
       { new: true }
     )
-    if (!account) {
-      return res.status(404).json({ message: 'Account not found' })
-    }
     res.json({ message: 'Account updated', account })
   } catch (error) {
     res.status(500).json({ message: 'Error updating account', error: error.message })

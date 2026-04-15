@@ -5,7 +5,7 @@ import PropSettings from '../models/PropSettings.js'
 import Wallet from '../models/Wallet.js'
 import Transaction from '../models/Transaction.js'
 import propTradingEngine from '../services/propTradingEngine.js'
-import { authUser, authAdmin } from '../middleware/auth.js'
+import { authUser, authAdmin, getScopedUserIds } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -573,7 +573,7 @@ router.delete('/admin/challenges/:id', authAdmin, async (req, res) => {
   }
 })
 
-// GET /api/prop/admin/accounts - Get all challenge accounts
+// GET /api/prop/admin/accounts - Get all challenge accounts (scoped)
 router.get('/admin/accounts', authAdmin, async (req, res) => {
   try {
     const { status, challengeId, limit = 50, offset = 0 } = req.query
@@ -581,6 +581,9 @@ router.get('/admin/accounts', authAdmin, async (req, res) => {
     let query = {}
     if (status) query.status = status
     if (challengeId) query.challengeId = challengeId
+
+    const userIds = await getScopedUserIds(req)
+    if (userIds !== null) query.userId = { $in: userIds }
 
     const accounts = await ChallengeAccount.find(query)
       .populate('userId', 'firstName email')
@@ -597,9 +600,27 @@ router.get('/admin/accounts', authAdmin, async (req, res) => {
   }
 })
 
-// GET /api/prop/admin/account/:id - Get single account details
+// Helper: assert a challenge account belongs to the calling admin's scope
+async function assertChallengeAccountInScope(req, res, accountId) {
+  if (req.admin && req.admin.role === 'SUPER_ADMIN') return true
+  const account = await ChallengeAccount.findById(accountId).select('userId')
+  if (!account) {
+    res.status(404).json({ success: false, message: 'Account not found' })
+    return false
+  }
+  const userIds = await getScopedUserIds(req)
+  const allowed = (userIds || []).some(id => id.toString() === account.userId.toString())
+  if (!allowed) {
+    res.status(403).json({ success: false, message: 'Access denied: account not in your branch' })
+    return false
+  }
+  return true
+}
+
+// GET /api/prop/admin/account/:id - Get single account details (scoped)
 router.get('/admin/account/:id', authAdmin, async (req, res) => {
   try {
+    if (!(await assertChallengeAccountInScope(req, res, req.params.id))) return
     const dashboard = await propTradingEngine.getAccountDashboard(req.params.id)
     if (!dashboard) {
       return res.status(404).json({ success: false, message: 'Account not found' })
@@ -613,6 +634,7 @@ router.get('/admin/account/:id', authAdmin, async (req, res) => {
 // POST /api/prop/admin/force-pass/:id - Force pass a challenge
 router.post('/admin/force-pass/:id', authAdmin, async (req, res) => {
   try {
+    if (!(await assertChallengeAccountInScope(req, res, req.params.id))) return
     const { adminId } = req.body
     const result = await propTradingEngine.forcePass(req.params.id, adminId)
     res.json({ 
@@ -629,6 +651,7 @@ router.post('/admin/force-pass/:id', authAdmin, async (req, res) => {
 // POST /api/prop/admin/force-fail/:id - Force fail a challenge
 router.post('/admin/force-fail/:id', authAdmin, async (req, res) => {
   try {
+    if (!(await assertChallengeAccountInScope(req, res, req.params.id))) return
     const { adminId, reason } = req.body
     const account = await propTradingEngine.forceFail(req.params.id, adminId, reason)
     res.json({ success: true, message: 'Challenge force failed', account })
@@ -640,6 +663,7 @@ router.post('/admin/force-fail/:id', authAdmin, async (req, res) => {
 // POST /api/prop/admin/extend-time/:id - Extend challenge time
 router.post('/admin/extend-time/:id', authAdmin, async (req, res) => {
   try {
+    if (!(await assertChallengeAccountInScope(req, res, req.params.id))) return
     const { adminId, days } = req.body
     if (!days || days <= 0) {
       return res.status(400).json({ success: false, message: 'Days must be positive' })
@@ -654,6 +678,7 @@ router.post('/admin/extend-time/:id', authAdmin, async (req, res) => {
 // POST /api/prop/admin/reset/:id - Reset challenge
 router.post('/admin/reset/:id', authAdmin, async (req, res) => {
   try {
+    if (!(await assertChallengeAccountInScope(req, res, req.params.id))) return
     const { adminId } = req.body
     const account = await propTradingEngine.resetChallenge(req.params.id, adminId)
     res.json({ success: true, message: 'Challenge reset', account })
@@ -662,15 +687,18 @@ router.post('/admin/reset/:id', authAdmin, async (req, res) => {
   }
 })
 
-// GET /api/prop/admin/dashboard - Admin dashboard stats
+// GET /api/prop/admin/dashboard - Admin dashboard stats (scoped)
 router.get('/admin/dashboard', authAdmin, async (req, res) => {
   try {
+    const userIds = await getScopedUserIds(req)
+    const accountScope = userIds !== null ? { userId: { $in: userIds } } : {}
+
     const totalChallenges = await Challenge.countDocuments({ isActive: true })
-    const totalAccounts = await ChallengeAccount.countDocuments()
-    const activeAccounts = await ChallengeAccount.countDocuments({ status: 'ACTIVE' })
-    const passedAccounts = await ChallengeAccount.countDocuments({ status: 'PASSED' })
-    const failedAccounts = await ChallengeAccount.countDocuments({ status: 'FAILED' })
-    const fundedAccounts = await ChallengeAccount.countDocuments({ status: 'FUNDED' })
+    const totalAccounts = await ChallengeAccount.countDocuments(accountScope)
+    const activeAccounts = await ChallengeAccount.countDocuments({ ...accountScope, status: 'ACTIVE' })
+    const passedAccounts = await ChallengeAccount.countDocuments({ ...accountScope, status: 'PASSED' })
+    const failedAccounts = await ChallengeAccount.countDocuments({ ...accountScope, status: 'FAILED' })
+    const fundedAccounts = await ChallengeAccount.countDocuments({ ...accountScope, status: 'FUNDED' })
 
     const settings = await PropSettings.getSettings()
 

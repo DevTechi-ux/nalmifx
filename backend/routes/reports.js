@@ -267,9 +267,12 @@ router.get('/ib', async (req, res) => {
   }
 })
 
-// ===================== ADMIN MANAGEMENT REPORT =====================
+// ===================== ADMIN MANAGEMENT REPORT (SUPER ADMIN ONLY) =====================
 router.get('/admins', async (req, res) => {
   try {
+    if (!req.admin || req.admin.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ success: false, message: 'Super admin access required' })
+    }
     const { format = 'excel', period } = req.query
     const dateFilter = getDateFilter(period)
     const query = dateFilter ? { createdAt: dateFilter } : {}

@@ -4,6 +4,13 @@ import AccountType from '../models/AccountType.js'
 
 const router = express.Router()
 
+function requireSuperAdmin(req, res, next) {
+  if (!req.admin || req.admin.role !== 'SUPER_ADMIN') {
+    return res.status(403).json({ success: false, message: 'Super admin access required' })
+  }
+  next()
+}
+
 // GET /api/charges/spreads - Get spreads for all instruments (for display in trading UI)
 router.get('/spreads', async (req, res) => {
   try {
@@ -110,8 +117,8 @@ router.get('/:id', async (req, res) => {
   }
 })
 
-// POST /api/charges - Create new charge
-router.post('/', async (req, res) => {
+// POST /api/charges - Create new charge (super admin only)
+router.post('/', requireSuperAdmin, async (req, res) => {
   try {
     const {
       level,
@@ -170,8 +177,8 @@ router.post('/', async (req, res) => {
   }
 })
 
-// PUT /api/charges/:id - Update charge
-router.put('/:id', async (req, res) => {
+// PUT /api/charges/:id - Update charge (super admin only)
+router.put('/:id', requireSuperAdmin, async (req, res) => {
   try {
     const {
       level,
@@ -235,8 +242,8 @@ router.put('/:id', async (req, res) => {
   }
 })
 
-// DELETE /api/charges/:id - Delete charge
-router.delete('/:id', async (req, res) => {
+// DELETE /api/charges/:id - Delete charge (super admin only)
+router.delete('/:id', requireSuperAdmin, async (req, res) => {
   try {
     const charge = await Charges.findById(req.params.id)
     if (!charge) {

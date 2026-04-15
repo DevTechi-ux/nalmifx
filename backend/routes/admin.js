@@ -163,7 +163,8 @@ router.put('/users/:id/password', async (req, res) => {
     if (!password || password.length < 6) {
       return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' })
     }
-    
+    if (!(await assertUserInScope(req, res, req.params.id))) return
+
     const user = await User.findById(req.params.id)
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' })
@@ -186,7 +187,8 @@ router.post('/users/:id/deduct', requirePermission('canManageDeposits'), async (
     if (!amount || amount <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid amount' })
     }
-    
+    if (!(await assertUserInScope(req, res, req.params.id))) return
+
     const user = await User.findById(req.params.id)
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' })
@@ -240,7 +242,8 @@ router.post('/users/:id/add-fund', requirePermission('canManageDeposits'), async
     if (!reason || !reason.trim()) {
       return res.status(400).json({ success: false, message: 'Reason is required' })
     }
-    
+    if (!(await assertUserInScope(req, res, req.params.id))) return
+
     const user = await User.findById(req.params.id)
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' })
@@ -290,13 +293,14 @@ router.post('/trading-account/:id/add-fund', requirePermission('canManageAccount
     if (!amount || amount <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid amount' })
     }
-    
+
     const TradingAccount = (await import('../models/TradingAccount.js')).default
     const account = await TradingAccount.findById(req.params.id)
     if (!account) {
       return res.status(404).json({ success: false, message: 'Trading account not found' })
     }
-    
+    if (!(await assertUserInScope(req, res, account.userId))) return
+
     account.balance = (account.balance || 0) + parseFloat(amount)
     await account.save()
     
@@ -330,13 +334,14 @@ router.post('/trading-account/:id/deduct', requirePermission('canManageAccounts'
     if (!amount || amount <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid amount' })
     }
-    
+
     const TradingAccount = (await import('../models/TradingAccount.js')).default
     const account = await TradingAccount.findById(req.params.id)
     if (!account) {
       return res.status(404).json({ success: false, message: 'Trading account not found' })
     }
-    
+    if (!(await assertUserInScope(req, res, account.userId))) return
+
     if ((account.balance || 0) < amount) {
       return res.status(400).json({ success: false, message: 'Insufficient balance in trading account' })
     }
@@ -371,7 +376,8 @@ router.post('/trading-account/:id/deduct', requirePermission('canManageAccounts'
 router.put('/users/:id/block', async (req, res) => {
   try {
     const { blocked, reason } = req.body
-    
+    if (!(await assertUserInScope(req, res, req.params.id))) return
+
     const user = await User.findById(req.params.id)
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' })
@@ -396,7 +402,8 @@ router.put('/users/:id/block', async (req, res) => {
 router.put('/users/:id/ban', async (req, res) => {
   try {
     const { banned, reason } = req.body
-    
+    if (!(await assertUserInScope(req, res, req.params.id))) return
+
     const user = await User.findById(req.params.id)
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' })
@@ -443,6 +450,7 @@ router.put('/users/:id/ban', async (req, res) => {
 // DELETE /api/admin/users/:id - Delete user
 router.delete('/users/:id', requirePermission('canDeleteUsers'), async (req, res) => {
   try {
+    if (!(await assertUserInScope(req, res, req.params.id))) return
     const user = await User.findByIdAndDelete(req.params.id)
     if (!user) {
       return res.status(404).json({ message: 'User not found' })
@@ -462,12 +470,13 @@ router.post('/trading-account/:id/add-credit', async (req, res) => {
     if (!amount || amount <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid amount' })
     }
-    
+
     const TradingAccount = (await import('../models/TradingAccount.js')).default
     const account = await TradingAccount.findById(req.params.id)
     if (!account) {
       return res.status(404).json({ success: false, message: 'Trading account not found' })
     }
+    if (!(await assertUserInScope(req, res, account.userId))) return
     
     const previousCredit = account.credit || 0
     account.credit = previousCredit + parseFloat(amount)
@@ -517,7 +526,8 @@ router.post('/trading-account/:id/remove-credit', async (req, res) => {
     if (!account) {
       return res.status(404).json({ message: 'Trading account not found' })
     }
-    
+    if (!(await assertUserInScope(req, res, account.userId))) return
+
     const previousCredit = account.credit || 0
     if (amount > previousCredit) {
       return res.status(400).json({ message: 'Cannot remove more credit than available' })
@@ -565,7 +575,8 @@ router.get('/trading-account/:id/summary', async (req, res) => {
     if (!account) {
       return res.status(404).json({ message: 'Trading account not found' })
     }
-    
+    if (!(await assertUserInScope(req, res, account.userId?._id || account.userId))) return
+
     // Get open trades for margin calculation
     const openTrades = await Trade.find({ tradingAccountId: account._id, status: 'OPEN' })
     
@@ -606,11 +617,12 @@ router.post('/login-as-user/:userId', async (req, res) => {
   try {
     const { adminId } = req.body
     
+    if (!(await assertUserInScope(req, res, req.params.userId))) return
     const user = await User.findById(req.params.userId).select('-password')
     if (!user) {
       return res.status(404).json({ message: 'User not found' })
     }
-    
+
     // Log the admin login as user action (optional)
     if (adminId) {
       try {
@@ -652,16 +664,23 @@ router.get('/password-reset-requests', async (req, res) => {
   try {
     const PasswordResetRequest = (await import('../models/PasswordResetRequest.js')).default
     const { status } = req.query
-    
-    const filter = status ? { status } : {}
+
+    const scope = scopeFilter(req)
+    let userIdFilter = {}
+    if (scope.assignedAdmin) {
+      const userIds = await User.find(scope).distinct('_id')
+      userIdFilter = { userId: { $in: userIds } }
+    }
+
+    const filter = { ...(status ? { status } : {}), ...userIdFilter }
     const requests = await PasswordResetRequest.find(filter)
       .populate('userId', 'firstName lastName email phone')
       .sort({ createdAt: -1 })
-    
-    // Get stats
-    const pendingCount = await PasswordResetRequest.countDocuments({ status: 'Pending' })
-    const completedCount = await PasswordResetRequest.countDocuments({ status: 'Completed' })
-    const rejectedCount = await PasswordResetRequest.countDocuments({ status: 'Rejected' })
+
+    // Scoped stats
+    const pendingCount = await PasswordResetRequest.countDocuments({ status: 'Pending', ...userIdFilter })
+    const completedCount = await PasswordResetRequest.countDocuments({ status: 'Completed', ...userIdFilter })
+    const rejectedCount = await PasswordResetRequest.countDocuments({ status: 'Rejected', ...userIdFilter })
     
     res.json({ 
       success: true, 
@@ -684,7 +703,8 @@ router.put('/password-reset-requests/:id/process', async (req, res) => {
     if (!request) {
       return res.status(404).json({ success: false, message: 'Request not found' })
     }
-    
+    if (!(await assertUserInScope(req, res, request.userId?._id || request.userId))) return
+
     if (request.status !== 'Pending') {
       return res.status(400).json({ success: false, message: 'Request already processed' })
     }

@@ -124,11 +124,15 @@ router.get('/daily', async (req, res) => {
       start.setDate(start.getDate() - parseInt(days))
     }
 
+    const userIds = await getScopedUserIds(req)
+    const userIdMatch = userIds !== null ? { userId: { $in: userIds } } : {}
+
     const dailyEarnings = await Trade.aggregate([
       {
         $match: {
           openedAt: { $gte: start, $lte: end },
-          status: { $in: ['OPEN', 'CLOSED'] }
+          status: { $in: ['OPEN', 'CLOSED'] },
+          ...userIdMatch
         }
       },
       {
@@ -183,11 +187,15 @@ router.get('/by-user', async (req, res) => {
       start.setDate(start.getDate() - parseInt(days))
     }
 
+    const userIds = await getScopedUserIds(req)
+    const userIdMatch = userIds !== null ? { userId: { $in: userIds } } : {}
+
     const userEarnings = await Trade.aggregate([
       {
         $match: {
           openedAt: { $gte: start, $lte: end },
-          status: { $in: ['OPEN', 'CLOSED'] }
+          status: { $in: ['OPEN', 'CLOSED'] },
+          ...userIdMatch
         }
       },
       {
@@ -251,11 +259,15 @@ router.get('/by-symbol', async (req, res) => {
       start.setDate(start.getDate() - parseInt(days))
     }
 
+    const userIds = await getScopedUserIds(req)
+    const userIdMatch = userIds !== null ? { userId: { $in: userIds } } : {}
+
     const symbolEarnings = await Trade.aggregate([
       {
         $match: {
           openedAt: { $gte: start, $lte: end },
-          status: { $in: ['OPEN', 'CLOSED'] }
+          status: { $in: ['OPEN', 'CLOSED'] },
+          ...userIdMatch
         }
       },
       {
@@ -294,6 +306,9 @@ router.get('/by-symbol', async (req, res) => {
 // POST /api/earnings/reset - Reset earnings (zero out commission, swap, spread on trades)
 router.post('/reset', async (req, res) => {
   try {
+    if (!req.admin || req.admin.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ success: false, message: 'Super admin access required' })
+    }
     const { period } = req.body // 'today', 'week', 'month', 'year', 'all'
 
     const now = new Date()

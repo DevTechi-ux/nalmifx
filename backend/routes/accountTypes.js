@@ -4,6 +4,13 @@ import Charges from '../models/Charges.js'
 
 const router = express.Router()
 
+function requireSuperAdmin(req, res, next) {
+  if (!req.admin || req.admin.role !== 'SUPER_ADMIN') {
+    return res.status(403).json({ success: false, message: 'Super admin access required' })
+  }
+  next()
+}
+
 // GET /api/account-types - Get all active account types (for users)
 router.get('/', async (req, res) => {
   try {
@@ -67,8 +74,8 @@ router.get('/all', async (req, res) => {
   }
 })
 
-// POST /api/account-types - Create account type (admin)
-router.post('/', async (req, res) => {
+// POST /api/account-types - Create account type (super admin)
+router.post('/', requireSuperAdmin, async (req, res) => {
   try {
     const { name, description, minDeposit, leverage, exposureLimit, minSpread, commission, isDemo, demoBalance } = req.body
     const accountType = new AccountType({
@@ -89,8 +96,8 @@ router.post('/', async (req, res) => {
   }
 })
 
-// PUT /api/account-types/:id - Update account type (admin)
-router.put('/:id', async (req, res) => {
+// PUT /api/account-types/:id - Update account type (super admin)
+router.put('/:id', requireSuperAdmin, async (req, res) => {
   try {
     const { name, description, minDeposit, leverage, exposureLimit, minSpread, commission, isActive, isDemo, demoBalance } = req.body
     const accountType = await AccountType.findByIdAndUpdate(
@@ -107,8 +114,8 @@ router.put('/:id', async (req, res) => {
   }
 })
 
-// DELETE /api/account-types/:id - Delete account type (admin)
-router.delete('/:id', async (req, res) => {
+// DELETE /api/account-types/:id - Delete account type (super admin)
+router.delete('/:id', requireSuperAdmin, async (req, res) => {
   try {
     const accountType = await AccountType.findByIdAndDelete(req.params.id)
     if (!accountType) {

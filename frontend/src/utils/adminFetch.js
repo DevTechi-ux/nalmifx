@@ -1,11 +1,22 @@
 import { API_URL } from '../config/api.js'
 
 /**
- * Wrapper around fetch that automatically attaches the admin Authorization header.
- * Drop-in replacement for `fetch()` in admin pages.
+ * Wrapper around fetch that auto-attaches the right admin token.
+ *
+ * Two localStorage buckets so a super-admin session in one tab is not wiped
+ * when a sub-admin logs into the same browser in another tab:
+ *   - /admin/*       → `adminToken` + `adminUser`   (SUPER_ADMIN)
+ *   - /<slug>/*      → `branchToken` + `branchUser` (sub-admin, branded)
  */
+function currentAdminTokenKey() {
+  if (typeof window === 'undefined') return 'adminToken'
+  const path = window.location.pathname
+  if (path.startsWith('/admin')) return 'adminToken'
+  return 'branchToken'
+}
+
 export default function adminFetch(url, options = {}) {
-  const token = localStorage.getItem('adminToken')
+  const token = localStorage.getItem(currentAdminTokenKey())
   const headers = {
     ...(options.headers || {}),
   }
@@ -15,4 +26,13 @@ export default function adminFetch(url, options = {}) {
   }
 
   return fetch(url, { ...options, headers })
+}
+
+export function getCurrentAdminUser() {
+  const key = currentAdminTokenKey() === 'branchToken' ? 'branchUser' : 'adminUser'
+  try {
+    return JSON.parse(localStorage.getItem(key) || '{}')
+  } catch {
+    return {}
+  }
 }

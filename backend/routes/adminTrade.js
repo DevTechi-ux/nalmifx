@@ -20,6 +20,43 @@ async function userIdFilter(req) {
   return { userId: { $in: ids } }
 }
 
+// Assert a user is within the calling admin's scope
+async function assertUserInScope(req, res, userId) {
+  if (req.admin && req.admin.role === 'SUPER_ADMIN') return true
+  const ids = await getScopedUserIds(req)
+  const allowed = (ids || []).some(id => id.toString() === userId.toString())
+  if (!allowed) {
+    res.status(403).json({ success: false, message: 'Access denied: resource not in your branch' })
+    return false
+  }
+  return true
+}
+
+// Super admin only gate (for global settings like charges, trade settings)
+function requireSuperAdmin(req, res, next) {
+  if (!req.admin || req.admin.role !== 'SUPER_ADMIN') {
+    return res.status(403).json({ success: false, message: 'Super admin access required' })
+  }
+  next()
+}
+
+// Assert a trading account's owner is within the calling admin's scope
+async function assertAccountInScope(req, res, tradingAccountId) {
+  if (req.admin && req.admin.role === 'SUPER_ADMIN') return true
+  const acct = await TradingAccount.findById(tradingAccountId).select('userId')
+  if (!acct) {
+    res.status(404).json({ success: false, message: 'Trading account not found' })
+    return false
+  }
+  const ids = await getScopedUserIds(req)
+  const allowed = (ids || []).some(id => id.toString() === acct.userId.toString())
+  if (!allowed) {
+    res.status(403).json({ success: false, message: 'Access denied: account not in your branch' })
+    return false
+  }
+  return true
+}
+
 // GET /api/admin/trade/all - Get all trades with pagination (for admin dashboard)
 router.get('/all', requirePermission('canManageTrades'), async (req, res) => {
   try {
@@ -66,6 +103,7 @@ router.post('/create', async (req, res) => {
     if (!userId || !tradingAccountId || !symbol || !side || !quantity || !openPrice) {
       return res.status(400).json({ success: false, message: 'Missing required fields' })
     }
+    if (!(await assertUserInScope(req, res, userId))) return
 
     const account = await TradingAccount.findById(tradingAccountId)
     if (!account) {
@@ -123,6 +161,7 @@ router.put('/modify/:tradeId', async (req, res) => {
     if (!trade) {
       return res.status(404).json({ success: false, message: 'Trade not found' })
     }
+    if (!(await assertUserInScope(req, res, trade.userId))) return
 
     if (trade.status !== 'OPEN') {
       return res.status(400).json({ success: false, message: 'Trade is not open' })
@@ -152,6 +191,7 @@ router.put('/edit/:tradeId', async (req, res) => {
     if (!trade) {
       return res.status(404).json({ success: false, message: 'Trade not found' })
     }
+    if (!(await assertUserInScope(req, res, trade.userId))) return
 
     const oldValues = {
       openPrice: trade.openPrice,
@@ -267,6 +307,7 @@ router.post('/close/:tradeId', async (req, res) => {
     if (!trade) {
       return res.status(404).json({ success: false, message: 'Trade not found' })
     }
+    if (!(await assertUserInScope(req, res, trade.userId))) return
 
     if (trade.status !== 'OPEN') {
       return res.status(400).json({ success: false, message: 'Trade is not open' })
@@ -408,6 +449,10 @@ router.post('/trades/close', async (req, res) => {
       })
     }
 
+    const existing = await Trade.findById(tradeId).select('userId')
+    if (!existing) return res.status(404).json({ success: false, message: 'Trade not found' })
+    if (!(await assertUserInScope(req, res, existing.userId))) return
+
     const result = await tradeEngine.closeTrade(
       tradeId,
       parseFloat(bid),
@@ -450,6 +495,10 @@ router.put('/trades/modify', async (req, res) => {
       })
     }
 
+    const existing = await Trade.findById(tradeId).select('userId')
+    if (!existing) return res.status(404).json({ success: false, message: 'Trade not found' })
+    if (!(await assertUserInScope(req, res, existing.userId))) return
+
     const trade = await tradeEngine.modifyTrade(
       tradeId,
       sl !== undefined ? parseFloat(sl) : null,
@@ -479,6 +528,8 @@ router.post('/trades/force-close-all', async (req, res) => {
         message: 'Missing required fields'
       })
     }
+
+    if (!(await assertAccountInScope(req, res, tradingAccountId))) return
 
     const openTrades = await Trade.find({ tradingAccountId, status: 'OPEN' })
     const closedTrades = []
@@ -530,6 +581,8 @@ router.post('/account/freeze', async (req, res) => {
       })
     }
 
+    if (!(await assertAccountInScope(req, res, tradingAccountId))) return
+
     const account = await TradingAccount.findById(tradingAccountId)
     if (!account) {
       return res.status(404).json({
@@ -579,6 +632,8 @@ router.post('/account/unfreeze', async (req, res) => {
       })
     }
 
+    if (!(await assertAccountInScope(req, res, tradingAccountId))) return
+
     const account = await TradingAccount.findById(tradingAccountId)
     if (!account) {
       return res.status(404).json({
@@ -626,6 +681,8 @@ router.put('/account/credit', async (req, res) => {
       })
     }
 
+    if (!(await assertAccountInScope(req, res, tradingAccountId))) return
+
     const account = await TradingAccount.findById(tradingAccountId)
     if (!account) {
       return res.status(404).json({
@@ -661,7 +718,7 @@ router.put('/account/credit', async (req, res) => {
 })
 
 // GET /api/admin/settings - Get trade settings
-router.get('/settings', async (req, res) => {
+router.get('/settings', requireSuperAdmin, async (req, res) => {
   try {
     const { accountTypeId, segment } = req.query
     const settings = await TradeSettings.getSettings(accountTypeId, segment)
@@ -673,7 +730,7 @@ router.get('/settings', async (req, res) => {
 })
 
 // PUT /api/admin/settings - Update trade settings
-router.put('/settings', async (req, res) => {
+router.put('/settings', requireSuperAdmin, async (req, res) => {
   try {
     const { 
       settingsId,
@@ -737,7 +794,7 @@ router.put('/settings', async (req, res) => {
 })
 
 // GET /api/admin/charges - Get all charges
-router.get('/charges', async (req, res) => {
+router.get('/charges', requireSuperAdmin, async (req, res) => {
   try {
     const { level, segment, accountTypeId } = req.query
     
@@ -759,7 +816,7 @@ router.get('/charges', async (req, res) => {
 })
 
 // POST /api/admin/charges - Create new charges
-router.post('/charges', async (req, res) => {
+router.post('/charges', requireSuperAdmin, async (req, res) => {
   try {
     const {
       level,
@@ -822,7 +879,7 @@ router.post('/charges', async (req, res) => {
 })
 
 // PUT /api/admin/charges/:id - Update charges
-router.put('/charges/:id', async (req, res) => {
+router.put('/charges/:id', requireSuperAdmin, async (req, res) => {
   try {
     const { id } = req.params
     const {
@@ -882,7 +939,7 @@ router.put('/charges/:id', async (req, res) => {
 })
 
 // DELETE /api/admin/charges/:id - Delete charges
-router.delete('/charges/:id', async (req, res) => {
+router.delete('/charges/:id', requireSuperAdmin, async (req, res) => {
   try {
     const { id } = req.params
     const { adminId } = req.body
@@ -923,7 +980,12 @@ router.get('/logs', async (req, res) => {
     const { adminId, action, targetType, limit = 50, offset = 0 } = req.query
 
     let query = {}
-    if (adminId) query.adminId = adminId
+    // Sub-admins only see their own logs
+    if (!req.admin || req.admin.role !== 'SUPER_ADMIN') {
+      query.adminId = req.adminId
+    } else if (adminId) {
+      query.adminId = adminId
+    }
     if (action) query.action = action
     if (targetType) query.targetType = targetType
 

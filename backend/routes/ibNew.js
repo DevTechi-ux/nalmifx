@@ -455,13 +455,16 @@ router.post('/admin/reverse-commission', async (req, res) => {
   }
 })
 
-// GET /api/ib/admin/commissions - Get all commissions
+// GET /api/ib/admin/commissions - Get all commissions (scoped)
 router.get('/admin/commissions', async (req, res) => {
   try {
     const { status, limit = 50, offset = 0 } = req.query
 
     let query = {}
     if (status) query.status = status
+
+    const userIds = await getScopedUserIds(req)
+    if (userIds !== null) query.ibUserId = { $in: userIds }
 
     const commissions = await IBCommission.find(query)
       .populate('ibUserId', 'firstName email referralCode')
@@ -473,9 +476,10 @@ router.get('/admin/commissions', async (req, res) => {
 
     const total = await IBCommission.countDocuments(query)
 
-    // Calculate totals
+    // Calculate totals (scoped)
+    const totalsMatch = { status: 'CREDITED', ...(userIds !== null ? { ibUserId: { $in: userIds } } : {}) }
     const totals = await IBCommission.aggregate([
-      { $match: { status: 'CREDITED' } },
+      { $match: totalsMatch },
       {
         $group: {
           _id: null,
@@ -699,12 +703,17 @@ router.post('/admin/transfer-referrals', async (req, res) => {
 // GET /api/ib/admin/dashboard - Admin dashboard stats
 router.get('/admin/dashboard', async (req, res) => {
   try {
-    const totalIBs = await User.countDocuments({ isIB: true })
-    const activeIBs = await User.countDocuments({ isIB: true, ibStatus: 'ACTIVE' })
-    const pendingIBs = await User.countDocuments({ isIB: true, ibStatus: 'PENDING' })
+    const userIds = await getScopedUserIds(req)
+    const userScope = userIds !== null ? { _id: { $in: userIds } } : {}
+    const ibScope = userIds !== null ? { ibUserId: { $in: userIds } } : {}
 
+    const totalIBs = await User.countDocuments({ isIB: true, ...userScope })
+    const activeIBs = await User.countDocuments({ isIB: true, ibStatus: 'ACTIVE', ...userScope })
+    const pendingIBs = await User.countDocuments({ isIB: true, ibStatus: 'PENDING', ...userScope })
+
+    const commissionMatch = { status: 'CREDITED', ...ibScope }
     const commissionStats = await IBCommission.aggregate([
-      { $match: { status: 'CREDITED' } },
+      { $match: commissionMatch },
       {
         $group: {
           _id: null,
@@ -715,6 +724,7 @@ router.get('/admin/dashboard', async (req, res) => {
     ])
 
     const walletStats = await IBWallet.aggregate([
+      { $match: ibScope },
       {
         $group: {
           _id: null,

@@ -14,6 +14,18 @@ const __dirname = path.dirname(__filename)
 
 const router = express.Router()
 
+// Assert a KYC userId is within the calling admin's scope
+async function assertKycUserInScope(req, res, userId) {
+  if (req.admin && req.admin.role === 'SUPER_ADMIN') return true
+  const ids = await getScopedUserIds(req)
+  const allowed = (ids || []).some(id => id.toString() === userId.toString())
+  if (!allowed) {
+    res.status(403).json({ success: false, message: 'Access denied: user not in your branch' })
+    return false
+  }
+  return true
+}
+
 // Ensure KYC uploads directory exists
 const kycUploadsDir = path.join(__dirname, '../uploads/kyc')
 if (!fs.existsSync(kycUploadsDir)) {
@@ -363,6 +375,8 @@ router.put('/approve/:kycId', requirePermission('canApproveKYC'), async (req, re
       })
     }
 
+    if (!(await assertKycUserInScope(req, res, kyc.userId))) return
+
     if (kyc.status !== 'pending') {
       return res.status(400).json({
         success: false,
@@ -428,6 +442,8 @@ router.put('/reject/:kycId', requirePermission('canApproveKYC'), async (req, res
       })
     }
 
+    if (!(await assertKycUserInScope(req, res, kyc.userId))) return
+
     if (kyc.status !== 'pending') {
       return res.status(400).json({
         success: false,
@@ -488,6 +504,9 @@ router.get('/view/:kycId', async (req, res) => {
         message: 'KYC submission not found'
       })
     }
+
+    const ownerId = kyc.userId && kyc.userId._id ? kyc.userId._id : kyc.userId
+    if (!(await assertKycUserInScope(req, res, ownerId))) return
 
     res.json({
       success: true,
