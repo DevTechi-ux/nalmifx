@@ -411,7 +411,7 @@ const AdminBankSettings = () => {
   const usdtMethods = paymentMethods.filter(m => m.type === 'USDT')
 
   return (
-    <AdminLayout title="Bank Settings" subtitle="Manage bank accounts and payment methods">
+    <AdminLayout title="Bank Settings" subtitle="Manage bank accounts & payment methods">
       {/* Tabs */}
       <div className="flex gap-2 mb-6">
         <button
