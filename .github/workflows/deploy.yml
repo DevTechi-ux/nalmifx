@@ -9,39 +9,20 @@ on:
 jobs:
   deploy:
     runs-on: self-hosted
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
 
-      - name: Deploy to VPS
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT }}
-          command_timeout: 10m
-          timeout: 120s
-          script: |
-            cd /home/nalmifx/nalmifx
-            
-            # Pull latest changes
-            git pull origin main
-            
-            # Backend deployment
-            cd backend
-            npm install --production
-            
-            # Restart backend with PM2
-            pm2 restart nalmifx-backend || pm2 start server.js --name nalmifx-backend
-            
-            # Frontend deployment
-            cd ../frontend
-            npm install
-            npm run build
-            
-            # Restart frontend if using serve
-            pm2 restart nalmifx-frontend || echo "Frontend served via nginx"
-            
-            echo "✅ Deployment completed successfully!"
+    steps:
+      - name: Deploy
+        run: |
+          cd /home/nalmifx/nalmifx
+          git pull origin main
+
+          cd backend
+          npm install --production
+          pm2 restart nalmifx-backend || pm2 start server.js --name nalmifx-backend
+
+          cd ../frontend
+          npm install
+          npm run build
+          pm2 restart nalmifx-frontend || echo "Frontend served via nginx"
+
+          echo "✅ Deployment completed successfully!"

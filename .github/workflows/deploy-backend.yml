@@ -11,31 +11,13 @@ on:
 jobs:
   deploy-backend:
     runs-on: self-hosted
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
 
-      - name: Deploy Backend to VPS
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT }}
-          command_timeout: 5m
-          timeout: 120s
-          script: |
-            cd /home/nalmifx/nalmifx
-            
-            # Pull latest changes
-            git pull origin main
-            
-            # Backend deployment
-            cd backend
-            npm install --production
-            
-            # Restart backend with PM2
-            pm2 restart nalmifx-backend
-            
-            echo "✅ Backend deployment completed!"
+    steps:
+      - name: Deploy Backend
+        run: |
+          cd /home/nalmifx/nalmifx
+          git pull origin main
+          cd backend
+          npm install --production
+          pm2 restart nalmifx-backend
+          echo "✅ Backend deployment completed!"
