@@ -332,6 +332,7 @@ router.get('/admin/transactions', requirePermission('canManageDeposits'), async 
     const query = userIds !== null ? { userId: { $in: userIds } } : {}
     const transactions = await Transaction.find(query)
       .populate('userId', 'firstName lastName email')
+      .populate('tradingAccountId', 'accountId isDemo')
       .sort({ createdAt: -1 })
     res.json({ transactions })
   } catch (error) {

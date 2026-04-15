@@ -28,6 +28,7 @@ const AdminFundManagement = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState('all')
   const [transactions, setTransactions] = useState([])
+  const [demoTransactions, setDemoTransactions] = useState([])
   const [stats, setStats] = useState({ deposits: 0, withdrawals: 0, pending: 0, net: 0 })
   const [loading, setLoading] = useState(true)
   const [selectedTxn, setSelectedTxn] = useState(null)
@@ -77,26 +78,37 @@ const AdminFundManagement = () => {
       const res = await adminFetch(`${API_URL}/wallet/admin/transactions`)
       const data = await res.json()
       if (data.transactions) {
-        let filtered = data.transactions
-        if (filterType === 'deposit') {
-          filtered = data.transactions.filter(t => t.type?.toUpperCase() === 'DEPOSIT')
-        } else if (filterType === 'withdrawal') {
-          filtered = data.transactions.filter(t => t.type?.toUpperCase() === 'WITHDRAWAL')
-        } else if (filterType === 'admin') {
-          filtered = data.transactions.filter(t => t.type === 'Admin_Credit' || t.type === 'Admin_Debit')
+        // Split into real vs demo
+        const isDemoTxn = (t) => {
+          if (t.type === 'Demo_Credit' || t.type === 'Demo_Reset') return true
+          if (t.tradingAccountId && t.tradingAccountId.isDemo) return true
+          return false
         }
-        setTransactions(filtered)
-        
-        // Calculate stats
-        const deposits = data.transactions.filter(t => t.type?.toUpperCase() === 'DEPOSIT' && t.status?.toUpperCase() === 'APPROVED')
+        const allReal = data.transactions.filter(t => !isDemoTxn(t))
+        const allDemo = data.transactions.filter(isDemoTxn)
+
+        let filteredReal = allReal
+        if (filterType === 'deposit') {
+          filteredReal = allReal.filter(t => t.type?.toUpperCase() === 'DEPOSIT')
+        } else if (filterType === 'withdrawal') {
+          filteredReal = allReal.filter(t => t.type?.toUpperCase() === 'WITHDRAWAL')
+        } else if (filterType === 'admin') {
+          filteredReal = allReal.filter(t => t.type === 'Admin_Credit' || t.type === 'Admin_Debit')
+        }
+        setTransactions(filteredReal)
+        setDemoTransactions(allDemo)
+
+        const realTxns = allReal
+
+        const deposits = realTxns.filter(t => t.type?.toUpperCase() === 'DEPOSIT' && t.status?.toUpperCase() === 'APPROVED')
           .reduce((sum, t) => sum + (t.amount || 0), 0)
-        const adminCredits = data.transactions.filter(t => t.type === 'Admin_Credit')
+        const adminCredits = realTxns.filter(t => t.type === 'Admin_Credit')
           .reduce((sum, t) => sum + (t.amount || 0), 0)
-        const withdrawals = data.transactions.filter(t => t.type?.toUpperCase() === 'WITHDRAWAL' && t.status?.toUpperCase() === 'APPROVED')
+        const withdrawals = realTxns.filter(t => t.type?.toUpperCase() === 'WITHDRAWAL' && t.status?.toUpperCase() === 'APPROVED')
           .reduce((sum, t) => sum + (t.amount || 0), 0)
-        const adminDebits = data.transactions.filter(t => t.type === 'Admin_Debit')
+        const adminDebits = realTxns.filter(t => t.type === 'Admin_Debit')
           .reduce((sum, t) => sum + (t.amount || 0), 0)
-        const pending = data.transactions.filter(t => t.status?.toUpperCase() === 'PENDING').length
+        const pending = realTxns.filter(t => t.status?.toUpperCase() === 'PENDING').length
         
         setStats({
           deposits: deposits + adminCredits,
@@ -257,6 +269,15 @@ const AdminFundManagement = () => {
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'transactions' ? 'bg-red-500 text-white' : 'text-gray-400 hover:text-white'}`}
         >
           Transactions
+        </button>
+        <button
+          onClick={() => setActiveTab('demo')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'demo' ? 'bg-red-500 text-white' : 'text-gray-400 hover:text-white'}`}
+        >
+          Demo Transactions
+          {demoTransactions.length > 0 && (
+            <span className="ml-2 bg-gray-700 text-white text-xs px-2 py-0.5 rounded-full">{demoTransactions.length}</span>
+          )}
         </button>
         <button
           onClick={() => setActiveTab('settlements')}
@@ -555,6 +576,55 @@ const AdminFundManagement = () => {
       </div>
 
       </>}
+
+      {activeTab === 'demo' && (
+        <div className="bg-dark-800 rounded-xl border border-gray-800 overflow-hidden">
+          <div className="p-4 sm:p-5 border-b border-gray-800">
+            <h2 className="text-white font-semibold text-lg">Demo Account Transactions</h2>
+            <p className="text-gray-500 text-sm mt-1">These do not affect Total Deposits, Total Withdrawals, or Net Balance.</p>
+          </div>
+          {demoTransactions.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">No demo transactions</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-700">
+                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Transaction ID</th>
+                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">User</th>
+                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Type</th>
+                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Amount</th>
+                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Demo Account</th>
+                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Description</th>
+                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Status</th>
+                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {demoTransactions.map((txn) => (
+                    <tr key={txn._id} className="border-b border-gray-800 hover:bg-dark-700/50">
+                      <td className="py-4 px-4 text-white font-mono text-sm">{txn.transactionRef || txn._id?.slice(-8)}</td>
+                      <td className="py-4 px-4 text-white">{txn.userId?.firstName || txn.userId?.email}</td>
+                      <td className="py-4 px-4">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-blue-500/20 text-blue-400">
+                          {getTypeLabel(txn.type)}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-blue-400 font-medium">${(txn.amount || 0).toLocaleString()}</td>
+                      <td className="py-4 px-4 text-gray-400 text-sm">{txn.tradingAccountId?.accountId || txn.tradingAccountName || '-'}</td>
+                      <td className="py-4 px-4 text-gray-400 text-sm max-w-[200px] truncate" title={txn.description}>{txn.description || '-'}</td>
+                      <td className="py-4 px-4">
+                        <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(txn.status)}`}>{txn.status}</span>
+                      </td>
+                      <td className="py-4 px-4 text-gray-400">{new Date(txn.createdAt).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Transaction Details Modal */}
       {showDetailsModal && selectedTxn && (
