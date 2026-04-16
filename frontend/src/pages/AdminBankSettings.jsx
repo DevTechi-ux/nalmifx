@@ -37,6 +37,7 @@ const AdminBankSettings = () => {
     ifscCode: '',
     upiId: '',
     qrCodeImage: '',
+    cashLocationType: 'pickup',
     cashPickupLocation: '',
     cashDropLocation: '',
     cashInstructions: '',
@@ -226,12 +227,12 @@ const AdminBankSettings = () => {
 
   const handleSaveCurrency = async () => {
     try {
-      const url = editingCurrency 
+      const url = editingCurrency
         ? `${API_URL}/payment-methods/currencies/${editingCurrency._id}`
         : `${API_URL}/payment-methods/currencies`
       const method = editingCurrency ? 'PUT' : 'POST'
 
-      const res = await fetch(url, {
+      const res = await adminFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(currencyForm)
@@ -301,18 +302,18 @@ const AdminBankSettings = () => {
 
   const handleSave = async () => {
     try {
-      const url = editingMethod 
+      const url = editingMethod
         ? `${API_URL}/payment-methods/${editingMethod._id}`
         : `${API_URL}/payment-methods`
       const method = editingMethod ? 'PUT' : 'POST'
 
-      const res = await fetch(url, {
+      const res = await adminFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
       })
       const data = await res.json()
-      
+
       if (res.ok) {
         alert(editingMethod ? 'Payment method updated!' : 'Payment method created!')
         setShowAddModal(false)
@@ -363,6 +364,7 @@ const AdminBankSettings = () => {
       ifscCode: method.ifscCode || '',
       upiId: method.upiId || '',
       qrCodeImage: method.qrCodeImage || '',
+      cashLocationType: method.cashDropLocation ? 'drop' : 'pickup',
       cashPickupLocation: method.cashPickupLocation || '',
       cashDropLocation: method.cashDropLocation || '',
       cashInstructions: method.cashInstructions || '',
@@ -383,6 +385,7 @@ const AdminBankSettings = () => {
       ifscCode: '',
       upiId: '',
       qrCodeImage: '',
+      cashLocationType: 'pickup',
       cashPickupLocation: '',
       cashDropLocation: '',
       cashInstructions: '',
@@ -1273,13 +1276,43 @@ const AdminBankSettings = () => {
               {form.type === 'Cash' && (
                 <>
                   <div>
-                    <label className="block text-gray-400 text-sm mb-1">Pickup Location</label>
-                    <input type="text" value={form.cashPickupLocation} onChange={(e) => setForm({ ...form, cashPickupLocation: e.target.value })} placeholder="e.g., 123 Main St, City" className="w-full px-3 py-2 bg-dark-700 border border-gray-700 rounded-lg text-white" />
+                    <label className="block text-gray-400 text-sm mb-2">Location Type</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, cashLocationType: 'pickup', cashDropLocation: '' })}
+                        className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                          form.cashLocationType === 'pickup'
+                            ? 'bg-red-500 border-red-500 text-white'
+                            : 'bg-dark-700 border-gray-700 text-gray-300 hover:border-gray-600'
+                        }`}
+                      >
+                        Pickup
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, cashLocationType: 'drop', cashPickupLocation: '' })}
+                        className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                          form.cashLocationType === 'drop'
+                            ? 'bg-red-500 border-red-500 text-white'
+                            : 'bg-dark-700 border-gray-700 text-gray-300 hover:border-gray-600'
+                        }`}
+                      >
+                        Drop
+                      </button>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-gray-400 text-sm mb-1">Drop Location</label>
-                    <input type="text" value={form.cashDropLocation} onChange={(e) => setForm({ ...form, cashDropLocation: e.target.value })} placeholder="e.g., 456 Market Rd, City" className="w-full px-3 py-2 bg-dark-700 border border-gray-700 rounded-lg text-white" />
-                  </div>
+                  {form.cashLocationType === 'pickup' ? (
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-1">Pickup Location</label>
+                      <input type="text" value={form.cashPickupLocation} onChange={(e) => setForm({ ...form, cashPickupLocation: e.target.value })} placeholder="e.g., 123 Main St, City" className="w-full px-3 py-2 bg-dark-700 border border-gray-700 rounded-lg text-white" />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-1">Drop Location</label>
+                      <input type="text" value={form.cashDropLocation} onChange={(e) => setForm({ ...form, cashDropLocation: e.target.value })} placeholder="e.g., 456 Market Rd, City" className="w-full px-3 py-2 bg-dark-700 border border-gray-700 rounded-lg text-white" />
+                    </div>
+                  )}
                   <div>
                     <label className="block text-gray-400 text-sm mb-1">Instructions for Users</label>
                     <textarea value={form.cashInstructions} onChange={(e) => setForm({ ...form, cashInstructions: e.target.value })} placeholder="Any special instructions for cash transactions..." rows={3} className="w-full px-3 py-2 bg-dark-700 border border-gray-700 rounded-lg text-white resize-none" />

@@ -16,7 +16,9 @@ function currentAdminTokenKey() {
 }
 
 export default function adminFetch(url, options = {}) {
-  const token = localStorage.getItem(currentAdminTokenKey())
+  const primaryKey = currentAdminTokenKey()
+  const fallbackKey = primaryKey === 'adminToken' ? 'branchToken' : 'adminToken'
+  const token = localStorage.getItem(primaryKey) || localStorage.getItem(fallbackKey)
   const headers = {
     ...(options.headers || {}),
   }

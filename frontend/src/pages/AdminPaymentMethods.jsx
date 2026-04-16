@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import adminFetch from '../utils/adminFetch.js'
 import { useNavigate } from 'react-router-dom'
-import { 
-  LayoutDashboard, 
+import {
+  LayoutDashboard,
   Users,
   LogOut,
   Plus,
@@ -15,7 +15,9 @@ import {
   Settings,
   Building,
   Smartphone,
-  QrCode
+  QrCode,
+  Banknote,
+  Bitcoin
 } from 'lucide-react'
 import { API_URL } from '../config/api'
 
@@ -37,6 +39,12 @@ const AdminPaymentMethods = () => {
     ifscCode: '',
     upiId: '',
     qrCodeImage: '',
+    cashPickupLocation: '',
+    cashDropLocation: '',
+    cashInstructions: '',
+    usdtWalletAddress: '',
+    usdtWalletQr: '',
+    usdtNetwork: 'TRC20',
     isActive: true
   })
 
@@ -49,8 +57,13 @@ const AdminPaymentMethods = () => {
   ]
 
   useEffect(() => {
-    const adminToken = localStorage.getItem('adminToken')
-    if (!adminToken) navigate('/admin')
+    const isSuperPath = window.location.pathname.startsWith('/admin')
+    const tokenKey = isSuperPath ? 'adminToken' : 'branchToken'
+    const token = localStorage.getItem(tokenKey)
+    if (!token) {
+      navigate('/admin')
+      return
+    }
     fetchPaymentMethods()
   }, [navigate])
 
@@ -74,18 +87,21 @@ const AdminPaymentMethods = () => {
 
     try {
       const url = editingMethod ? `${API_URL}/payment-methods/${editingMethod._id}` : `${API_URL}/payment-methods`
-      const res = await fetch(url, {
+      const res = await adminFetch(url, {
         method: editingMethod ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       })
-      
+
       if (res.ok) {
         setSuccess(editingMethod ? 'Payment method updated!' : 'Payment method created!')
         setShowModal(false)
         resetForm()
         fetchPaymentMethods()
         setTimeout(() => setSuccess(''), 3000)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setError(data.message || 'Error saving payment method')
       }
     } catch (error) {
       setError('Error saving payment method')
@@ -120,7 +136,22 @@ const AdminPaymentMethods = () => {
   }
 
   const resetForm = () => {
-    setFormData({ type: 'Bank Transfer', bankName: '', accountNumber: '', accountHolderName: '', ifscCode: '', upiId: '', qrCodeImage: '', isActive: true })
+    setFormData({
+      type: 'Bank Transfer',
+      bankName: '',
+      accountNumber: '',
+      accountHolderName: '',
+      ifscCode: '',
+      upiId: '',
+      qrCodeImage: '',
+      cashPickupLocation: '',
+      cashDropLocation: '',
+      cashInstructions: '',
+      usdtWalletAddress: '',
+      usdtWalletQr: '',
+      usdtNetwork: 'TRC20',
+      isActive: true
+    })
     setEditingMethod(null)
     setError('')
   }
@@ -134,6 +165,8 @@ const AdminPaymentMethods = () => {
   const getIcon = (type) => {
     if (type === 'Bank Transfer') return <Building size={24} />
     if (type === 'UPI') return <Smartphone size={24} />
+    if (type === 'Cash') return <Banknote size={24} />
+    if (type === 'USDT') return <Bitcoin size={24} />
     return <QrCode size={24} />
   }
 
@@ -206,6 +239,20 @@ const AdminPaymentMethods = () => {
                     )}
                     {method.type === 'UPI' && <p className="text-gray-400">UPI ID: <span className="text-white">{method.upiId || 'N/A'}</span></p>}
                     {method.type === 'QR Code' && <p className="text-gray-400">QR: <span className="text-white">{method.qrCodeImage ? 'Uploaded' : 'Not set'}</span></p>}
+                    {method.type === 'Cash' && (
+                      <>
+                        {method.cashPickupLocation && <p className="text-gray-400">Pickup: <span className="text-white">{method.cashPickupLocation}</span></p>}
+                        {method.cashDropLocation && <p className="text-gray-400">Drop: <span className="text-white">{method.cashDropLocation}</span></p>}
+                        {method.cashInstructions && <p className="text-gray-400">Notes: <span className="text-white">{method.cashInstructions}</span></p>}
+                      </>
+                    )}
+                    {method.type === 'USDT' && (
+                      <>
+                        <p className="text-gray-400">Network: <span className="text-orange-400">{method.usdtNetwork || 'TRC20'}</span></p>
+                        <p className="text-gray-400">Wallet: <span className="text-white font-mono text-xs break-all">{method.usdtWalletAddress || 'N/A'}</span></p>
+                        <p className="text-gray-400">QR: <span className="text-white">{method.usdtWalletQr ? 'Uploaded' : 'Not set'}</span></p>
+                      </>
+                    )}
                   </div>
 
                   <div className="flex gap-2">
@@ -241,6 +288,8 @@ const AdminPaymentMethods = () => {
                   <option value="Bank Transfer">Bank Transfer</option>
                   <option value="UPI">UPI</option>
                   <option value="QR Code">QR Code</option>
+                  <option value="Cash">Cash</option>
+                  <option value="USDT">USDT</option>
                 </select>
               </div>
 
@@ -259,6 +308,26 @@ const AdminPaymentMethods = () => {
 
               {formData.type === 'QR Code' && (
                 <input type="text" value={formData.qrCodeImage} onChange={(e) => setFormData({ ...formData, qrCodeImage: e.target.value })} placeholder="QR Code Image URL" className="w-full bg-dark-700 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none" />
+              )}
+
+              {formData.type === 'Cash' && (
+                <>
+                  <input type="text" value={formData.cashPickupLocation} onChange={(e) => setFormData({ ...formData, cashPickupLocation: e.target.value })} placeholder="Pickup Location" className="w-full bg-dark-700 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none" />
+                  <input type="text" value={formData.cashDropLocation} onChange={(e) => setFormData({ ...formData, cashDropLocation: e.target.value })} placeholder="Drop Location" className="w-full bg-dark-700 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none" />
+                  <textarea value={formData.cashInstructions} onChange={(e) => setFormData({ ...formData, cashInstructions: e.target.value })} placeholder="Instructions (optional)" rows={3} className="w-full bg-dark-700 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none resize-none" />
+                </>
+              )}
+
+              {formData.type === 'USDT' && (
+                <>
+                  <select value={formData.usdtNetwork} onChange={(e) => setFormData({ ...formData, usdtNetwork: e.target.value })} className="w-full bg-dark-700 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none">
+                    <option value="TRC20">TRC20 (Tron)</option>
+                    <option value="ERC20">ERC20 (Ethereum)</option>
+                    <option value="BEP20">BEP20 (BSC)</option>
+                  </select>
+                  <input type="text" value={formData.usdtWalletAddress} onChange={(e) => setFormData({ ...formData, usdtWalletAddress: e.target.value })} placeholder="USDT Wallet Address" className="w-full bg-dark-700 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none font-mono" />
+                  <input type="text" value={formData.usdtWalletQr} onChange={(e) => setFormData({ ...formData, usdtWalletQr: e.target.value })} placeholder="Wallet QR Image URL (optional)" className="w-full bg-dark-700 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none" />
+                </>
               )}
             </div>
 
