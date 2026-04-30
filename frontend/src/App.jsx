@@ -46,6 +46,8 @@ import LandingPage from './pages/LandingPage'
 import PrivacyPolicy from './pages/PrivacyPolicy'
 import TermsOfService from './pages/TermsOfService'
 import DataDeletion from './pages/DataDeletion'
+import AboutUs from './pages/AboutUs'
+import Cryptocurrencies from './pages/Cryptocurrencies'
 
 // Guard: blocks a route if the admin doesn't have the required permission.
 // Reads from branchUser/adminUser depending on which route space we're in.
@@ -151,6 +153,8 @@ function App() {
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/data-deletion" element={<DataDeletion />} />
+        <Route path="/about-us" element={<AboutUs />} />
+        <Route path="/cryptocurrencies" element={<Cryptocurrencies />} />
         <Route path="/:slug/login" element={<BrandedLogin />} />
         <Route path="/:slug/signup" element={<BrandedSignup />} />
         <Route path="/:slug/admin" element={<AdminLogin />} />
