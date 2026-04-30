@@ -23,6 +23,7 @@ import {
   Sun,
   Moon
 } from 'lucide-react'
+import useSupportUnread from '../hooks/useSupportUnread.js'
 import { useTheme } from '../context/ThemeContext'
 import { API_URL } from '../config/api'
 import logoImage from '../assets/nalmifx.png'
@@ -256,6 +257,9 @@ const Dashboard = () => {
     }
   }
 
+  const supportUnread = useSupportUnread()
+
+
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { name: 'Account', icon: User, path: '/account' },
@@ -264,7 +268,7 @@ const Dashboard = () => {
     { name: 'IB', icon: Users, path: '/ib' },
     { name: 'Copytrade', icon: Copy, path: '/copytrade' },
     { name: 'Profile', icon: UserCircle, path: '/profile' },
-    { name: 'Support', icon: HelpCircle, path: '/support' },
+    { name: 'Support', icon: HelpCircle, path: '/support', badge: supportUnread },
     { name: 'Instructions', icon: FileText, path: '/instructions' },
   ]
 
@@ -380,7 +384,14 @@ const Dashboard = () => {
               }`}
               title={!sidebarExpanded ? item.name : ''}
             >
-              <item.icon size={18} className="flex-shrink-0" />
+              <span className="relative flex-shrink-0 inline-flex">
+                  <item.icon size={18} />
+                  {item.badge > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center leading-none">
+                      {item.badge > 9 ? '9+' : item.badge}
+                    </span>
+                  )}
+                </span>
               {sidebarExpanded && <span className="text-sm font-medium whitespace-nowrap">{item.name}</span>}
             </button>
           ))}

@@ -2,8 +2,39 @@ import express from 'express'
 import SupportTicket from '../models/SupportTicket.js'
 import User from '../models/User.js'
 import { getScopedUserIds } from '../middleware/auth.js'
+import { generateAutoReply, SUPPORT_BOT_NAME } from '../services/supportBot.js'
 
 const router = express.Router()
+
+// Append a bot auto-reply to a ticket. Best-effort: failures are swallowed
+// so a bot hiccup never breaks the user-facing create/reply flow.
+async function appendBotReply(ticket, { subject, message }) {
+  try {
+    const reply = generateAutoReply({
+      message,
+      subject: subject || ticket.subject,
+      priority: ticket.priority,
+      category: ticket.category,
+    })
+    if (!reply) return
+    ticket.messages.push({
+      sender: 'ADMIN',
+      senderId: ticket.userId,
+      senderName: reply.botName || SUPPORT_BOT_NAME,
+      message: reply.message,
+      isBot: true,
+    })
+    // Bot is actively handling the ticket — keep it IN_PROGRESS so the user
+    // sees a live conversation (and the unread badge fires) instead of the
+    // ticket bouncing into WAITING_USER as if a human had replied.
+    if (ticket.status === 'OPEN' || ticket.status === 'WAITING_USER') {
+      ticket.status = 'IN_PROGRESS'
+    }
+    await ticket.save()
+  } catch (e) {
+    console.error('Support bot auto-reply failed:', e.message)
+  }
+}
 
 // Assert a ticket's userId is within the calling admin's scope
 async function assertTicketUserInScope(req, res, userId) {
@@ -44,6 +75,9 @@ router.post('/create', async (req, res) => {
       }]
     })
 
+    // Auto-reply: triage the ticket immediately based on priority + category
+    await appendBotReply(ticket, { subject, message })
+
     res.json({
       success: true,
       message: 'Support ticket created successfully',
@@ -55,6 +89,17 @@ router.post('/create', async (req, res) => {
   }
 })
 
+// Count unread messages on a ticket from the user's POV — every non-USER
+// message created after userLastReadAt is unread.
+function countUnread(ticket) {
+  const cutoff = ticket.userLastReadAt ? new Date(ticket.userLastReadAt).getTime() : 0
+  let n = 0
+  for (const m of ticket.messages || []) {
+    if (m.sender !== 'USER' && new Date(m.createdAt).getTime() > cutoff) n++
+  }
+  return n
+}
+
 // GET /api/support/user/:userId - Get user's tickets
 router.get('/user/:userId', async (req, res) => {
   try {
@@ -64,13 +109,66 @@ router.get('/user/:userId', async (req, res) => {
     const query = { userId }
     if (status) query.status = status
 
-    const tickets = await SupportTicket.find(query)
+    const docs = await SupportTicket.find(query)
       .sort({ createdAt: -1 })
       .populate('assignedTo', 'firstName email')
+
+    const tickets = docs.map(d => {
+      const obj = d.toObject()
+      obj.unreadCount = countUnread(d)
+      return obj
+    })
 
     res.json({ success: true, tickets })
   } catch (error) {
     console.error('Error fetching user tickets:', error)
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
+// GET /api/support/user/:userId/unread - Total unread admin/bot replies
+// across the user's open tickets. Drives the sidebar notification badge.
+router.get('/user/:userId/unread', async (req, res) => {
+  try {
+    const { userId } = req.params
+    const tickets = await SupportTicket.find({
+      userId,
+      status: { $nin: ['CLOSED'] },
+    }).select('messages userLastReadAt')
+
+    let total = 0
+    let ticketsWithUnread = 0
+    for (const t of tickets) {
+      const n = countUnread(t)
+      if (n > 0) {
+        total += n
+        ticketsWithUnread++
+      }
+    }
+    res.json({ success: true, count: total, tickets: ticketsWithUnread })
+  } catch (error) {
+    console.error('Error fetching unread count:', error)
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
+// POST /api/support/user/:userId/mark-read/:ticketId - Mark all current
+// admin/bot messages as read by the user. Called when the user opens a ticket.
+router.post('/user/:userId/mark-read/:ticketId', async (req, res) => {
+  try {
+    const { userId, ticketId } = req.params
+    const ticket = await SupportTicket.findOne({ ticketId })
+    if (!ticket) {
+      return res.status(404).json({ success: false, message: 'Ticket not found' })
+    }
+    if (ticket.userId.toString() !== userId.toString()) {
+      return res.status(403).json({ success: false, message: 'Not your ticket' })
+    }
+    ticket.userLastReadAt = new Date()
+    await ticket.save()
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Error marking ticket read:', error)
     res.status(500).json({ success: false, message: error.message })
   }
 })
@@ -147,6 +245,13 @@ router.post('/reply/:ticketId', async (req, res) => {
     }
 
     await ticket.save()
+
+    // If a user replied and no human admin has taken the ticket yet, the bot
+    // can offer another targeted answer. We skip when assignedTo is set so the
+    // bot doesn't talk over a human handler.
+    if (senderType !== 'ADMIN' && !ticket.assignedTo && ticket.status !== 'CLOSED' && ticket.status !== 'RESOLVED') {
+      await appendBotReply(ticket, { subject: ticket.subject, message })
+    }
 
     // Re-fetch with populated fields
     const updatedTicket = await SupportTicket.findOne({ ticketId })

@@ -6,6 +6,7 @@ import {
   TrendingUp, DollarSign, UserPlus, Link, ChevronDown, ChevronRight, Award, Trophy,
   ArrowLeft, Home, Crown, Share2, RefreshCw, Sun, Moon
 } from 'lucide-react'
+import useSupportUnread from '../hooks/useSupportUnread.js'
 import { useTheme } from '../context/ThemeContext'
 import { API_URL } from '../config/api'
 import logoImage from '../assets/nalmifx.png'
@@ -28,6 +29,9 @@ const IBPage = () => {
 
   const user = JSON.parse(localStorage.getItem('user') || '{}')
 
+  const supportUnread = useSupportUnread()
+
+
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { name: 'Account', icon: User, path: '/account' },
@@ -36,7 +40,7 @@ const IBPage = () => {
     { name: 'IB', icon: Users, path: '/ib' },
     { name: 'Copytrade', icon: Copy, path: '/copytrade' },
     { name: 'Profile', icon: UserCircle, path: '/profile' },
-    { name: 'Support', icon: HelpCircle, path: '/support' },
+    { name: 'Support', icon: HelpCircle, path: '/support', badge: supportUnread },
     { name: 'Instructions', icon: FileText, path: '/instructions' },
   ]
 
@@ -278,7 +282,14 @@ const IBPage = () => {
                   item.name === 'IB' ? 'bg-accent-green text-black' : isDarkMode ? 'text-gray-400 hover:text-white hover:bg-dark-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                 }`}
               >
-                <item.icon size={18} className="flex-shrink-0" />
+                <span className="relative flex-shrink-0 inline-flex">
+                  <item.icon size={18} />
+                  {item.badge > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center leading-none">
+                      {item.badge > 9 ? '9+' : item.badge}
+                    </span>
+                  )}
+                </span>
                 {sidebarExpanded && <span className="text-sm font-medium">{item.name}</span>}
               </button>
             ))}

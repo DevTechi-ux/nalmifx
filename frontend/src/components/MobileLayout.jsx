@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { 
-  Home, 
-  BarChart2, 
-  TrendingUp, 
-  LineChart, 
+import {
+  Home,
+  BarChart2,
+  TrendingUp,
+  LineChart,
   MoreHorizontal,
   Copy,
   Users,
@@ -16,6 +16,7 @@ import {
   X,
   ChevronRight
 } from 'lucide-react'
+import useSupportUnread from '../hooks/useSupportUnread.js'
 
 const MobileLayout = ({ children, activeTab = 'home' }) => {
   const navigate = useNavigate()
@@ -35,12 +36,14 @@ const MobileLayout = ({ children, activeTab = 'home' }) => {
     navigate('/user/login')
   }
 
+  const supportUnread = useSupportUnread()
+
   const moreMenuItems = [
     { name: 'Wallet', icon: Wallet, path: '/wallet' },
     { name: 'Copy Trade', icon: Copy, path: '/copytrade' },
     { name: 'IB Program', icon: Users, path: '/ib' },
     { name: 'Profile', icon: UserCircle, path: '/profile' },
-    { name: 'Support', icon: HelpCircle, path: '/support' },
+    { name: 'Support', icon: HelpCircle, path: '/support', badge: supportUnread },
     { name: 'Instructions', icon: FileText, path: '/instructions' },
   ]
 
@@ -152,8 +155,13 @@ const MobileLayout = ({ children, activeTab = 'home' }) => {
                     className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-dark-700 transition-colors"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-dark-700 rounded-full flex items-center justify-center">
+                      <div className="relative w-10 h-10 bg-dark-700 rounded-full flex items-center justify-center">
                         <item.icon size={20} className="text-accent-green" />
+                        {item.badge > 0 && (
+                          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                            {item.badge > 9 ? '9+' : item.badge}
+                          </span>
+                        )}
                       </div>
                       <span className="text-white font-medium">{item.name}</span>
                     </div>

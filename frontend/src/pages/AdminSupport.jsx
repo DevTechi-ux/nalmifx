@@ -380,30 +380,37 @@ const AdminSupport = () => {
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {selectedTicket.messages?.map((msg, idx) => (
-                <div 
-                  key={idx} 
-                  className={`flex ${msg.sender === 'ADMIN' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div className={`max-w-[80%] rounded-lg p-3 ${
-                    msg.sender === 'ADMIN' 
-                      ? 'bg-red-500/20 text-white' 
-                      : 'bg-dark-700 text-white'
-                  }`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-xs font-medium ${
-                        msg.sender === 'ADMIN' ? 'text-red-400' : 'text-blue-400'
-                      }`}>
-                        {msg.sender === 'ADMIN' ? 'Support' : msg.senderName || 'User'}
-                      </span>
-                      <span className="text-gray-500 text-xs">
-                        {new Date(msg.createdAt).toLocaleString()}
-                      </span>
+              {selectedTicket.messages?.map((msg, idx) => {
+                const isAdmin = msg.sender === 'ADMIN'
+                const isBot = !!msg.isBot
+                const align = isAdmin ? 'justify-end' : 'justify-start'
+                const bubble = isBot
+                  ? 'bg-purple-500/10 border border-purple-500/30 text-white'
+                  : isAdmin
+                    ? 'bg-red-500/20 text-white'
+                    : 'bg-dark-700 text-white'
+                const labelColor = isBot ? 'text-purple-400' : isAdmin ? 'text-red-400' : 'text-blue-400'
+                const label = isBot ? (msg.senderName || 'AI Support Assistant') : isAdmin ? 'Support' : (msg.senderName || 'User')
+                return (
+                  <div key={idx} className={`flex ${align}`}>
+                    <div className={`max-w-[80%] rounded-lg p-3 ${bubble}`}>
+                      <div className="flex items-center gap-2 mb-1">
+                        {isBot && (
+                          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-500/30 text-[9px] font-bold text-purple-200">AI</span>
+                        )}
+                        <span className={`text-xs font-medium ${labelColor}`}>{label}</span>
+                        {isBot && (
+                          <span className="text-[10px] uppercase tracking-wider text-purple-300/70 bg-purple-500/15 rounded px-1.5 py-0.5">Auto-reply</span>
+                        )}
+                        <span className="text-gray-500 text-xs">
+                          {new Date(msg.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
                     </div>
-                    <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
 
             {/* Reply Input */}

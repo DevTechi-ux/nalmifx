@@ -5,6 +5,7 @@ import {
   LayoutDashboard, User, Wallet, Users, Copy, UserCircle, HelpCircle, FileText, LogOut,
   MessageCircle, Send, Clock, CheckCircle, AlertCircle, Plus, Trophy, ArrowLeft, Home, Sun, Moon
 } from 'lucide-react'
+import useSupportUnread, { refreshSupportUnread } from '../hooks/useSupportUnread.js'
 import { useTheme } from '../context/ThemeContext'
 import { API_URL } from '../config/api'
 import logoImage from '../assets/nalmifx.png'
@@ -28,6 +29,9 @@ const SupportPage = () => {
 
   const user = JSON.parse(localStorage.getItem('user') || '{}')
 
+  const supportUnread = useSupportUnread()
+
+
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { name: 'Account', icon: User, path: '/account' },
@@ -36,7 +40,7 @@ const SupportPage = () => {
     { name: 'IB', icon: Users, path: '/ib' },
     { name: 'Copytrade', icon: Copy, path: '/copytrade' },
     { name: 'Profile', icon: UserCircle, path: '/profile' },
-    { name: 'Support', icon: HelpCircle, path: '/support' },
+    { name: 'Support', icon: HelpCircle, path: '/support', badge: supportUnread },
     { name: 'Instructions', icon: FileText, path: '/instructions' },
   ]
 
@@ -97,6 +101,9 @@ const SupportPage = () => {
         setCategory('general')
         setActiveTab('history')
         fetchTickets()
+        // Bot auto-reply lands on the new ticket — refresh badge so the
+        // user sees the unread indicator until they open the conversation.
+        refreshSupportUnread()
       } else {
         alert(data.message || 'Failed to submit ticket')
       }
@@ -130,6 +137,12 @@ const SupportPage = () => {
       const data = await res.json()
       if (data.success) {
         setSelectedTicket(data.ticket)
+        // Mark all current admin/bot messages as seen so the sidebar badge clears.
+        if (user._id) {
+          userFetch(`${API_URL}/support/user/${user._id}/mark-read/${ticketId}`, {
+            method: 'POST',
+          }).then(() => refreshSupportUnread()).catch(() => {})
+        }
       }
     } catch (error) {
       console.error('Error fetching ticket:', error)
@@ -155,6 +168,13 @@ const SupportPage = () => {
         setSelectedTicket(data.ticket)
         setReplyMessage('')
         fetchTickets()
+        // The bot may have just auto-replied; the user is reading it now,
+        // so mark this ticket as read and refresh the sidebar badge.
+        if (user._id && selectedTicket?.ticketId) {
+          userFetch(`${API_URL}/support/user/${user._id}/mark-read/${selectedTicket.ticketId}`, {
+            method: 'POST',
+          }).then(() => refreshSupportUnread()).catch(() => {})
+        }
       }
     } catch (error) {
       console.error('Error sending reply:', error)
@@ -199,7 +219,14 @@ const SupportPage = () => {
                   item.name === 'Support' ? 'bg-accent-green text-black' : isDarkMode ? 'text-gray-400 hover:text-white hover:bg-dark-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                 }`}
               >
-                <item.icon size={18} className="flex-shrink-0" />
+                <span className="relative flex-shrink-0 inline-flex">
+                  <item.icon size={18} />
+                  {item.badge > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center leading-none">
+                      {item.badge > 9 ? '9+' : item.badge}
+                    </span>
+                  )}
+                </span>
                 {sidebarExpanded && <span className="text-sm font-medium">{item.name}</span>}
               </button>
             ))}
@@ -415,30 +442,41 @@ const SupportPage = () => {
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {selectedTicket.messages?.map((msg, idx) => (
-                <div 
-                  key={idx} 
-                  className={`flex ${msg.sender === 'USER' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div className={`max-w-[80%] rounded-lg p-3 ${
-                    msg.sender === 'USER' 
-                      ? 'bg-accent-green/20 text-white' 
-                      : 'bg-dark-700 text-white'
-                  }`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-xs font-medium ${
-                        msg.sender === 'USER' ? 'text-accent-green' : 'text-blue-400'
-                      }`}>
-                        {msg.sender === 'USER' ? 'You' : 'Support'}
-                      </span>
-                      <span className="text-gray-500 text-xs">
-                        {new Date(msg.createdAt).toLocaleString()}
-                      </span>
+              {selectedTicket.messages?.map((msg, idx) => {
+                const isUser = msg.sender === 'USER'
+                const isBot = !!msg.isBot
+                const labelColor = isUser ? 'text-accent-green' : isBot ? 'text-purple-400' : 'text-blue-400'
+                const bubbleClass = isUser
+                  ? 'bg-accent-green/20 text-white'
+                  : isBot
+                    ? 'bg-purple-500/10 border border-purple-500/30 text-white'
+                    : 'bg-dark-700 text-white'
+                const label = isUser ? 'You' : isBot ? (msg.senderName || 'AI Support Assistant') : 'Support'
+                return (
+                  <div
+                    key={idx}
+                    className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div className={`max-w-[80%] rounded-lg p-3 ${bubbleClass}`}>
+                      <div className="flex items-center gap-2 mb-1">
+                        {isBot && (
+                          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-500/30 text-[9px] font-bold text-purple-200">AI</span>
+                        )}
+                        <span className={`text-xs font-medium ${labelColor}`}>
+                          {label}
+                        </span>
+                        {isBot && (
+                          <span className="text-[10px] uppercase tracking-wider text-purple-300/70 bg-purple-500/15 rounded px-1.5 py-0.5">Auto-reply</span>
+                        )}
+                        <span className="text-gray-500 text-xs">
+                          {new Date(msg.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
                     </div>
-                    <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
 
             {/* Reply Input */}

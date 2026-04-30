@@ -23,6 +23,10 @@ const messageSchema = new mongoose.Schema({
     filename: String,
     url: String
   }],
+  isBot: {
+    type: Boolean,
+    default: false
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -69,6 +73,13 @@ const supportTicketSchema = new mongoose.Schema({
     default: null
   },
   closedAt: {
+    type: Date,
+    default: null
+  },
+  // Tracks when the user last opened this ticket. Any non-USER message
+  // (admin or bot) created after this timestamp counts as unread for the
+  // sidebar notification badge.
+  userLastReadAt: {
     type: Date,
     default: null
   }
