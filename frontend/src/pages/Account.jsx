@@ -942,7 +942,7 @@ const Account = () => {
                       </div>
                       <div className="text-center">
                         <p className="text-gray-500 text-xs">Equity</p>
-                        <p className={`font-medium text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>${((account.balance || 0) + (account.credit || 0)).toLocaleString()}</p>
+                        <p className={`font-medium text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>${((account.isDemo || account.accountTypeId?.isDemo) ? (account.balance || 0) : ((account.balance || 0) + (account.credit || 0))).toLocaleString()}</p>
                       </div>
                     </div>
                   </div>

@@ -54,6 +54,14 @@ router.post('/to-trading', async (req, res) => {
       })
     }
 
+    // Block transfers to demo accounts — they are auto-funded and non-refundable
+    if (tradingAccount.isDemo || tradingAccount.accountTypeId?.isDemo) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot transfer funds to a demo account'
+      })
+    }
+
     // Check minimum deposit for first deposit to trading account
     if (tradingAccount.balance === 0 && tradingAccount.accountTypeId?.minDeposit) {
       const minDeposit = tradingAccount.accountTypeId.minDeposit
@@ -135,7 +143,7 @@ router.post('/from-trading', async (req, res) => {
     }
 
     // Get trading account
-    const tradingAccount = await TradingAccount.findById(tradingAccountId)
+    const tradingAccount = await TradingAccount.findById(tradingAccountId).populate('accountTypeId')
     if (!tradingAccount) {
       return res.status(404).json({
         success: false,
@@ -156,6 +164,14 @@ router.post('/from-trading', async (req, res) => {
       return res.status(400).json({
         success: false,
         message: `Cannot transfer from ${tradingAccount.status} account`
+      })
+    }
+
+    // Block withdrawals from demo accounts — demo funds are virtual and non-refundable
+    if (tradingAccount.isDemo || tradingAccount.accountTypeId?.isDemo) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot withdraw funds from a demo account'
       })
     }
 
