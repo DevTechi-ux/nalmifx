@@ -50,7 +50,7 @@ const httpServer = createServer(app)
 // Socket.IO for real-time updates
 // Production hosts must include BOTH apex and www — the browser sends the
 // exact Origin the user typed, and a mismatch returns a CORS error.
-const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || 'https://nalmifx.com,https://www.nalmifx.com,https://api.nalmifx.com,http://localhost:5173,http://localhost:3000').split(',').map(o => o.trim()).filter(Boolean)
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || 'https://nalmifx.com,https://www.nalmifx.com,https://api.nalmifx.com,http://localhost:5173,http://localhost:3000,https://prop.investminfx.net,https://www.prop.investminfx.net').split(',').map(o => o.trim()).filter(Boolean)
 
 const io = new Server(httpServer, {
   cors: {
