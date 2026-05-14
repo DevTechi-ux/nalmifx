@@ -3,3 +3,4 @@
 **/.env
 !**/.env.example
 !**/.env.production
+nalmifx_mobile_app

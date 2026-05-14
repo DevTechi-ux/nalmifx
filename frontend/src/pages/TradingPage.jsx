@@ -630,82 +630,71 @@ const TradingPage = () => {
       setTradeError(`Trading blocked! Kill Switch active for ${killSwitchTimeLeft}`)
       return
     }
-    
+    if (isExecutingTrade) return
     setIsExecutingTrade(true)
+    setTimeout(() => setIsExecutingTrade(false), 1500)
+
     setTradeError('')
-    setTradeSuccess('')
 
-    try {
-      const segment = getSymbolCategory(selectedInstrument.symbol)
-      
-      // Use livePrices first (real-time), fallback to selectedInstrument
-      const livePrice = livePrices[selectedInstrument.symbol]
-      const bid = livePrice?.bid || selectedInstrument.bid
-      const ask = livePrice?.ask || selectedInstrument.ask
-      
-      if (!bid || !ask || bid <= 0 || ask <= 0 || isNaN(bid) || isNaN(ask)) {
-        setTradeError('Market is closed or no price data available. Trading is not available at this time.')
-        setIsExecutingTrade(false)
-        return
-      }
-      
-      const res = await userFetch(`${API_URL}/trade/open`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user._id,
-          tradingAccountId: accountId,
-          symbol: selectedInstrument.symbol,
-          segment,
-          side,
-          orderType: 'MARKET',
-          quantity: parseFloat(volume),
-          bid,
-          ask,
-          leverage: leverage, // Send selected leverage
-          sl: showStopLoss && stopLoss ? parseFloat(stopLoss) : null,
-          tp: showTakeProfit && takeProfit ? parseFloat(takeProfit) : null
-        })
-      })
+    const segment = getSymbolCategory(selectedInstrument.symbol)
+    const livePrice = livePrices[selectedInstrument.symbol]
+    const bid = livePrice?.bid || selectedInstrument.bid
+    const ask = livePrice?.ask || selectedInstrument.ask
 
-      const data = await res.json()
+    if (!bid || !ask || bid <= 0 || ask <= 0 || isNaN(bid) || isNaN(ask)) {
+      setTradeError('Market is closed or no price data available. Trading is not available at this time.')
+      return
+    }
 
+    const orderBody = {
+      userId: user._id,
+      tradingAccountId: accountId,
+      symbol: selectedInstrument.symbol,
+      segment,
+      side,
+      orderType: 'MARKET',
+      quantity: parseFloat(volume),
+      bid,
+      ask,
+      leverage,
+      sl: showStopLoss && stopLoss ? parseFloat(stopLoss) : null,
+      tp: showTakeProfit && takeProfit ? parseFloat(takeProfit) : null
+    }
+
+    // Show success immediately — don't wait for API
+    setTradeSuccess(`${side} order placed!`)
+    setStopLoss('')
+    setTakeProfit('')
+    setShowStopLoss(false)
+    setShowTakeProfit(false)
+    setTimeout(() => setTradeSuccess(''), 3000)
+
+    // Fire API in background
+    userFetch(`${API_URL}/trade/open`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(orderBody)
+    }).then(res => res.json()).then(data => {
       if (data.success) {
-        setTradeSuccess(`${side} order executed successfully!`)
         fetchOpenTrades()
         fetchAccountSummary()
-        // Clear SL/TP after successful trade
-        setStopLoss('')
-        setTakeProfit('')
-        setShowStopLoss(false)
-        setShowTakeProfit(false)
       } else {
-        // Check if account failed due to rule violations
+        setTradeSuccess('')
         if (data.accountFailed) {
-          // Redirect to account page with fail reason
           navigate(`/account?failed=true&reason=${encodeURIComponent(data.failReason || data.message)}`)
-          return
-        }
-        
-        // Show warning count if available
-        if (data.warningCount > 0) {
-          setTradeError(`${data.message} (Warning ${data.warningCount}/3 - ${data.remainingWarnings} remaining before account fails)`)
+        } else if (data.warningCount > 0) {
+          setTradeError(`${data.message} (Warning ${data.warningCount}/3 - ${data.remainingWarnings} remaining)`)
         } else {
           setTradeError(data.message || 'Failed to execute order')
         }
+        setTimeout(() => setTradeError(''), 4000)
       }
-    } catch (error) {
+    }).catch(error => {
       console.error('Error executing trade:', error)
-      setTradeError('Failed to execute order. Please try again.')
-    }
-
-    setIsExecutingTrade(false)
-    
-    // Clear messages after 3 seconds
-    setTimeout(() => {
-      setTradeError('')
       setTradeSuccess('')
-    }, 3000)
+      setTradeError('Failed to execute order. Please try again.')
+      setTimeout(() => setTradeError(''), 4000)
+    })
   }
 
   // Execute Pending Order
@@ -715,60 +704,58 @@ const TradingPage = () => {
       setTradeError(`Trading blocked! Kill Switch active for ${killSwitchTimeLeft}`)
       return
     }
-    
+    if (isExecutingTrade) return
     setIsExecutingTrade(true)
+    setTimeout(() => setIsExecutingTrade(false), 1500)
+
     setTradeError('')
-    setTradeSuccess('')
 
-    try {
-      const segment = getSymbolCategory(selectedInstrument.symbol)
-      const side = pendingOrderType.includes('BUY') ? 'BUY' : 'SELL'
-      const orderType = pendingOrderType.replace(' ', '_')
+    const segment = getSymbolCategory(selectedInstrument.symbol)
+    const side = pendingOrderType.includes('BUY') ? 'BUY' : 'SELL'
+    const orderType = pendingOrderType.replace(' ', '_')
+    const pendingPrice = entryPrice ? parseFloat(entryPrice) : null
+    const livePrice = livePrices[selectedInstrument.symbol]
+    const currentBid = livePrice?.bid || selectedInstrument.bid
+    const currentAsk = livePrice?.ask || selectedInstrument.ask
 
-      // For pending orders, use entry price; fallback to live prices
-      const pendingPrice = entryPrice ? parseFloat(entryPrice) : null
-      const livePrice = livePrices[selectedInstrument.symbol]
-      const currentBid = livePrice?.bid || selectedInstrument.bid
-      const currentAsk = livePrice?.ask || selectedInstrument.ask
-      
-      const res = await userFetch(`${API_URL}/trade/open`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user._id,
-          tradingAccountId: accountId,
-          symbol: selectedInstrument.symbol,
-          segment,
-          side,
-          orderType,
-          quantity: parseFloat(volume),
-          bid: pendingPrice || currentBid,
-          ask: pendingPrice || currentAsk,
-          sl: showStopLoss && stopLoss ? parseFloat(stopLoss) : null,
-          tp: showTakeProfit && takeProfit ? parseFloat(takeProfit) : null
-        })
-      })
-
-      const data = await res.json()
-
-      if (data.success) {
-        setTradeSuccess(`${pendingOrderType} order placed successfully!`)
-        fetchPendingOrders()
-        setEntryPrice('')
-      } else {
-        setTradeError(data.message || 'Failed to place order')
-      }
-    } catch (error) {
-      console.error('Error placing pending order:', error)
-      setTradeError('Failed to place order. Please try again.')
+    const pendingBody = {
+      userId: user._id,
+      tradingAccountId: accountId,
+      symbol: selectedInstrument.symbol,
+      segment,
+      side,
+      orderType,
+      quantity: parseFloat(volume),
+      bid: pendingPrice || currentBid,
+      ask: pendingPrice || currentAsk,
+      sl: showStopLoss && stopLoss ? parseFloat(stopLoss) : null,
+      tp: showTakeProfit && takeProfit ? parseFloat(takeProfit) : null
     }
 
-    setIsExecutingTrade(false)
-    
-    setTimeout(() => {
-      setTradeError('')
+    // Show success immediately — don't wait for API
+    setTradeSuccess(`${pendingOrderType} order placed!`)
+    setEntryPrice('')
+    setTimeout(() => setTradeSuccess(''), 3000)
+
+    // Fire API in background
+    userFetch(`${API_URL}/trade/open`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(pendingBody)
+    }).then(res => res.json()).then(data => {
+      if (data.success) {
+        fetchPendingOrders()
+      } else {
+        setTradeSuccess('')
+        setTradeError(data.message || 'Failed to place order')
+        setTimeout(() => setTradeError(''), 4000)
+      }
+    }).catch(error => {
+      console.error('Error placing pending order:', error)
       setTradeSuccess('')
-    }, 3000)
+      setTradeError('Failed to place order. Please try again.')
+      setTimeout(() => setTradeError(''), 4000)
+    })
   }
 
   // Close a trade
@@ -1974,7 +1961,7 @@ const TradingPage = () => {
                         : 'bg-red-600/20 border border-red-600 hover:bg-red-600/30 text-red-400'
                     }`}
                   >
-                    {isExecutingTrade ? 'Executing...' : `Open ${selectedSide} Order`}
+                    {`Open ${selectedSide} Order`}
                   </button>
                   <div className="text-center text-gray-500 text-xs mt-2">
                     {volume} lots @ {selectedSide === 'BUY' ? selectedInstrument.ask?.toFixed(2) : selectedInstrument.bid?.toFixed(2)}
@@ -2138,7 +2125,7 @@ const TradingPage = () => {
                     disabled={isExecutingTrade}
                     className="w-full bg-blue-600/20 border border-blue-600 hover:bg-blue-600/30 text-blue-400 py-3 rounded font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {isExecutingTrade ? 'Placing...' : `Place ${pendingOrderType}`}
+                    {`Place ${pendingOrderType}`}
                   </button>
                   <div className="text-center text-gray-500 text-xs mt-2">
                     {volume} lots @ {entryPrice || '--.--'}
