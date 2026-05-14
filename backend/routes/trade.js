@@ -8,47 +8,7 @@ import propTradingEngine from '../services/propTradingEngine.js'
 import copyTradingEngine from '../services/copyTradingEngine.js'
 import ibEngine from '../services/ibEngineNew.js'
 import MasterTrader from '../models/MasterTrader.js'
-
-// AllTick API config for fresh price fetching
-const ALLTICK_API_TOKEN = process.env.ALLTICK_API_TOKEN || ''
-const ALLTICK_FOREX_API = 'https://quote.alltick.co/quote-b-api/depth-tick'
-const ALLTICK_MAP = { 'XAUUSD': 'GOLD', 'XAGUSD': 'Silver', 'BTCUSD': 'BTCUSDT', 'ETHUSD': 'ETHUSDT' }
-
-// Fetch fresh price from AllTick API
-async function getFreshPrice(symbol) {
-  try {
-    const alltickCode = ALLTICK_MAP[symbol] || symbol
-    const query = {
-      trace: `fresh-${Date.now()}`,
-      data: { symbol_list: [{ code: alltickCode }] }
-    }
-    const encodedQuery = encodeURIComponent(JSON.stringify(query))
-    const url = `${ALLTICK_FOREX_API}?token=${ALLTICK_API_TOKEN}&query=${encodedQuery}`
-    
-    const response = await fetch(url)
-    if (!response.ok) {
-      console.log(`[getFreshPrice] AllTick error for ${symbol}: ${response.status}`)
-      return null
-    }
-    const data = await response.json()
-    if (data.ret !== 200 || !data.data?.tick_list?.[0]) {
-      console.log(`[getFreshPrice] No data for ${symbol}`)
-      return null
-    }
-    const tick = data.data.tick_list[0]
-    const bid = tick.bids?.[0]?.price ? parseFloat(tick.bids[0].price) : null
-    const ask = tick.asks?.[0]?.price ? parseFloat(tick.asks[0].price) : null
-    if (bid && ask) {
-      return { bid, ask }
-    } else if (bid) {
-      return { bid, ask: bid }
-    }
-    return null
-  } catch (e) {
-    console.log(`[getFreshPrice] Error for ${symbol}:`, e.message)
-    return null
-  }
-}
+import { getFreshPrice } from '../services/priceService.js'
 
 const router = express.Router()
 
@@ -708,51 +668,61 @@ router.post('/cancel', async (req, res) => {
 // POST /api/trade/check-sltp - Check and trigger SL/TP for all trades
 router.post('/check-sltp', async (req, res) => {
   try {
-    const { prices } = req.body
-    console.log(`[SL/TP Check] Endpoint called`)
+    const { prices: clientPrices } = req.body
 
-    if (!prices || typeof prices !== 'object') {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Prices object is required' 
+    if (!clientPrices || typeof clientPrices !== 'object') {
+      return res.status(400).json({
+        success: false,
+        message: 'Prices object is required'
       })
     }
+
+    // Prefer server-side priceCache (Infoway) over client-supplied prices —
+    // server prices are authoritative and match what the background SL/TP job uses.
+    const serverPriceCache = req.app.get('priceCache')
+    const basePrices = {}
+    if (serverPriceCache) {
+      serverPriceCache.forEach((data, symbol) => {
+        if (data.bid && data.ask) basePrices[symbol] = { bid: data.bid, ask: data.ask }
+      })
+    }
+    // Fall back to client-supplied prices for any symbol not in server cache
+    const mergedPrices = { ...clientPrices, ...basePrices }
 
     // Find all open trades with SL/TP to get their symbols
     const tradesWithSlTp = await Trade.find({
       status: 'OPEN',
       $or: [
-        { sl: { $ne: null } },
-        { stopLoss: { $ne: null } },
-        { tp: { $ne: null } },
-        { takeProfit: { $ne: null } }
+        { sl: { $gt: 0 } },
+        { stopLoss: { $gt: 0 } },
+        { tp: { $gt: 0 } },
+        { takeProfit: { $gt: 0 } }
       ]
-    }).select('symbol')
-    
-    // Get unique symbols that need fresh prices
-    const symbolsNeedingFreshPrices = [...new Set(tradesWithSlTp.map(t => t.symbol))]
-    
-    // Fetch fresh prices for symbols with SL/TP trades
-    const freshPrices = { ...prices }
-    for (const symbol of symbolsNeedingFreshPrices) {
-      const freshPrice = await getFreshPrice(symbol)
-      if (freshPrice) {
-        freshPrices[symbol] = freshPrice
-        console.log(`[SL/TP Check] Fresh price for ${symbol}: bid=${freshPrice.bid}, ask=${freshPrice.ask}`)
+    }).select('symbol').lean()
+
+    // For symbols with SL/TP trades still missing a price, fetch from AllTick as last resort
+    const symbolsNeedingPrices = [...new Set(tradesWithSlTp.map(t => t.symbol))]
+    const finalPrices = { ...mergedPrices }
+    for (const symbol of symbolsNeedingPrices) {
+      if (!finalPrices[symbol] || !finalPrices[symbol].bid) {
+        const freshPrice = await getFreshPrice(symbol)
+        if (freshPrice) {
+          finalPrices[symbol] = freshPrice
+          console.log(`[SL/TP Check] AllTick fallback for ${symbol}: bid=${freshPrice.bid}, ask=${freshPrice.ask}`)
+        }
       }
     }
 
-    // Debug: Log prices
-    const xauPrice = freshPrices['XAUUSD']
+    const xauPrice = finalPrices['XAUUSD']
     if (xauPrice) {
       console.log(`[SL/TP Check] XAUUSD bid=${xauPrice.bid}, ask=${xauPrice.ask}`)
     }
 
     // Check SL/TP for all open challenge trades
-    const closedChallengeTrades = await propTradingEngine.checkSlTpForAllTrades(freshPrices)
-    
+    const closedChallengeTrades = await propTradingEngine.checkSlTpForAllTrades(finalPrices)
+
     // Check SL/TP for all regular trades
-    const closedRegularTrades = await tradeEngine.checkSlTpForAllTrades(freshPrices)
+    const closedRegularTrades = await tradeEngine.checkSlTpForAllTrades(finalPrices)
 
     const allClosedTrades = [...closedChallengeTrades, ...closedRegularTrades]
 
@@ -762,15 +732,16 @@ router.post('/check-sltp', async (req, res) => {
       closedTrades: allClosedTrades.map(ct => ({
         tradeId: ct.trade.tradeId,
         symbol: ct.trade.symbol,
+        tradingAccountId: (ct.trade.tradingAccountId?._id || ct.trade.tradingAccountId)?.toString(),
         reason: ct.trigger || ct.reason,
         pnl: ct.pnl
       }))
     })
   } catch (error) {
     console.error('Error checking SL/TP:', error)
-    res.status(500).json({ 
-      success: false, 
-      message: error.message 
+    res.status(500).json({
+      success: false,
+      message: error.message
     })
   }
 })

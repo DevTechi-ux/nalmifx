@@ -40,6 +40,8 @@ import { authUser, authAdmin, authAny } from './middleware/auth.js'
 import copyTradingEngine from './services/copyTradingEngine.js'
 import tradeEngine from './services/tradeEngine.js'
 import propTradingEngine from './services/propTradingEngine.js'
+import { fillMissingPrices } from './services/priceService.js'
+import Trade from './models/Trade.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -573,20 +575,33 @@ setInterval(async () => {
 // This ensures SL/TP triggers even if user closes the app
 setInterval(async () => {
   try {
-    if (priceCache.size === 0) return // No prices yet
-    
     // Convert priceCache to object format expected by tradeEngine
     const currentPrices = {}
     priceCache.forEach((data, symbol) => {
       currentPrices[symbol] = { bid: data.bid, ask: data.ask }
     })
-    
+
+    // Find symbols of open trades that have SL/TP set but are missing from priceCache
+    // This handles cases where Infoway doesn't cover certain symbols (e.g. XAUUSD during outage)
+    const tradesWithSlTp = await Trade.find({
+      status: 'OPEN',
+      $or: [
+        { sl: { $gt: 0 } },
+        { stopLoss: { $gt: 0 } },
+        { tp: { $gt: 0 } },
+        { takeProfit: { $gt: 0 } }
+      ]
+    }).select('symbol').lean()
+
+    const neededSymbols = [...new Set(tradesWithSlTp.map(t => t.symbol))]
+    const prices = await fillMissingPrices(currentPrices, neededSymbols)
+
     // Check SL/TP for regular trades
-    const closedRegularTrades = await tradeEngine.checkSlTpForAllTrades(currentPrices)
-    
+    const closedRegularTrades = await tradeEngine.checkSlTpForAllTrades(prices)
+
     // Check SL/TP for challenge trades
-    const closedChallengeTrades = await propTradingEngine.checkSlTpForAllTrades(currentPrices)
-    
+    const closedChallengeTrades = await propTradingEngine.checkSlTpForAllTrades(prices)
+
     const allClosed = [...closedRegularTrades, ...closedChallengeTrades]
     if (allClosed.length > 0) {
       console.log(`[SL/TP AUTO] ${allClosed.length} trades closed by SL/TP`)
@@ -595,7 +610,7 @@ setInterval(async () => {
       })
     }
   } catch (error) {
-    // Silent fail - don't spam logs
+    console.error('[SL/TP AUTO] Error in background check:', error.message)
   }
 }, 1000)
 
