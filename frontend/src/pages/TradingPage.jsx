@@ -34,6 +34,7 @@ const TradingPage = () => {
   const [openTabs, setOpenTabs] = useState([{ symbol: 'XAUUSD', name: 'CFDs on Gold (US$ / OZ)', bid: 0, ask: 0, spread: 0 }])
   const [activeTab, setActiveTab] = useState('XAUUSD')
   const [showFourCharts, setShowFourCharts] = useState(false)
+  const chartContainerRef = useRef(null)
   const [fourChartTimeframes, setFourChartTimeframes] = useState(['5', '15', '60', '240']) // 5m, 15m, 1h, 4h
   const [showTakeProfit, setShowTakeProfit] = useState(false)
   const [showStopLoss, setShowStopLoss] = useState(false)
@@ -354,7 +355,6 @@ const TradingPage = () => {
     }
   }, [livePrices, instruments, openTrades])
 
-  
   // Fetch live prices in background (non-blocking)
   const fetchLivePrices = async () => {
     try {
@@ -1461,13 +1461,15 @@ const TradingPage = () => {
               </div>
             ) : (
               /* Single Chart View */
-              <iframe
-                key={`${selectedInstrument.symbol}-${isDarkMode}-${isMobile}`}
-                src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_chart&symbol=${getSymbolForTradingView(selectedInstrument.symbol)}&interval=5&hidesidetoolbar=0&hidetoptoolbar=0&symboledit=1&saveimage=1&toolbarbg=${isDarkMode ? '0d0d0d' : 'ffffff'}&studies=[]&theme=${isDarkMode ? 'dark' : 'light'}&style=1&timezone=Etc%2FUTC&withdateranges=1&showpopupbutton=1&studies_overrides={}&overrides={}&enabled_features=["left_toolbar","header_widget","drawing_templates"]&disabled_features=["hide_left_toolbar_by_default"]&locale=en&utm_source=localhost&utm_medium=widget_new&utm_campaign=chart&hide_side_toolbar=0&allow_symbol_change=1&details=1&calendar=0&hotlist=0`}
-                style={{ width: '100%', height: '100%', border: 'none' }}
-                allowFullScreen
-                title="TradingView Chart"
-              />
+              <div ref={chartContainerRef} style={{ width: '100%', height: '100%' }}>
+                <iframe
+                  key={`${selectedInstrument.symbol}-${isMobile}`}
+                  src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_chart&symbol=${getSymbolForTradingView(selectedInstrument.symbol)}&interval=5&hidesidetoolbar=0&hidetoptoolbar=0&symboledit=1&saveimage=1&toolbarbg=${isDarkMode ? '0d0d0d' : 'ffffff'}&studies=[]&theme=${isDarkMode ? 'dark' : 'light'}&style=1&timezone=Etc%2FUTC&withdateranges=1&showpopupbutton=1&studies_overrides={}&overrides={}&enabled_features=["left_toolbar","header_widget","drawing_templates"]&disabled_features=["hide_left_toolbar_by_default"]&locale=en&utm_source=localhost&utm_medium=widget_new&utm_campaign=chart&hide_side_toolbar=0&allow_symbol_change=1&details=1&calendar=0&hotlist=0`}
+                  style={{ width: '100%', height: '100%', border: 'none' }}
+                  allowFullScreen
+                  title="TradingView Chart"
+                />
+              </div>
             )}
           </div>
 
