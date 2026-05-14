@@ -120,7 +120,7 @@ const tradeSchema = new mongoose.Schema({
   },
   closedBy: {
     type: String,
-    enum: ['USER', 'SL', 'TP', 'STOP_OUT', 'ADMIN', null],
+    enum: ['USER', 'SL', 'TP', 'STOP_OUT', 'MARGIN_STOP_OUT', 'ADMIN', null],
     default: null
   },
   openedAt: {

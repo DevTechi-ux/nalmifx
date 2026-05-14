@@ -554,6 +554,7 @@ setInterval(streamPrices, 10)
 // This ensures trades are closed even if user closes browser
 setInterval(async () => {
   try {
+    if (mongoose.connection.readyState !== 1) return // Not connected yet
     if (priceCache.size === 0) return // No prices yet
     
     // Convert priceCache to object format expected by tradeEngine
@@ -575,6 +576,8 @@ setInterval(async () => {
 // This ensures SL/TP triggers even if user closes the app
 setInterval(async () => {
   try {
+    if (mongoose.connection.readyState !== 1) return // Not connected yet
+
     // Convert priceCache to object format expected by tradeEngine
     const currentPrices = {}
     priceCache.forEach((data, symbol) => {
