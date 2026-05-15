@@ -21,6 +21,61 @@ class TradeEngine {
     return 100000
   }
 
+  // Get USD conversion rate for margin calculation.
+  // Margin must always be expressed in USD (account currency).
+  // For pairs where the quote currency is not USD, we must divide by the USD rate.
+  // e.g. EURJPY price is in JPY → divide by USDJPY to get USD margin.
+  // e.g. EURGBP price is in GBP → divide by USDGBP (= 1/GBPUSD) → multiply by GBPUSD.
+  getUsdConversionRate(symbol, priceCache) {
+    if (!priceCache) return 1
+
+    // Pairs already quoted in USD — no conversion needed
+    const usdQuotePairs = ['USD', 'XAUUSD', 'XAGUSD', 'BTCUSD', 'ETHUSD', 'LTCUSD', 'XRPUSD', 'BCHUSD']
+    if (symbol.endsWith('USD') || usdQuotePairs.includes(symbol)) return 1
+
+    // Extract quote currency (last 3 chars for standard 6-char pairs)
+    const quoteCurrency = symbol.slice(-3)
+
+    // For JPY-quoted pairs (EURJPY, GBPJPY, USDJPY, etc.) — divide by USDJPY
+    if (quoteCurrency === 'JPY') {
+      const usdjpy = priceCache.get('USDJPY')
+      if (usdjpy?.ask > 0) return 1 / usdjpy.ask
+    }
+
+    // For GBP-quoted pairs (EURGBP) — multiply by GBPUSD
+    if (quoteCurrency === 'GBP') {
+      const gbpusd = priceCache.get('GBPUSD')
+      if (gbpusd?.bid > 0) return gbpusd.bid
+    }
+
+    // For CHF-quoted pairs (USDCHF, EURCHF) — divide by USDCHF
+    if (quoteCurrency === 'CHF') {
+      const usdchf = priceCache.get('USDCHF')
+      if (usdchf?.ask > 0) return 1 / usdchf.ask
+    }
+
+    // For CAD-quoted pairs (USDCAD, EURCAD) — divide by USDCAD
+    if (quoteCurrency === 'CAD') {
+      const usdcad = priceCache.get('USDCAD')
+      if (usdcad?.ask > 0) return 1 / usdcad.ask
+    }
+
+    // For AUD-quoted pairs (EURAUD, GBPAUD) — multiply by AUDUSD
+    if (quoteCurrency === 'AUD') {
+      const audusd = priceCache.get('AUDUSD')
+      if (audusd?.bid > 0) return audusd.bid
+    }
+
+    // For NZD-quoted pairs — multiply by NZDUSD
+    if (quoteCurrency === 'NZD') {
+      const nzdusd = priceCache.get('NZDUSD')
+      if (nzdusd?.bid > 0) return nzdusd.bid
+    }
+
+    // Unknown quote currency — fallback to 1 (no conversion)
+    return 1
+  }
+
   // Calculate execution price with spread
   // For FIXED spread: value is in PIPS (needs conversion based on symbol)
   // For PERCENTAGE spread: value is percentage of price difference
@@ -61,14 +116,14 @@ class TradeEngine {
     }
   }
 
-  // Calculate margin required for a trade
-  // Formula: (Lots * Contract Size * Price) / Leverage
-  // Example: 0.01 lot XAUUSD at $2650 with 1:100 leverage
-  // = (0.01 * 100 * 2650) / 100 = $26.50 margin required
-  calculateMargin(quantity, openPrice, leverage, contractSize = this.CONTRACT_SIZE) {
+  // Calculate margin required for a trade in USD
+  // Formula: (Lots * Contract Size * Price * usdConversionRate) / Leverage
+  // usdConversionRate converts the quoted currency price into USD
+  // e.g. EURJPY: price=184.53 JPY, usdRate=1/158.70 → margin in USD
+  calculateMargin(quantity, openPrice, leverage, contractSize = this.CONTRACT_SIZE, usdConversionRate = 1) {
     const leverageNum = parseInt(leverage.toString().replace('1:', '')) || 100
-    const margin = (quantity * contractSize * openPrice) / leverageNum
-    return Math.round(margin * 100) / 100 // Round to 2 decimal places
+    const margin = (quantity * contractSize * openPrice * usdConversionRate) / leverageNum
+    return Math.round(margin * 100) / 100
   }
 
   // Calculate commission based on type
@@ -109,23 +164,21 @@ class TradeEngine {
   }
 
   // Calculate PnL for a trade
-  calculatePnl(side, openPrice, currentPrice, quantity, contractSize = this.CONTRACT_SIZE) {
-    if (side === 'BUY') {
-      return (currentPrice - openPrice) * quantity * contractSize
-    } else {
-      return (openPrice - currentPrice) * quantity * contractSize
-    }
+  calculatePnl(side, openPrice, currentPrice, quantity, contractSize = this.CONTRACT_SIZE, usdConversionRate = 1) {
+    const priceDiff = side === 'BUY' ? (currentPrice - openPrice) : (openPrice - currentPrice)
+    return priceDiff * quantity * contractSize * usdConversionRate
   }
 
-  // Calculate floating PnL including charges
-  calculateFloatingPnl(trade, currentBid, currentAsk) {
+  // Calculate floating PnL including charges, with USD conversion for cross pairs
+  calculateFloatingPnl(trade, currentBid, currentAsk, priceCache = null) {
     const currentPrice = trade.side === 'BUY' ? currentBid : currentAsk
-    const rawPnl = this.calculatePnl(trade.side, trade.openPrice, currentPrice, trade.quantity, trade.contractSize)
+    const usdConversionRate = this.getUsdConversionRate(trade.symbol, priceCache)
+    const rawPnl = this.calculatePnl(trade.side, trade.openPrice, currentPrice, trade.quantity, trade.contractSize, usdConversionRate)
     return rawPnl - trade.commission - trade.swap
   }
 
   // Get account financial summary (real-time calculated values)
-  async getAccountSummary(tradingAccountId, openTrades, currentPrices) {
+  async getAccountSummary(tradingAccountId, openTrades, currentPrices, priceCache = null) {
     const account = await TradingAccount.findById(tradingAccountId)
     if (!account) throw new Error('Trading account not found')
 
@@ -136,7 +189,7 @@ class TradeEngine {
       usedMargin += trade.marginUsed
       const prices = currentPrices[trade.symbol]
       if (prices) {
-        floatingPnl += this.calculateFloatingPnl(trade, prices.bid, prices.ask)
+        floatingPnl += this.calculateFloatingPnl(trade, prices.bid, prices.ask, priceCache)
       }
     }
 
@@ -157,7 +210,7 @@ class TradeEngine {
   }
 
   // Validate if trade can be opened
-  async validateTradeOpen(tradingAccountId, symbol, side, quantity, openPrice, leverage, contractSize = this.CONTRACT_SIZE) {
+  async validateTradeOpen(tradingAccountId, symbol, side, quantity, openPrice, leverage, contractSize = this.CONTRACT_SIZE, usdConversionRate = 1) {
     const account = await TradingAccount.findById(tradingAccountId).populate('accountTypeId')
     if (!account) {
       return { valid: false, error: 'Trading account not found' }
@@ -191,8 +244,8 @@ class TradeEngine {
       return { valid: false, error: 'Maximum lots limit exceeded' }
     }
 
-    // Calculate margin required for new trade
-    const marginRequired = this.calculateMargin(quantity, openPrice, leverage, contractSize)
+    // Calculate margin required for new trade (with USD conversion for cross pairs)
+    const marginRequired = this.calculateMargin(quantity, openPrice, leverage, contractSize, usdConversionRate)
 
     // Calculate current used margin from existing trades
     const usedMargin = openTrades.reduce((sum, t) => sum + (t.marginUsed || 0), 0)
@@ -246,7 +299,7 @@ class TradeEngine {
   }
 
   // Open a new trade
-  async openTrade(userId, tradingAccountId, symbol, segment, side, orderType, quantity, bid, ask, sl = null, tp = null, userLeverage = null) {
+  async openTrade(userId, tradingAccountId, symbol, segment, side, orderType, quantity, bid, ask, sl = null, tp = null, userLeverage = null, priceCache = null) {
     const account = await TradingAccount.findById(tradingAccountId).populate('accountTypeId')
     if (!account) throw new Error('Trading account not found')
 
@@ -290,25 +343,29 @@ class TradeEngine {
     // Get contract size based on symbol
     const contractSize = this.getContractSize(symbol)
 
+    // Get USD conversion rate for cross-currency pairs
+    // e.g. EURJPY price is in JPY — must convert to USD for correct margin
+    const usdConversionRate = this.getUsdConversionRate(symbol, priceCache)
+
     // Use user-selected leverage if provided, otherwise use account's leverage
     // User can select any leverage up to account's max leverage
     const accountMaxLeverage = parseInt(account.leverage.toString().replace('1:', '')) || 100
     let selectedLeverage = accountMaxLeverage
-    
+
     if (userLeverage) {
       const userLeverageNum = parseInt(userLeverage.toString().replace('1:', '')) || accountMaxLeverage
       // User can only use leverage up to account's max
       selectedLeverage = Math.min(userLeverageNum, accountMaxLeverage)
     }
-    
-    const leverage = `1:${selectedLeverage}`
-    const marginRequired = this.calculateMargin(quantity, openPrice, leverage, contractSize)
-    
-    // Log for debugging
-    console.log(`Trade validation: ${quantity} lots ${symbol} @ ${openPrice}, Contract: ${contractSize}, Leverage: ${leverage}, Margin Required: $${marginRequired}`)
 
-    // Validate trade - pass the correct parameters
-    const validation = await this.validateTradeOpen(tradingAccountId, symbol, side, quantity, openPrice, leverage, contractSize)
+    const leverage = `1:${selectedLeverage}`
+    const marginRequired = this.calculateMargin(quantity, openPrice, leverage, contractSize, usdConversionRate)
+
+    // Log for debugging
+    console.log(`Trade validation: ${quantity} lots ${symbol} @ ${openPrice}, Contract: ${contractSize}, Leverage: ${leverage}, UsdConvRate: ${usdConversionRate.toFixed(6)}, Margin Required: $${marginRequired}`)
+
+    // Validate trade - pass the correct parameters (uses same usdConversionRate)
+    const validation = await this.validateTradeOpen(tradingAccountId, symbol, side, quantity, openPrice, leverage, contractSize, usdConversionRate)
     if (!validation.valid) {
       throw new Error(validation.error)
     }
@@ -363,7 +420,7 @@ class TradeEngine {
   }
 
   // Close a trade
-  async closeTrade(tradeId, currentBid, currentAsk, closedBy = 'USER', adminId = null) {
+  async closeTrade(tradeId, currentBid, currentAsk, closedBy = 'USER', adminId = null, priceCache = null) {
     const trade = await Trade.findById(tradeId).populate({ path: 'tradingAccountId', populate: { path: 'accountTypeId' } })
     if (!trade) throw new Error('Trade not found')
     if (trade.status !== 'OPEN') throw new Error('Trade is not open')
@@ -386,7 +443,8 @@ class TradeEngine {
     }
     
     // Calculate final PnL (commission already deducted on open, subtract swap and close commission)
-    const rawPnl = this.calculatePnl(trade.side, trade.openPrice, closePrice, trade.quantity, trade.contractSize)
+    const usdConversionRate = this.getUsdConversionRate(trade.symbol, priceCache)
+    const rawPnl = this.calculatePnl(trade.side, trade.openPrice, closePrice, trade.quantity, trade.contractSize, usdConversionRate)
     const realizedPnl = rawPnl - trade.swap - closeCommission
 
     // Update trade
@@ -536,7 +594,7 @@ class TradeEngine {
   }
 
   // Check and execute stop-out
-  async checkStopOut(tradingAccountId, currentPrices) {
+  async checkStopOut(tradingAccountId, currentPrices, priceCache = null) {
     const account = await TradingAccount.findById(tradingAccountId).populate('accountTypeId')
     if (!account) return null
 
@@ -544,7 +602,7 @@ class TradeEngine {
     if (openTrades.length === 0) return null
 
     const settings = await TradeSettings.getSettings(account.accountTypeId?._id)
-    const summary = await this.getAccountSummary(tradingAccountId, openTrades, currentPrices)
+    const summary = await this.getAccountSummary(tradingAccountId, openTrades, currentPrices, priceCache)
 
     // CRITICAL: Stop out ONLY when equity is zero or negative
     // Removed free margin check - only equity based stop-out
@@ -559,7 +617,7 @@ class TradeEngine {
         const prices = currentPrices[trade.symbol]
         if (prices) {
           try {
-            const result = await this.closeTrade(trade._id, prices.bid, prices.ask, 'STOP_OUT')
+            const result = await this.closeTrade(trade._id, prices.bid, prices.ask, 'STOP_OUT', null, priceCache)
             closedTrades.push(result)
           } catch (err) {
             console.error(`Error closing trade ${trade.tradeId} during stop out:`, err)
@@ -588,7 +646,7 @@ class TradeEngine {
   }
 
   // Check SL/TP for all open trades (non-challenge only)
-  async checkSlTpForAllTrades(currentPrices) {
+  async checkSlTpForAllTrades(currentPrices, priceCache = null) {
     // Only check non-challenge trades (challenge trades are handled by propTradingEngine)
     const openTrades = await Trade.find({ status: 'OPEN', isChallengeAccount: { $ne: true } }).lean()
     const triggeredTrades = []
@@ -625,7 +683,8 @@ class TradeEngine {
         const tPrices = currentPrices[t.symbol]
         if (tPrices) {
           const tCurrentPrice = t.side === 'BUY' ? tPrices.bid : (tPrices.ask || tPrices.bid)
-          const tPnl = this.calculatePnl(t.side, t.openPrice, tCurrentPrice, t.quantity, t.contractSize) - (t.commission || 0) - (t.swap || 0)
+          const usdRate = this.getUsdConversionRate(t.symbol, priceCache)
+          const tPnl = this.calculatePnl(t.side, t.openPrice, tCurrentPrice, t.quantity, t.contractSize, usdRate) - (t.commission || 0) - (t.swap || 0)
           totalFloatingPnl += tPnl
           totalMarginUsed += (t.marginUsed || 0)
         }
@@ -645,7 +704,8 @@ class TradeEngine {
           const tPrices = currentPrices[t.symbol]
           if (!tPrices) continue
           const cp = t.side === 'BUY' ? tPrices.bid : (tPrices.ask || tPrices.bid)
-          const pnl = this.calculatePnl(t.side, t.openPrice, cp, t.quantity, t.contractSize) - (t.commission || 0) - (t.swap || 0)
+          const usdRate = this.getUsdConversionRate(t.symbol, priceCache)
+          const pnl = this.calculatePnl(t.side, t.openPrice, cp, t.quantity, t.contractSize, usdRate) - (t.commission || 0) - (t.swap || 0)
           if (pnl < worstPnl) {
             worstPnl = pnl
             worstTrade = t
@@ -657,7 +717,7 @@ class TradeEngine {
           const bid = tPrices.bid
           const ask = tPrices.ask || tPrices.bid
           console.log(`[Account Stop-Out] Trade ${worstTrade.tradeId}: Equity=$${equity.toFixed(2)} | TotalMargin=$${totalMarginUsed.toFixed(2)} | MarginLevel=${marginLevel.toFixed(2)}% <= StopOut=${stopOutLevel}% | Closing losing trade`)
-          const result = await this.closeTrade(worstTrade._id, bid, ask, 'MARGIN_STOP_OUT')
+          const result = await this.closeTrade(worstTrade._id, bid, ask, 'MARGIN_STOP_OUT', null, priceCache)
           triggeredTrades.push({ 
             trade: result.trade, 
             trigger: 'MARGIN_STOP_OUT', 
@@ -709,7 +769,7 @@ class TradeEngine {
       if (trigger) {
         const fillPrice = trade.side === 'BUY' ? bid : ask
         console.log(`[Regular SL/TP] TRIGGERED! Trade ${trade.tradeId}: ${trigger} | SL=${sl || 'none'} TP=${tp || 'none'} | Market fill: ${fillPrice} (bid=${bid}, ask=${ask})`)
-        const result = await this.closeTrade(trade._id, bid, ask, trigger)
+        const result = await this.closeTrade(trade._id, bid, ask, trigger, null, priceCache)
         triggeredTrades.push({ trade: result.trade, trigger, pnl: result.realizedPnl })
       }
     }
@@ -807,20 +867,20 @@ class TradeEngine {
   }
 
   // Check stop-out for ALL accounts with open trades (background job)
-  async checkAllAccountsStopOut(currentPrices) {
+  async checkAllAccountsStopOut(currentPrices, priceCache = null) {
     try {
       // Get all unique trading accounts with open trades (non-challenge only)
       const openTrades = await Trade.find({ status: 'OPEN', isChallengeAccount: { $ne: true } })
       const accountIds = [...new Set(openTrades.map(t => t.tradingAccountId?.toString()).filter(Boolean))]
-      
+
       if (accountIds.length === 0) return { checked: 0, stopOuts: [] }
 
       console.log(`[STOP-OUT CHECK] Checking ${accountIds.length} accounts with open trades`)
-      
+
       const stopOuts = []
       for (const accountId of accountIds) {
         try {
-          const result = await this.checkStopOut(accountId, currentPrices)
+          const result = await this.checkStopOut(accountId, currentPrices, priceCache)
           if (result && result.stopOutTriggered) {
             console.log(`[STOP-OUT] Account ${accountId} stopped out: ${result.reason}`)
             stopOuts.push({ accountId, ...result })

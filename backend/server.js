@@ -563,7 +563,7 @@ setInterval(async () => {
       currentPrices[symbol] = { bid: data.bid, ask: data.ask }
     })
     
-    const result = await tradeEngine.checkAllAccountsStopOut(currentPrices)
+    const result = await tradeEngine.checkAllAccountsStopOut(currentPrices, priceCache)
     if (result.stopOuts && result.stopOuts.length > 0) {
       console.log(`[STOP-OUT] ${result.stopOuts.length} accounts stopped out`)
     }
@@ -600,7 +600,7 @@ setInterval(async () => {
     const prices = await fillMissingPrices(currentPrices, neededSymbols)
 
     // Check SL/TP for regular trades
-    const closedRegularTrades = await tradeEngine.checkSlTpForAllTrades(prices)
+    const closedRegularTrades = await tradeEngine.checkSlTpForAllTrades(prices, priceCache)
 
     // Check SL/TP for challenge trades
     const closedChallengeTrades = await propTradingEngine.checkSlTpForAllTrades(prices)

@@ -324,9 +324,10 @@ const TradingPage = () => {
         
         if (currentPrice && currentPrice > 0) {
           hasValidPrices = true
+          const usdRate = getUsdConversionRate(trade.symbol)
           const pnl = trade.side === 'BUY'
-            ? (currentPrice - trade.openPrice) * trade.quantity * trade.contractSize
-            : (trade.openPrice - currentPrice) * trade.quantity * trade.contractSize
+            ? (currentPrice - trade.openPrice) * trade.quantity * trade.contractSize * usdRate
+            : (trade.openPrice - currentPrice) * trade.quantity * trade.contractSize * usdRate
           totalFloatingPnl += pnl - (trade.commission || 0) - (trade.swap || 0)
         }
         totalUsedMargin += trade.marginUsed || 0
@@ -931,9 +932,10 @@ const TradingPage = () => {
       const currentPrice = livePrice 
         ? (trade.side === 'BUY' ? livePrice.bid : livePrice.ask)
         : (trade.side === 'BUY' ? inst.bid : inst.ask)
-      const pnl = trade.side === 'BUY' 
-        ? (currentPrice - trade.openPrice) * trade.quantity * trade.contractSize
-        : (trade.openPrice - currentPrice) * trade.quantity * trade.contractSize
+      const usdRate = getUsdConversionRate(trade.symbol)
+      const pnl = trade.side === 'BUY'
+        ? (currentPrice - trade.openPrice) * trade.quantity * trade.contractSize * usdRate
+        : (trade.openPrice - currentPrice) * trade.quantity * trade.contractSize * usdRate
 
       if (closeAllType === 'profit') return pnl > 0
       if (closeAllType === 'loss') return pnl < 0
@@ -1125,11 +1127,50 @@ const TradingPage = () => {
     }
   }
 
+  const getContractSize = (symbol) => {
+    if (symbol === 'XAUUSD') return 100
+    if (symbol === 'XAGUSD') return 5000
+    if (['BTCUSD', 'ETHUSD', 'LTCUSD', 'XRPUSD', 'BCHUSD'].includes(symbol)) return 1
+    return 100000
+  }
+
+  const getUsdConversionRate = (symbol) => {
+    if (symbol.endsWith('USD')) return 1
+    const quote = symbol.slice(-3)
+    if (quote === 'JPY') {
+      const usdjpy = livePrices['USDJPY']?.ask || instruments.find(i => i.symbol === 'USDJPY')?.ask
+      return usdjpy > 0 ? 1 / usdjpy : 1
+    }
+    if (quote === 'GBP') {
+      const gbpusd = livePrices['GBPUSD']?.bid || instruments.find(i => i.symbol === 'GBPUSD')?.bid
+      return gbpusd > 0 ? gbpusd : 1
+    }
+    if (quote === 'CHF') {
+      const usdchf = livePrices['USDCHF']?.ask || instruments.find(i => i.symbol === 'USDCHF')?.ask
+      return usdchf > 0 ? 1 / usdchf : 1
+    }
+    if (quote === 'CAD') {
+      const usdcad = livePrices['USDCAD']?.ask || instruments.find(i => i.symbol === 'USDCAD')?.ask
+      return usdcad > 0 ? 1 / usdcad : 1
+    }
+    if (quote === 'AUD') {
+      const audusd = livePrices['AUDUSD']?.bid || instruments.find(i => i.symbol === 'AUDUSD')?.bid
+      return audusd > 0 ? audusd : 1
+    }
+    if (quote === 'NZD') {
+      const nzdusd = livePrices['NZDUSD']?.bid || instruments.find(i => i.symbol === 'NZDUSD')?.bid
+      return nzdusd > 0 ? nzdusd : 1
+    }
+    return 1
+  }
+
   const calculateMargin = () => {
     const vol = parseFloat(volume) || 0
     const price = selectedInstrument.ask || 0
     const lev = parseInt(leverage?.split(':')[1]) || 100
-    return ((vol * 100000 * price) / lev).toFixed(2)
+    const contractSize = getContractSize(selectedInstrument.symbol)
+    const usdRate = getUsdConversionRate(selectedInstrument.symbol)
+    return ((vol * contractSize * price * usdRate) / lev).toFixed(2)
   }
 
   if (loading) {
@@ -1564,9 +1605,10 @@ const TradingPage = () => {
                       const currentPrice = livePrice 
                         ? (trade.side === 'BUY' ? livePrice.bid : livePrice.ask)
                         : (trade.side === 'BUY' ? inst.bid : inst.ask)
-                      const pnl = trade.side === 'BUY' 
-                        ? (currentPrice - trade.openPrice) * trade.quantity * trade.contractSize
-                        : (trade.openPrice - currentPrice) * trade.quantity * trade.contractSize
+                      const usdRate = getUsdConversionRate(trade.symbol)
+                      const pnl = trade.side === 'BUY'
+                        ? (currentPrice - trade.openPrice) * trade.quantity * trade.contractSize * usdRate
+                        : (trade.openPrice - currentPrice) * trade.quantity * trade.contractSize * usdRate
                       
                       // Format price based on symbol type
                       const formatPrice = (price) => {
@@ -1848,11 +1890,9 @@ const TradingPage = () => {
                       <div className={`rounded px-3 py-2 text-green-500 text-sm font-medium border ${isDarkMode ? 'bg-[#1a1a1a] border-gray-700' : 'bg-gray-50 border-gray-300'}`}>
                         ${(() => {
                           const leverageNum = parseInt(leverage.replace('1:', '')) || 100
-                          const contractSize = ['BTCUSD', 'ETHUSD', 'LTCUSD', 'XRPUSD'].includes(selectedInstrument.symbol) ? 1 
-                            : selectedInstrument.symbol === 'XAUUSD' ? 100 
-                            : selectedInstrument.symbol === 'XAGUSD' ? 5000 
-                            : 100000
-                          const margin = (parseFloat(volume || 0) * contractSize * (selectedInstrument.ask || 0)) / leverageNum
+                          const contractSize = getContractSize(selectedInstrument.symbol)
+                          const usdRate = getUsdConversionRate(selectedInstrument.symbol)
+                          const margin = (parseFloat(volume || 0) * contractSize * (selectedInstrument.ask || 0) * usdRate) / leverageNum
                           return margin.toFixed(2)
                         })()}
                       </div>

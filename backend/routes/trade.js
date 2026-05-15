@@ -133,7 +133,8 @@ router.post('/open', async (req, res) => {
       parseFloat(ask),
       sl ? parseFloat(sl) : null,
       tp ? parseFloat(tp) : null,
-      leverage // Pass user-selected leverage
+      leverage,
+      priceCache // For cross-currency margin conversion (e.g. EURJPY → USD)
     )
 
     // Check if this is a master trader and copy to followers
@@ -218,9 +219,10 @@ router.post('/close', async (req, res) => {
     if (challengeAccount) {
       // Close trade for challenge account
       const closePrice = tradeToClose.side === 'BUY' ? parseFloat(bid) : parseFloat(ask)
+      const usdConversionRate = tradeEngine.getUsdConversionRate(tradeToClose.symbol, priceCache)
       const rawPnl = tradeToClose.side === 'BUY'
-        ? (closePrice - tradeToClose.openPrice) * tradeToClose.quantity * tradeToClose.contractSize
-        : (tradeToClose.openPrice - closePrice) * tradeToClose.quantity * tradeToClose.contractSize
+        ? (closePrice - tradeToClose.openPrice) * tradeToClose.quantity * tradeToClose.contractSize * usdConversionRate
+        : (tradeToClose.openPrice - closePrice) * tradeToClose.quantity * tradeToClose.contractSize * usdConversionRate
       
       // Get charges for commission on close
       const charges = await Charges.getChargesForTrade(
@@ -271,7 +273,9 @@ router.post('/close', async (req, res) => {
       tradeId,
       parseFloat(bid),
       parseFloat(ask),
-      'USER'
+      'USER',
+      null,
+      priceCache
     )
 
     // Check if this was a master trade and close follower trades
@@ -525,15 +529,17 @@ router.get('/summary/:tradingAccountId', async (req, res) => {
     // Calculate used margin from open trades
     const usedMargin = openTrades.reduce((sum, t) => sum + (t.marginUsed || 0), 0)
     
-    // Calculate floating PnL from current prices
+    // Calculate floating PnL from current prices with USD conversion for cross pairs
+    const summaryPriceCache = req.app.get('priceCache')
     let floatingPnl = 0
     for (const trade of openTrades) {
       const priceData = currentPrices[trade.symbol]
       if (priceData) {
         const currentPrice = trade.side === 'BUY' ? priceData.bid : priceData.ask
+        const usdRate = tradeEngine.getUsdConversionRate(trade.symbol, summaryPriceCache)
         const pnl = trade.side === 'BUY'
-          ? (currentPrice - trade.openPrice) * trade.quantity * trade.contractSize
-          : (trade.openPrice - currentPrice) * trade.quantity * trade.contractSize
+          ? (currentPrice - trade.openPrice) * trade.quantity * trade.contractSize * usdRate
+          : (trade.openPrice - currentPrice) * trade.quantity * trade.contractSize * usdRate
         floatingPnl += pnl
       }
     }
