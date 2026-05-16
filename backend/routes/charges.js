@@ -1,6 +1,7 @@
 import express from 'express'
 import Charges from '../models/Charges.js'
 import AccountType from '../models/AccountType.js'
+import { getSegmentSymbols, getInstrumentRegistry } from '../services/instrumentRegistry.js'
 
 const router = express.Router()
 
@@ -40,13 +41,13 @@ router.get('/spreads', async (req, res) => {
       }
       // For segment-level charges, apply to all instruments in that segment
       else if (charge.segment) {
-        const segmentSymbols = {
+        const legacy = {
           'Forex': ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD', 'EURGBP', 'EURJPY', 'GBPJPY'],
           'Metals': ['XAUUSD', 'XAGUSD'],
           'Crypto': ['BTCUSD', 'ETHUSD', 'LTCUSD', 'XRPUSD', 'BNBUSD', 'SOLUSD', 'ADAUSD', 'DOGEUSD', 'DOTUSD', 'MATICUSD', 'AVAXUSD', 'LINKUSD'],
           'Indices': ['US30', 'US500', 'NAS100']
         }
-        const symbols = segmentSymbols[charge.segment] || []
+        const symbols = await getSegmentSymbols(charge.segment, legacy[charge.segment] || [])
         for (const symbol of symbols) {
           const existing = spreadMap[symbol]
           if (!existing || priorityOrder[charge.level] < priorityOrder[existing.level]) {
@@ -60,7 +61,9 @@ router.get('/spreads', async (req, res) => {
       }
       // For global charges, apply to all instruments that don't have specific settings
       else if (charge.level === 'GLOBAL') {
-        const allSymbols = ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD', 'EURGBP', 'EURJPY', 'GBPJPY', 'XAUUSD', 'XAGUSD', 'BTCUSD', 'ETHUSD', 'LTCUSD', 'XRPUSD']
+        const reg = await getInstrumentRegistry()
+        const legacyAll = ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD', 'EURGBP', 'EURJPY', 'GBPJPY', 'XAUUSD', 'XAGUSD', 'BTCUSD', 'ETHUSD', 'LTCUSD', 'XRPUSD']
+        const allSymbols = Array.from(new Set([...legacyAll, ...Object.keys(reg.map)]))
         for (const symbol of allSymbols) {
           if (!spreadMap[symbol]) {
             spreadMap[symbol] = {
@@ -187,15 +190,16 @@ router.post('/bulk-apply-spread', requireSuperAdmin, async (req, res) => {
       return res.status(400).json({ success: false, message: 'spreadValue must be a non-negative number' })
     }
 
-    // Default catalog if caller doesn't pass one — matches the dropdown in
-    // AdminForexCharges so the bulk button affects exactly what the UI shows.
-    const defaultSymbols = [
+    // Default catalog: legacy hardcoded + every admin-managed Instrument.
+    const legacyDefaults = [
       'EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD',
       'EURGBP', 'EURJPY', 'GBPJPY',
       'XAUUSD', 'XAGUSD',
       'BTCUSD', 'ETHUSD', 'LTCUSD', 'XRPUSD',
       'US30', 'US500', 'NAS100'
     ]
+    const reg = await getInstrumentRegistry()
+    const defaultSymbols = Array.from(new Set([...legacyDefaults, ...Object.keys(reg.map)]))
     const list = Array.isArray(symbols) && symbols.length ? symbols : defaultSymbols
 
     const results = []

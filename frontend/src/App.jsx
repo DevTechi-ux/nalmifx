@@ -24,6 +24,7 @@ import AdminFundManagement from './pages/AdminFundManagement'
 import AdminBankSettings from './pages/AdminBankSettings'
 import AdminIBManagement from './pages/AdminIBManagement'
 import AdminForexCharges from './pages/AdminForexCharges'
+import AdminInstruments from './pages/AdminInstruments'
 import AdminIndianCharges from './pages/AdminIndianCharges'
 import AdminCopyTrade from './pages/AdminCopyTrade'
 import AdminPropFirm from './pages/AdminPropFirm'
@@ -108,6 +109,7 @@ function App() {
         <Route path="/admin/bank-settings" element={<AdminGuard permKey="canManageDeposits"><AdminBankSettings /></AdminGuard>} />
         <Route path="/admin/ib-management" element={<AdminGuard permKey="canManageIB"><AdminIBManagement /></AdminGuard>} />
         <Route path="/admin/forex-charges" element={<AdminGuard permKey="canManageSymbols"><AdminForexCharges /></AdminGuard>} />
+        <Route path="/admin/instruments" element={<AdminGuard permKey="canManageSymbols"><AdminInstruments /></AdminGuard>} />
         <Route path="/admin/indian-charges" element={<AdminGuard permKey="canManageSymbols"><AdminIndianCharges /></AdminGuard>} />
         <Route path="/admin/copy-trade" element={<AdminGuard permKey="canManageCopyTrading"><AdminCopyTrade /></AdminGuard>} />
         <Route path="/admin/prop-firm" element={<AdminGuard permKey="canManageTrades"><AdminPropFirm /></AdminGuard>} />
@@ -136,6 +138,7 @@ function App() {
         <Route path="/:slug/bank-settings" element={<AdminGuard permKey="canManageDeposits"><AdminBankSettings /></AdminGuard>} />
         <Route path="/:slug/ib-management" element={<AdminGuard permKey="canManageIB"><AdminIBManagement /></AdminGuard>} />
         <Route path="/:slug/forex-charges" element={<AdminGuard permKey="canManageSymbols"><AdminForexCharges /></AdminGuard>} />
+        <Route path="/:slug/instruments" element={<AdminGuard permKey="canManageSymbols"><AdminInstruments /></AdminGuard>} />
         <Route path="/:slug/indian-charges" element={<AdminGuard permKey="canManageSymbols"><AdminIndianCharges /></AdminGuard>} />
         <Route path="/:slug/copy-trade" element={<AdminGuard permKey="canManageCopyTrading"><AdminCopyTrade /></AdminGuard>} />
         <Route path="/:slug/prop-firm" element={<AdminGuard permKey="canManageTrades"><AdminPropFirm /></AdminGuard>} />

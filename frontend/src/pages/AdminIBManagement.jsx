@@ -560,7 +560,8 @@ const AdminIBManagement = () => {
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Referral Code</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Plan</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Referrals</th>
-                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Earnings</th>
+                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Referred Deposits</th>
+                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Referred P&L</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Status</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Actions</th>
                   </tr>
@@ -581,8 +582,11 @@ const AdminIBManagement = () => {
                       </td>
                       <td className="py-4 px-4 text-white font-mono">{ib.referralCode || '-'}</td>
                       <td className="py-4 px-4 text-white">{ib.ibPlanId?.name || 'Default'}</td>
-                      <td className="py-4 px-4 text-white">{ib.ibLevel || 0}</td>
-                      <td className="py-4 px-4 text-green-500 font-medium">-</td>
+                      <td className="py-4 px-4 text-white font-semibold">{ib.referralCount || 0}</td>
+                      <td className="py-4 px-4 text-white">${(ib.referralDeposits || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td className={`py-4 px-4 font-medium ${(ib.referralProfit || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {(ib.referralProfit || 0) >= 0 ? '+' : ''}${(ib.referralProfit || 0).toFixed(2)}
+                      </td>
                       <td className="py-4 px-4">
                         <span className={`px-2 py-1 rounded-full text-xs ${
                           ib.ibStatus === 'ACTIVE' ? 'bg-green-500/20 text-green-500' : 

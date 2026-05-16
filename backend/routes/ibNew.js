@@ -200,6 +200,9 @@ router.post('/withdraw', async (req, res) => {
 // ==================== ADMIN ROUTES ====================
 
 // GET /api/ib/admin/all - Get all IBs (scoped to branch)
+// Enriches each IB with referralCount, referralProfit (sum of realized P&L
+// across all referred users' closed trades), and referralDeposits (sum of
+// approved deposits by referred users). Sorted by referralCount desc.
 router.get('/admin/all', requirePermission('canManageIB'), async (req, res) => {
   try {
     const { status, limit = 50, offset = 0 } = req.query
@@ -213,24 +216,57 @@ router.get('/admin/all', requirePermission('canManageIB'), async (req, res) => {
 
     const ibs = await User.find(query)
       .populate('ibPlanId', 'name')
-      .select('firstName email referralCode ibStatus ibLevel ibPlanId createdAt')
-      .sort({ createdAt: -1 })
-      .skip(parseInt(offset))
-      .limit(parseInt(limit))
+      .select('firstName lastName email referralCode ibStatus ibLevel ibPlanId createdAt')
 
     const total = await User.countDocuments(query)
 
-    // Get wallet balances for each IB
-    const ibsWithWallets = await Promise.all(ibs.map(async (ib) => {
+    const Trade = (await import('../models/Trade.js')).default
+    const Transaction = (await import('../models/Transaction.js')).default
+
+    const enriched = await Promise.all(ibs.map(async (ib) => {
       const wallet = await IBWallet.findOne({ ibUserId: ib._id })
+
+      let referralCount = 0
+      let referralProfit = 0
+      let referralDeposits = 0
+      const code = ib.referralCode
+
+      if (code) {
+        const referredUsers = await User.find({ referredBy: code }).select('_id').lean()
+        const referredIds = referredUsers.map(u => u._id)
+        referralCount = referredIds.length
+
+        if (referredIds.length > 0) {
+          const [profitAgg, depositAgg] = await Promise.all([
+            Trade.aggregate([
+              { $match: { userId: { $in: referredIds }, status: 'CLOSED' } },
+              { $group: { _id: null, total: { $sum: '$realizedPnl' } } }
+            ]),
+            Transaction.aggregate([
+              { $match: { userId: { $in: referredIds }, type: 'Deposit', status: 'Approved' } },
+              { $group: { _id: null, total: { $sum: '$amount' } } }
+            ])
+          ])
+          referralProfit = profitAgg[0]?.total || 0
+          referralDeposits = depositAgg[0]?.total || 0
+        }
+      }
+
       return {
         ...ib.toObject(),
         walletBalance: wallet?.balance || 0,
-        totalEarned: wallet?.totalEarned || 0
+        totalEarned: wallet?.totalEarned || 0,
+        referralCount,
+        referralProfit,
+        referralDeposits
       }
     }))
 
-    res.json({ success: true, ibs: ibsWithWallets, total })
+    enriched.sort((a, b) => (b.referralCount || 0) - (a.referralCount || 0))
+
+    const paginated = enriched.slice(parseInt(offset), parseInt(offset) + parseInt(limit))
+
+    res.json({ success: true, ibs: paginated, total })
   } catch (error) {
     console.error('Error fetching IBs:', error)
     res.status(500).json({ success: false, message: error.message })

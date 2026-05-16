@@ -25,7 +25,8 @@ import {
   Mail,
   Gift,
   Image,
-  UserCircle
+  UserCircle,
+  Coins
 } from 'lucide-react'
 import logoImage from '../assets/nalmifx.png'
 import { API_URL } from '../config/api'
@@ -89,6 +90,7 @@ const AdminLayout = ({ children, title, subtitle }) => {
     { name: 'Transactions',          icon: CreditCard,      path: `${basePath}/transactions`,      permKey: 'canManageDeposits' },
     { name: 'Bank Settings',         icon: Building2,       path: `${basePath}/bank-settings`,     permKey: 'canManageDeposits', badge: pendingCounts.bankRequests },
     { name: 'IB Management',         icon: UserCog,         path: `${basePath}/ib-management`,     permKey: 'canManageIB', badge: pendingCounts.ib },
+    { name: 'Instruments',           icon: Coins,           path: `${basePath}/instruments`,       permKey: 'canManageSymbols' },
     { name: 'Forex Charges',         icon: DollarSign,      path: `${basePath}/forex-charges`,     permKey: 'canManageSymbols' },
     { name: 'Earnings Report',       icon: TrendingUp,      path: `${basePath}/earnings`,          permKey: 'canViewReports' },
     { name: 'Copy Trade Management', icon: Copy,            path: `${basePath}/copy-trade`,        permKey: 'canManageCopyTrading', badge: pendingCounts.copyTrade },

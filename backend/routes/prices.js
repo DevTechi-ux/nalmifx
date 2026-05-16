@@ -1,6 +1,7 @@
 import dotenv from 'dotenv'
 dotenv.config()
 import express from 'express'
+import { getInfowaySymbolMap as getDbInfowayMap, getInstrumentRegistry } from '../services/instrumentRegistry.js'
 
 const router = express.Router()
 
@@ -99,10 +100,21 @@ const COMMON_SYMBOLS = Object.keys(INFOWAY_SYMBOL_MAP).filter(s =>
 // All supported symbols
 const INFOWAY_SYMBOLS = Object.keys(INFOWAY_SYMBOL_MAP)
 
+// Live map = hardcoded legacy ∪ admin-managed Instrument collection. The DB
+// entries override on collision so admins can re-point an existing symbol.
+async function resolveMap() {
+  try {
+    return await getDbInfowayMap(INFOWAY_SYMBOL_MAP)
+  } catch (e) {
+    return INFOWAY_SYMBOL_MAP
+  }
+}
+
 // Fetch single price from Infoway.io API
 async function getInfowayPrice(symbol) {
   try {
-    const infowayCode = INFOWAY_SYMBOL_MAP[symbol]
+    const liveMap = await resolveMap()
+    const infowayCode = liveMap[symbol]
     if (!infowayCode) {
       console.error(`No Infoway mapping for symbol: ${symbol}`)
       return null
@@ -148,19 +160,21 @@ async function getInfowayPrice(symbol) {
 // Fetch multiple prices from Infoway.io API
 async function getInfowayBatchPrices(symbols) {
   const prices = {}
-  
+
   try {
+    const liveMap = await resolveMap()
+    const reverseMap = Object.fromEntries(Object.entries(liveMap).map(([k, v]) => [v, k]))
     // Filter to only symbols we have mappings for
-    const validSymbols = symbols.filter(s => INFOWAY_SYMBOL_MAP[s])
-    
+    const validSymbols = symbols.filter(s => liveMap[s])
+
     // Separate crypto and common symbols
-    const cryptoSymbols = validSymbols.filter(s => INFOWAY_SYMBOL_MAP[s].endsWith('USDT'))
-    const commonSymbols = validSymbols.filter(s => !INFOWAY_SYMBOL_MAP[s].endsWith('USDT'))
-    
+    const cryptoSymbols = validSymbols.filter(s => liveMap[s].endsWith('USDT'))
+    const commonSymbols = validSymbols.filter(s => !liveMap[s].endsWith('USDT'))
+
     // Fetch crypto prices
     if (cryptoSymbols.length > 0) {
       try {
-        const cryptoCodes = cryptoSymbols.map(s => INFOWAY_SYMBOL_MAP[s]).join(',')
+        const cryptoCodes = cryptoSymbols.map(s => liveMap[s]).join(',')
         const url = `${INFOWAY_HTTP_CRYPTO}/${cryptoCodes}`
         
         const response = await fetch(url, {
@@ -171,7 +185,7 @@ async function getInfowayBatchPrices(symbols) {
           const data = await response.json()
           if (data.ret === 200 && data.data) {
             for (const item of data.data) {
-              const internalSymbol = INFOWAY_REVERSE_MAP[item.s]
+              const internalSymbol = reverseMap[item.s]
               if (!internalSymbol) continue
               
               const bid = item.b?.[0]?.[0] ? parseFloat(item.b[0][0]) : null
@@ -193,7 +207,7 @@ async function getInfowayBatchPrices(symbols) {
     // Fetch common (forex/metals/commodities) prices
     if (commonSymbols.length > 0) {
       try {
-        const commonCodes = commonSymbols.map(s => INFOWAY_SYMBOL_MAP[s]).join(',')
+        const commonCodes = commonSymbols.map(s => liveMap[s]).join(',')
         const url = `${INFOWAY_HTTP_COMMON}/${commonCodes}`
         
         const response = await fetch(url, {
@@ -204,7 +218,7 @@ async function getInfowayBatchPrices(symbols) {
           const data = await response.json()
           if (data.ret === 200 && data.data) {
             for (const item of data.data) {
-              const internalSymbol = INFOWAY_REVERSE_MAP[item.s]
+              const internalSymbol = reverseMap[item.s]
               if (!internalSymbol) continue
               
               const bid = item.b?.[0]?.[0] ? parseFloat(item.b[0][0]) : null
@@ -286,28 +300,43 @@ function getDefaultInstruments() {
 }
 
 // GET /api/prices/instruments - Get all available instruments (MUST be before /:symbol)
+// Merges the legacy hardcoded list with admin-managed Instrument docs.
 router.get('/instruments', async (req, res) => {
   try {
-    console.log('Returning Infoway.io supported instruments')
-    
-    const instruments = INFOWAY_SYMBOLS.map(symbol => {
-      const category = categorizeSymbol(symbol)
-      const isPopular = POPULAR_INSTRUMENTS[category]?.includes(symbol) || false
-      return {
-        symbol,
-        name: getInstrumentName(symbol),
-        category,
-        digits: getDigits(symbol),
-        contractSize: getContractSize(symbol),
-        minVolume: 0.01,
-        maxVolume: 100,
-        volumeStep: 0.01,
-        popular: isPopular
-      }
-    })
-    
-    console.log('Returning', instruments.length, 'Infoway instruments')
-    res.json({ success: true, instruments })
+    const reg = await getInstrumentRegistry()
+    const dbSymbols = new Set(Object.keys(reg.map))
+
+    const fromLegacy = INFOWAY_SYMBOLS
+      .filter(symbol => !dbSymbols.has(symbol))
+      .map(symbol => {
+        const category = categorizeSymbol(symbol)
+        const isPopular = POPULAR_INSTRUMENTS[category]?.includes(symbol) || false
+        return {
+          symbol,
+          name: getInstrumentName(symbol),
+          category,
+          digits: getDigits(symbol),
+          contractSize: getContractSize(symbol),
+          minVolume: 0.01,
+          maxVolume: 100,
+          volumeStep: 0.01,
+          popular: isPopular
+        }
+      })
+
+    const fromDb = reg.list.map(d => ({
+      symbol: d.symbol,
+      name: d.name,
+      category: d.segment,
+      digits: d.digits ?? 5,
+      contractSize: d.contractSize ?? 100000,
+      minVolume: d.minLotSize ?? 0.01,
+      maxVolume: d.maxLotSize ?? 100,
+      volumeStep: d.lotStep ?? 0.01,
+      popular: !!d.popular
+    }))
+
+    res.json({ success: true, instruments: [...fromDb, ...fromLegacy] })
   } catch (error) {
     console.error('Error fetching instruments:', error)
     res.json({ success: true, instruments: getDefaultInstruments() })
@@ -397,9 +426,10 @@ function getContractSize(symbol) {
 router.get('/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params
-    
+    const liveMap = await resolveMap()
+
     // Check if symbol is supported
-    if (!INFOWAY_SYMBOL_MAP[symbol]) {
+    if (!liveMap[symbol]) {
       return res.status(404).json({ success: false, message: `Symbol ${symbol} not supported` })
     }
     
@@ -431,14 +461,15 @@ router.post('/batch', async (req, res) => {
     
     const prices = {}
     const now = Date.now()
-    
+    const liveMap = await resolveMap()
+
     // Get prices from cache first
     const missingSymbols = []
     for (const symbol of symbols) {
       const cached = priceCache.get(symbol)
       if (cached && (now - cached.time) < CACHE_TTL) {
         prices[symbol] = cached.price
-      } else if (INFOWAY_SYMBOL_MAP[symbol]) {
+      } else if (liveMap[symbol]) {
         missingSymbols.push(symbol)
       }
     }
@@ -460,3 +491,14 @@ router.post('/batch', async (req, res) => {
 })
 
 export default router
+
+// Named exports for seeding/migration: gives the Instruments admin endpoint
+// access to the same legacy catalog so seeding stays a single source of truth.
+export {
+  INFOWAY_SYMBOL_MAP,
+  POPULAR_INSTRUMENTS,
+  categorizeSymbol,
+  getInstrumentName,
+  getDigits,
+  getContractSize
+}

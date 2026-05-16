@@ -22,6 +22,7 @@ import copyTradingRoutes from './routes/copyTrading.js'
 import ibRoutes from './routes/ibNew.js'
 import propTradingRoutes from './routes/propTrading.js'
 import chargesRoutes from './routes/charges.js'
+import instrumentsRoutes from './routes/instruments.js'
 import pricesRoutes from './routes/prices.js'
 import earningsRoutes from './routes/earnings.js'
 import supportRoutes from './routes/support.js'
@@ -725,6 +726,7 @@ app.use('/api/prop', propTradingRoutes) // Mixed auth — handled per-route insi
 app.use('/api/admin', authAdmin, adminRoutes)
 app.use('/api/admin/trade', authAdmin, adminTradeRoutes)
 app.use('/api/charges', authAny, chargesRoutes)    // user reads spreads, admin manages
+app.use('/api/instruments', authAny, instrumentsRoutes)  // user lists, admin manages
 app.use('/api/earnings', authAdmin, earningsRoutes)
 app.use('/api/email-templates', authAdmin, emailTemplatesRoutes)
 app.use('/api/bonus', authAny, bonusRoutes)        // user calculates bonus, admin manages
