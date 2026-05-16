@@ -57,6 +57,50 @@ async function assertAccountInScope(req, res, tradingAccountId) {
   return true
 }
 
+// GET /api/admin/trade/stats - Aggregate stats across all trades in scope
+router.get('/stats', requirePermission('canManageTrades'), async (req, res) => {
+  try {
+    const baseFilter = await userIdFilter(req)
+    const { dateFrom, dateTo } = req.query
+
+    if (dateFrom || dateTo) {
+      baseFilter.openedAt = {}
+      if (dateFrom) baseFilter.openedAt.$gte = new Date(dateFrom)
+      if (dateTo) {
+        const end = new Date(dateTo)
+        end.setHours(23, 59, 59, 999)
+        baseFilter.openedAt.$lte = end
+      }
+    }
+
+    const [total, open, volumeAgg, pnlAgg] = await Promise.all([
+      Trade.countDocuments(baseFilter),
+      Trade.countDocuments({ ...baseFilter, status: 'OPEN' }),
+      Trade.aggregate([
+        { $match: baseFilter },
+        { $group: { _id: null, total: { $sum: { $multiply: ['$quantity', '$contractSize', '$openPrice'] } } } }
+      ]),
+      Trade.aggregate([
+        { $match: { ...baseFilter, status: 'CLOSED' } },
+        { $group: { _id: null, total: { $sum: '$realizedPnl' } } }
+      ])
+    ])
+
+    res.json({
+      success: true,
+      stats: {
+        total,
+        open,
+        volume: volumeAgg[0]?.total || 0,
+        pnl: pnlAgg[0]?.total || 0
+      }
+    })
+  } catch (error) {
+    console.error('Error fetching trade stats:', error)
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
 // GET /api/admin/trade/all - Get all trades with pagination (for admin dashboard)
 router.get('/all', requirePermission('canManageTrades'), async (req, res) => {
   try {

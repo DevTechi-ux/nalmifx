@@ -84,28 +84,41 @@ router.get('/dashboard-stats', async (req, res) => {
     const totalUsers = await User.countDocuments(scope)
     const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
     const newThisWeek = await User.countDocuments({ ...scope, createdAt: { $gte: oneWeekAgo } })
-    const pendingKYC = await User.countDocuments({ ...scope, kycStatus: { $in: ['pending', 'Pending', null] } })
 
-    // Scope transactions/trades by user IDs
+    // Scope transactions/trades/kyc by user IDs
     let txFilter = {}
     let tradeFilter = {}
+    let kycFilter = {}
     if (scope.assignedAdmin) {
       const userIds = await User.find(scope).distinct('_id')
       txFilter = { userId: { $in: userIds } }
       tradeFilter = { userId: { $in: userIds } }
+      kycFilter = { userId: { $in: userIds } }
     }
 
+    // Use KYC collection (same source as KYC page) instead of User.kycStatus
+    const pendingKYC = await KYC.countDocuments({ status: 'pending', ...kycFilter })
+
+    // Match AdminFundManagement: filters by status === 'APPROVED' only (case-insensitive)
     const depositStats = await Transaction.aggregate([
-      { $match: { type: 'Deposit', status: { $in: ['Approved', 'Completed'] }, ...txFilter } },
+      { $match: { type: 'Deposit', status: 'Approved', ...txFilter } },
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ])
     const withdrawalStats = await Transaction.aggregate([
-      { $match: { type: 'Withdrawal', status: { $in: ['Approved', 'Completed'] }, ...txFilter } },
+      { $match: { type: 'Withdrawal', status: 'Approved', ...txFilter } },
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ])
     const pendingWithdrawals = await Transaction.countDocuments({ type: 'Withdrawal', status: 'Pending', ...txFilter })
 
-    const activeTrades = await Trade.countDocuments({ status: { $in: ['OPEN', 'PENDING'] }, ...tradeFilter })
+    const activeTrades = await Trade.countDocuments({ status: 'OPEN', ...tradeFilter })
+
+    const netPnlStats = await Trade.aggregate([
+      { $match: { status: 'CLOSED', ...tradeFilter } },
+      { $group: { _id: null, total: { $sum: '$realizedPnl' } } }
+    ])
+
+    const totalDeposits = depositStats[0]?.total || 0
+    const totalWithdrawals = withdrawalStats[0]?.total || 0
 
     res.json({
       success: true,
@@ -113,8 +126,10 @@ router.get('/dashboard-stats', async (req, res) => {
         totalUsers,
         newThisWeek,
         pendingKYC,
-        totalDeposits: depositStats[0]?.total || 0,
-        totalWithdrawals: withdrawalStats[0]?.total || 0,
+        totalDeposits,
+        totalWithdrawals,
+        netDeposit: totalDeposits - totalWithdrawals,
+        netPnl: netPnlStats[0]?.total || 0,
         pendingWithdrawals,
         activeTrades
       }
@@ -126,15 +141,62 @@ router.get('/dashboard-stats', async (req, res) => {
 })
 
 // GET /api/admin/users - Get users (scoped to branch for sub-admins)
+// Enriches each user with: walletBalance, tradingBalance, historicalPnl,
+// runningPnl, totalDeposits (for P&L percentages computed on the client).
 router.get('/users', async (req, res) => {
   try {
     const scope = scopeFilter(req)
-    const users = await User.find(scope).select('-password').sort({ createdAt: -1 })
+    const users = await User.find(scope).select('-password').lean()
+    const userIds = users.map(u => u._id)
+
+    const Wallet = (await import('../models/Wallet.js')).default
+    const TradingAccount = (await import('../models/TradingAccount.js')).default
+
+    const [wallets, tradingAccountAgg, closedPnlAgg, openPnlAgg, depositAgg] = await Promise.all([
+      Wallet.find({ userId: { $in: userIds } }).lean(),
+      TradingAccount.aggregate([
+        { $match: { userId: { $in: userIds }, isDemo: { $ne: true } } },
+        { $group: { _id: '$userId', total: { $sum: '$balance' } } }
+      ]),
+      Trade.aggregate([
+        { $match: { userId: { $in: userIds }, status: 'CLOSED' } },
+        { $group: { _id: '$userId', total: { $sum: '$realizedPnl' } } }
+      ]),
+      Trade.aggregate([
+        { $match: { userId: { $in: userIds }, status: 'OPEN' } },
+        { $group: { _id: '$userId', total: { $sum: '$floatingPnl' } } }
+      ]),
+      Transaction.aggregate([
+        { $match: { userId: { $in: userIds }, type: 'Deposit', status: 'Approved' } },
+        { $group: { _id: '$userId', total: { $sum: '$amount' } } }
+      ])
+    ])
+
+    const walletMap = new Map(wallets.map(w => [String(w.userId), w.balance || 0]))
+    const tradingMap = new Map(tradingAccountAgg.map(r => [String(r._id), r.total || 0]))
+    const closedMap = new Map(closedPnlAgg.map(r => [String(r._id), r.total || 0]))
+    const openMap = new Map(openPnlAgg.map(r => [String(r._id), r.total || 0]))
+    const depositMap = new Map(depositAgg.map(r => [String(r._id), r.total || 0]))
+
+    const enriched = users.map(u => {
+      const id = String(u._id)
+      return {
+        ...u,
+        walletBalance: walletMap.get(id) || 0,
+        tradingBalance: tradingMap.get(id) || 0,
+        historicalPnl: closedMap.get(id) || 0,
+        runningPnl: openMap.get(id) || 0,
+        totalDeposits: depositMap.get(id) || 0
+      }
+    })
+
+    enriched.sort((a, b) => (b.historicalPnl || 0) - (a.historicalPnl || 0))
+
     res.json({
       success: true,
       message: 'Users fetched successfully',
-      users,
-      total: users.length
+      users: enriched,
+      total: enriched.length
     })
   } catch (error) {
     console.error('Error fetching users:', error)

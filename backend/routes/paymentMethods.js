@@ -1,7 +1,9 @@
 import express from 'express'
+import mongoose from 'mongoose'
 import PaymentMethod from '../models/PaymentMethod.js'
 import Currency from '../models/Currency.js'
 import UserBankAccount from '../models/UserBankAccount.js'
+import Transaction from '../models/Transaction.js'
 import { getScopedUserIds } from '../middleware/auth.js'
 
 const router = express.Router()
@@ -31,7 +33,8 @@ router.post('/', async (req, res) => {
   try {
     const { type, bankName, accountNumber, accountHolderName, ifscCode, upiId, qrCodeImage,
             cashPickupLocation, cashDropLocation, cashInstructions,
-            usdtWalletAddress, usdtWalletQr, usdtNetwork } = req.body
+            usdtWalletAddress, usdtWalletQr, usdtNetwork,
+            perTransactionLimit, dailyLimit } = req.body
     const paymentMethod = new PaymentMethod({
       type,
       bankName,
@@ -45,12 +48,59 @@ router.post('/', async (req, res) => {
       cashInstructions,
       usdtWalletAddress,
       usdtWalletQr,
-      usdtNetwork
+      usdtNetwork,
+      perTransactionLimit: Number(perTransactionLimit) || 0,
+      dailyLimit: Number(dailyLimit) || 0
     })
     await paymentMethod.save()
     res.status(201).json({ message: 'Payment method created', paymentMethod })
   } catch (error) {
     res.status(500).json({ message: 'Error creating payment method', error: error.message })
+  }
+})
+
+// GET /api/payment-methods/usage - Each method's per-tx limit and the user's
+// remaining capacity for today. The frontend uses this to disable methods
+// whose daily cap is exhausted and to validate the entered amount.
+router.get('/usage', async (req, res) => {
+  try {
+    if (!req.userId) return res.status(401).json({ message: 'Unauthorized' })
+    const methods = await PaymentMethod.find({ isActive: true })
+
+    const start = new Date()
+    start.setUTCHours(0, 0, 0, 0)
+    const end = new Date(start)
+    end.setUTCDate(end.getUTCDate() + 1)
+
+    const usageAgg = await Transaction.aggregate([
+      { $match: {
+        userId: typeof req.userId === 'string' ? new mongoose.Types.ObjectId(req.userId) : req.userId,
+        type: 'Deposit',
+        status: { $in: ['Pending', 'Approved', 'Completed'] },
+        createdAt: { $gte: start, $lt: end }
+      } },
+      { $group: { _id: '$paymentMethod', total: { $sum: '$amount' } } }
+    ])
+    const usageByType = Object.fromEntries(usageAgg.map(u => [u._id, u.total || 0]))
+
+    const usage = methods.map(m => {
+      const usedToday = usageByType[m.type] || 0
+      const dailyRemaining = m.dailyLimit > 0 ? Math.max(0, m.dailyLimit - usedToday) : null
+      return {
+        _id: m._id,
+        type: m.type,
+        perTransactionLimit: m.perTransactionLimit || 0,
+        dailyLimit: m.dailyLimit || 0,
+        usedToday,
+        dailyRemaining,
+        exhausted: dailyRemaining === 0
+      }
+    })
+
+    res.json({ usage })
+  } catch (error) {
+    console.error('Error computing payment usage:', error)
+    res.status(500).json({ message: 'Error fetching usage', error: error.message })
   }
 })
 

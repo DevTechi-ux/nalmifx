@@ -1,4 +1,5 @@
 import express from 'express'
+import mongoose from 'mongoose'
 import Wallet from '../models/Wallet.js'
 import Transaction from '../models/Transaction.js'
 import TradingAccount from '../models/TradingAccount.js'
@@ -34,6 +35,49 @@ router.post('/deposit', async (req, res) => {
 
     if (!amount || amount <= 0) {
       return res.status(400).json({ message: 'Invalid amount' })
+    }
+
+    // Enforce per-method limits. The admin configures perTransactionLimit and
+    // dailyLimit on each PaymentMethod; if either is exceeded the deposit is
+    // rejected so the client must pick another option.
+    if (paymentMethod) {
+      const PaymentMethod = (await import('../models/PaymentMethod.js')).default
+      const method = await PaymentMethod.findOne({ type: paymentMethod, isActive: true })
+      if (method) {
+        if (method.perTransactionLimit > 0 && amount > method.perTransactionLimit) {
+          return res.status(400).json({
+            message: `${paymentMethod} allows a maximum of ${method.perTransactionLimit} per transaction. Please choose another option.`,
+            code: 'PER_TX_LIMIT_EXCEEDED',
+            perTransactionLimit: method.perTransactionLimit
+          })
+        }
+        if (method.dailyLimit > 0) {
+          const start = new Date()
+          start.setUTCHours(0, 0, 0, 0)
+          const end = new Date(start)
+          end.setUTCDate(end.getUTCDate() + 1)
+          const usedAgg = await Transaction.aggregate([
+            { $match: {
+              userId: typeof userId === 'string' ? new mongoose.Types.ObjectId(userId) : userId,
+              type: 'Deposit',
+              paymentMethod,
+              status: { $in: ['Pending', 'Approved', 'Completed'] },
+              createdAt: { $gte: start, $lt: end }
+            } },
+            { $group: { _id: null, total: { $sum: '$amount' } } }
+          ])
+          const usedToday = usedAgg[0]?.total || 0
+          if (usedToday + amount > method.dailyLimit) {
+            return res.status(400).json({
+              message: `Daily limit for ${paymentMethod} is ${method.dailyLimit}. You have already used ${usedToday} today. Please choose another option.`,
+              code: 'DAILY_LIMIT_EXCEEDED',
+              dailyLimit: method.dailyLimit,
+              usedToday,
+              dailyRemaining: Math.max(0, method.dailyLimit - usedToday)
+            })
+          }
+        }
+      }
     }
 
     // Get or create wallet

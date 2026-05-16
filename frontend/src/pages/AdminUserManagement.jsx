@@ -612,14 +612,14 @@ const AdminUserManagement = () => {
                       <p className="text-white text-2xl font-bold">${userWalletBalance?.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) || '0.00'}</p>
                     </div>
                     <div className="flex gap-2">
-                      <button 
+                      <button
                         onClick={() => setModalType('addFundWallet')}
                         className="p-2 bg-green-500/20 text-green-500 rounded-lg hover:bg-green-500/30 transition-colors"
                         title="Add to Wallet"
                       >
                         <Plus size={16} />
                       </button>
-                      <button 
+                      <button
                         onClick={() => setModalType('deductWallet')}
                         className="p-2 bg-orange-500/20 text-orange-500 rounded-lg hover:bg-orange-500/30 transition-colors"
                         title="Deduct from Wallet"
@@ -629,6 +629,37 @@ const AdminUserManagement = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* P&L Summary */}
+                {(() => {
+                  const histPnl = selectedUser.historicalPnl || 0
+                  const runPnl = selectedUser.runningPnl || 0
+                  const deposits = selectedUser.totalDeposits || 0
+                  const histPct = deposits > 0 ? (histPnl / deposits) * 100 : 0
+                  const runPct = deposits > 0 ? (runPnl / deposits) * 100 : 0
+                  return (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-dark-700 p-3 rounded-lg">
+                        <p className="text-gray-500 text-xs mb-1">Historical P&L</p>
+                        <p className={`text-lg font-bold ${histPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {histPnl >= 0 ? '+' : ''}${histPnl.toFixed(2)}
+                        </p>
+                        <p className={`text-xs ${histPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {histPct >= 0 ? '+' : ''}{histPct.toFixed(2)}%
+                        </p>
+                      </div>
+                      <div className="bg-dark-700 p-3 rounded-lg">
+                        <p className="text-gray-500 text-xs mb-1">Running P&L</p>
+                        <p className={`text-lg font-bold ${runPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {runPnl >= 0 ? '+' : ''}${runPnl.toFixed(2)}
+                        </p>
+                        <p className={`text-xs ${runPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {runPct >= 0 ? '+' : ''}{runPct.toFixed(2)}%
+                        </p>
+                      </div>
+                    </div>
+                  )
+                })()}
 
                 {/* Quick Actions */}
                 <div className="grid grid-cols-2 gap-2 pt-2">
@@ -1527,12 +1558,16 @@ const AdminUserManagement = () => {
                     <span>{user.phone || 'N/A'}</span>
                   </div>
                   <div className="flex items-center gap-2 text-gray-400">
-                    <Calendar size={14} />
-                    <span>Joined {formatDate(user.createdAt)}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-gray-400">
                     <Wallet size={14} />
-                    <span className="text-blue-400 text-sm">Click View for balances</span>
+                    <span className="text-white text-sm">
+                      ${((user.walletBalance || 0) + (user.tradingBalance || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <DollarSign size={14} className="text-gray-400" />
+                    <span className={`text-sm font-medium ${(user.historicalPnl || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      P&L: {(user.historicalPnl || 0) >= 0 ? '+' : ''}${(user.historicalPnl || 0).toFixed(2)}
+                    </span>
                   </div>
                 </div>
 
@@ -1573,21 +1608,20 @@ const AdminUserManagement = () => {
                 <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Email</th>
                 <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Phone</th>
                 <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Balance</th>
-                <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Status</th>
-                <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Joined</th>
+                <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Total P&L</th>
                 <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="7" className="text-center py-8">
+                  <td colSpan="6" className="text-center py-8">
                     <RefreshCw size={24} className="text-gray-500 animate-spin mx-auto" />
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="text-center py-8 text-gray-500">
+                  <td colSpan="6" className="text-center py-8 text-gray-500">
                     {searchTerm ? 'No users found matching your search' : 'No users registered yet'}
                   </td>
                 </tr>
@@ -1617,26 +1651,19 @@ const AdminUserManagement = () => {
                       </div>
                     </td>
                     <td className="py-4 px-4">
-                      <button 
-                        onClick={() => openModal('view', user)}
-                        className="text-blue-400 hover:text-blue-300 text-sm underline"
-                      >
-                        View Balances
-                      </button>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-white text-sm font-medium">
+                          ${((user.walletBalance || 0) + (user.tradingBalance || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                        <span className="text-gray-500 text-xs">
+                          W: ${(user.walletBalance || 0).toFixed(2)} • T: ${(user.tradingBalance || 0).toFixed(2)}
+                        </span>
+                      </div>
                     </td>
                     <td className="py-4 px-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        user.isBanned 
-                          ? 'bg-red-500/20 text-red-500' 
-                          : user.isBlocked 
-                            ? 'bg-yellow-500/20 text-yellow-500' 
-                            : 'bg-green-500/20 text-green-500'
-                      }`}>
-                        {user.isBanned ? 'Banned' : user.isBlocked ? 'Blocked' : 'Active'}
+                      <span className={`text-sm font-medium ${(user.historicalPnl || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {(user.historicalPnl || 0) >= 0 ? '+' : ''}${(user.historicalPnl || 0).toFixed(2)}
                       </span>
-                    </td>
-                    <td className="py-4 px-4 text-gray-400">
-                      {formatDate(user.createdAt)}
                     </td>
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-1">

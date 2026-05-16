@@ -86,6 +86,7 @@ const AdminLayout = ({ children, title, subtitle }) => {
     { name: 'User Management',       icon: Users,           path: `${basePath}/users`,             permKey: 'canManageUsers' },
     { name: 'Trade Management',      icon: TrendingUp,      path: `${basePath}/trades`,            permKey: 'canManageTrades' },
     { name: 'Fund Management',       icon: Wallet,          path: `${basePath}/funds`,             permKey: 'canManageDeposits', badge: pendingCounts.funds },
+    { name: 'Transactions',          icon: CreditCard,      path: `${basePath}/transactions`,      permKey: 'canManageDeposits' },
     { name: 'Bank Settings',         icon: Building2,       path: `${basePath}/bank-settings`,     permKey: 'canManageDeposits', badge: pendingCounts.bankRequests },
     { name: 'IB Management',         icon: UserCog,         path: `${basePath}/ib-management`,     permKey: 'canManageIB', badge: pendingCounts.ib },
     { name: 'Forex Charges',         icon: DollarSign,      path: `${basePath}/forex-charges`,     permKey: 'canManageSymbols' },

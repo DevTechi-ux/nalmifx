@@ -44,6 +44,8 @@ const AdminBankSettings = () => {
     usdtWalletAddress: '',
     usdtWalletQr: '',
     usdtNetwork: 'TRC20',
+    perTransactionLimit: 0,
+    dailyLimit: 0,
     isActive: true
   })
   
@@ -307,10 +309,16 @@ const AdminBankSettings = () => {
         : `${API_URL}/payment-methods`
       const method = editingMethod ? 'PUT' : 'POST'
 
+      const payload = {
+        ...form,
+        perTransactionLimit: form.perTransactionLimit === '' ? 0 : Number(form.perTransactionLimit) || 0,
+        dailyLimit: form.dailyLimit === '' ? 0 : Number(form.dailyLimit) || 0
+      }
+
       const res = await adminFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify(payload)
       })
       const data = await res.json()
 
@@ -371,6 +379,8 @@ const AdminBankSettings = () => {
       usdtWalletAddress: method.usdtWalletAddress || '',
       usdtWalletQr: method.usdtWalletQr || '',
       usdtNetwork: method.usdtNetwork || 'TRC20',
+      perTransactionLimit: method.perTransactionLimit || 0,
+      dailyLimit: method.dailyLimit || 0,
       isActive: method.isActive
     })
     setShowAddModal(true)
@@ -392,6 +402,8 @@ const AdminBankSettings = () => {
       usdtWalletAddress: '',
       usdtWalletQr: '',
       usdtNetwork: 'TRC20',
+      perTransactionLimit: 0,
+      dailyLimit: 0,
       isActive: true
     })
   }
@@ -1361,6 +1373,53 @@ const AdminBankSettings = () => {
                   </div>
                 </>
               )}
+
+              {/* Transaction Limits */}
+              <div className="border-t border-gray-700 pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-gray-300 text-sm font-medium">Transaction Limits</p>
+                  <span className="text-gray-500 text-xs">Currency: <span className="text-gray-300 font-medium">USD ($)</span></span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-gray-400 text-xs mb-1">Per Transaction (USD)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={form.perTransactionLimit === 0 ? '' : form.perTransactionLimit}
+                        onChange={(e) => {
+                          const v = e.target.value.replace(/[^0-9.]/g, '')
+                          if (v.split('.').length > 2) return
+                          setForm({ ...form, perTransactionLimit: v })
+                        }}
+                        placeholder="0 = no limit"
+                        className="w-full pl-7 pr-3 py-2 bg-dark-700 border border-gray-700 rounded-lg text-white text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-gray-400 text-xs mb-1">Daily Limit per user (USD)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={form.dailyLimit === 0 ? '' : form.dailyLimit}
+                        onChange={(e) => {
+                          const v = e.target.value.replace(/[^0-9.]/g, '')
+                          if (v.split('.').length > 2) return
+                          setForm({ ...form, dailyLimit: v })
+                        }}
+                        placeholder="0 = no limit"
+                        className="w-full pl-7 pr-3 py-2 bg-dark-700 border border-gray-700 rounded-lg text-white text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <p className="text-gray-500 text-xs mt-2">Limits are evaluated against the USD-equivalent amount the user deposits. When a user hits a limit, this option is disabled on their deposit screen and they're prompted to pick another.</p>
+              </div>
 
               {/* Active Status */}
               <div className="flex items-center justify-between p-3 bg-dark-700 rounded-lg">

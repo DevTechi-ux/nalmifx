@@ -23,7 +23,7 @@ import { API_URL } from '../config/api'
 
 const AdminTradeManagement = () => {
   const [searchTerm, setSearchTerm] = useState('')
-  const [filterStatus, setFilterStatus] = useState('all')
+  const [filterStatus, setFilterStatus] = useState('open')
   const [trades, setTrades] = useState([])
   const [stats, setStats] = useState({ total: 0, open: 0, volume: 0, pnl: 0 })
   const [loading, setLoading] = useState(true)
@@ -377,22 +377,22 @@ const AdminTradeManagement = () => {
       const statusParam = filterStatus !== 'all' ? `&status=${filterStatus.toUpperCase()}` : ''
       const dateFromParam = dateFrom ? `&dateFrom=${dateFrom}` : ''
       const dateToParam = dateTo ? `&dateTo=${dateTo}` : ''
-      const res = await adminFetch(`${API_URL}/admin/trade/all?limit=${tradesPerPage}&offset=${offset}${statusParam}${dateFromParam}${dateToParam}`)
-      const data = await res.json()
+      const statsDateParams = `${dateFrom ? `?dateFrom=${dateFrom}` : ''}${dateTo ? `${dateFrom ? '&' : '?'}dateTo=${dateTo}` : ''}`
+
+      const [tradesRes, statsRes] = await Promise.all([
+        adminFetch(`${API_URL}/admin/trade/all?limit=${tradesPerPage}&offset=${offset}${statusParam}${dateFromParam}${dateToParam}`),
+        adminFetch(`${API_URL}/admin/trade/stats${statsDateParams}`)
+      ])
+
+      const data = await tradesRes.json()
       if (data.trades) {
         setTrades(data.trades)
         setTotalTrades(data.total || data.trades.length)
-        // Calculate stats
-        const openTrades = data.trades.filter(t => t.status === 'OPEN')
-        const closedTrades = data.trades.filter(t => t.status === 'CLOSED')
-        const totalVolume = data.trades.reduce((sum, t) => sum + (t.quantity * t.contractSize * t.openPrice), 0)
-        const totalPnl = closedTrades.reduce((sum, t) => sum + (t.realizedPnl || 0), 0)
-        setStats({
-          total: data.total || data.trades.length,
-          open: openTrades.length,
-          volume: totalVolume,
-          pnl: totalPnl
-        })
+      }
+
+      const statsData = await statsRes.json()
+      if (statsData.success && statsData.stats) {
+        setStats(statsData.stats)
       }
     } catch (error) {
       console.error('Error fetching trades:', error)
@@ -556,6 +556,10 @@ const AdminTradeManagement = () => {
                       <p className="text-white">${trade.openPrice?.toFixed(5)}</p>
                     </div>
                     <div>
+                      <p className="text-gray-500">Close Price</p>
+                      <p className="text-white">{trade.closePrice ? `$${trade.closePrice.toFixed(5)}` : '—'}</p>
+                    </div>
+                    <div>
                       <p className="text-gray-500">Opened At</p>
                       <p className="text-white text-xs">{trade.openedAt ? new Date(trade.openedAt).toLocaleString() : '—'}</p>
                     </div>
@@ -602,6 +606,7 @@ const AdminTradeManagement = () => {
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Side</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Lots</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Open Price</th>
+                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Close Price</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Opened At</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Closed At</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">P&L</th>
@@ -626,6 +631,9 @@ const AdminTradeManagement = () => {
                       </td>
                       <td className="py-4 px-4 text-white">{trade.quantity}</td>
                       <td className="py-4 px-4 text-gray-400">${trade.openPrice?.toFixed(5)}</td>
+                      <td className="py-4 px-4 text-gray-400">
+                        {trade.closePrice ? `$${trade.closePrice.toFixed(5)}` : <span className="text-gray-600">—</span>}
+                      </td>
                       <td className="py-4 px-4 text-gray-400 text-xs">
                         {trade.openedAt ? (
                           <>

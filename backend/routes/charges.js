@@ -177,6 +177,55 @@ router.post('/', requireSuperAdmin, async (req, res) => {
   }
 })
 
+// POST /api/charges/bulk-apply-spread - One-click apply a spread value across
+// every symbol (super admin only). Creates an INSTRUMENT-level charge per
+// symbol; if one exists for that symbol it is updated in place.
+router.post('/bulk-apply-spread', requireSuperAdmin, async (req, res) => {
+  try {
+    const { spreadValue, spreadType = 'FIXED', symbols } = req.body
+    if (typeof spreadValue !== 'number' || spreadValue < 0) {
+      return res.status(400).json({ success: false, message: 'spreadValue must be a non-negative number' })
+    }
+
+    // Default catalog if caller doesn't pass one — matches the dropdown in
+    // AdminForexCharges so the bulk button affects exactly what the UI shows.
+    const defaultSymbols = [
+      'EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD',
+      'EURGBP', 'EURJPY', 'GBPJPY',
+      'XAUUSD', 'XAGUSD',
+      'BTCUSD', 'ETHUSD', 'LTCUSD', 'XRPUSD',
+      'US30', 'US500', 'NAS100'
+    ]
+    const list = Array.isArray(symbols) && symbols.length ? symbols : defaultSymbols
+
+    const results = []
+    for (const symbol of list) {
+      const existing = await Charges.findOne({ level: 'INSTRUMENT', instrumentSymbol: symbol, userId: null, accountTypeId: null })
+      if (existing) {
+        existing.spreadValue = spreadValue
+        existing.spreadType = spreadType
+        existing.isActive = true
+        await existing.save()
+        results.push({ symbol, action: 'updated', id: existing._id })
+      } else {
+        const created = await Charges.create({
+          level: 'INSTRUMENT',
+          instrumentSymbol: symbol,
+          spreadType,
+          spreadValue,
+          isActive: true
+        })
+        results.push({ symbol, action: 'created', id: created._id })
+      }
+    }
+
+    res.json({ success: true, message: `Applied spread ${spreadValue} (${spreadType}) to ${list.length} symbols`, results })
+  } catch (error) {
+    console.error('Error bulk-applying spread:', error)
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
 // PUT /api/charges/:id - Update charge (super admin only)
 router.put('/:id', requireSuperAdmin, async (req, res) => {
   try {

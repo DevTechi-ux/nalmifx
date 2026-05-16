@@ -45,11 +45,68 @@ const AdminForexCharges = () => {
     swapShort: 0
   })
 
+  const [inrRate, setInrRate] = useState(83)
+  const [showBulkSpreadModal, setShowBulkSpreadModal] = useState(false)
+  const [bulkSpread, setBulkSpread] = useState({ value: 1, type: 'FIXED' })
+  const [bulkApplying, setBulkApplying] = useState(false)
+
   useEffect(() => {
     fetchCharges()
     fetchUsers()
     fetchAccountTypes()
+    fetchInrRate()
   }, [])
+
+  const fetchInrRate = async () => {
+    try {
+      const res = await adminFetch(`${API_URL}/payment-methods/currencies/active`)
+      const data = await res.json()
+      const inr = (data.currencies || []).find(c => c.currency === 'INR')
+      if (inr?.rateToUSD) setInrRate(inr.rateToUSD)
+    } catch (error) {
+      console.error('Error fetching INR rate:', error)
+    }
+  }
+
+  // Spread → USD per standard lot. The Charges model documents the unit per
+  // asset class: Forex=pips, Metals=cents, Crypto=USD. We compute a per-lot
+  // dollar estimate so admins can compare spreads across instruments.
+  const spreadToUsd = (charge) => {
+    if (!charge.spreadValue) return 0
+    const symbol = (charge.instrumentSymbol || '').toUpperCase()
+    if (!symbol) return charge.spreadValue
+    // Crypto: spread value is in USD
+    if (/^(BTC|ETH|LTC|XRP|BCH|DOGE)/.test(symbol)) return charge.spreadValue
+    // Metals: spread value is in cents on a 100oz lot
+    if (symbol.startsWith('XAU') || symbol.startsWith('XAG')) {
+      return (charge.spreadValue / 100) * 100
+    }
+    // Forex: spread value is in pips. 1 pip ≈ $10 per standard lot for USD-quoted pairs.
+    if (symbol.endsWith('JPY')) return charge.spreadValue * 9.09
+    return charge.spreadValue * 10
+  }
+
+  const handleBulkApplySpread = async () => {
+    if (!bulkSpread.value || bulkSpread.value < 0) return
+    setBulkApplying(true)
+    try {
+      const res = await adminFetch(`${API_URL}/charges/bulk-apply-spread`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ spreadValue: parseFloat(bulkSpread.value), spreadType: bulkSpread.type })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setShowBulkSpreadModal(false)
+        fetchCharges()
+      } else {
+        alert(data.message || 'Failed to apply spread')
+      }
+    } catch (e) {
+      alert('Error applying spread')
+    }
+    setBulkApplying(false)
+  }
 
   const fetchAccountTypes = async () => {
     try {
@@ -277,13 +334,23 @@ const AdminForexCharges = () => {
                 <p className="text-gray-500 text-sm">Bid/Ask price difference</p>
               </div>
             </div>
-            <button 
-              onClick={() => { resetForm(); setEditingCharge(null); setModalType('spread') }}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
-            >
-              <Plus size={16} />
-              <span>Add Spread</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowBulkSpreadModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-500 transition-colors"
+                title="Apply one spread value to every symbol in one click"
+              >
+                <TrendingUp size={16} />
+                <span>Apply to All Symbols</span>
+              </button>
+              <button
+                onClick={() => { resetForm(); setEditingCharge(null); setModalType('spread') }}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                <Plus size={16} />
+                <span>Add Spread</span>
+              </button>
+            </div>
           </div>
           <div className="p-4">
             {loading ? (
@@ -292,21 +359,28 @@ const AdminForexCharges = () => {
               <p className="text-gray-500 text-center py-4">No spread charges configured</p>
             ) : (
               <div className="space-y-2">
-                {charges.filter(c => c.spreadValue > 0).map((charge) => (
-                  <div key={charge._id} className="flex items-center justify-between p-3 bg-dark-700 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <span className="px-2 py-0.5 bg-gray-600 text-gray-300 text-xs rounded">{charge.level}</span>
-                      <span className="text-white">{getLevelLabel(charge)}</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-white font-medium">{charge.spreadValue} <span className="text-gray-500 text-sm">({charge.spreadType})</span></span>
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => openEditModal(charge, 'spread')} className="p-1.5 hover:bg-dark-600 rounded text-gray-400 hover:text-white"><Edit size={14} /></button>
-                        <button onClick={() => handleDelete(charge._id)} className="p-1.5 hover:bg-dark-600 rounded text-gray-400 hover:text-red-400"><Trash2 size={14} /></button>
+                {charges.filter(c => c.spreadValue > 0).map((charge) => {
+                  const usd = spreadToUsd(charge)
+                  const inr = usd * inrRate
+                  return (
+                    <div key={charge._id} className="flex items-center justify-between p-3 bg-dark-700 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <span className="px-2 py-0.5 bg-gray-600 text-gray-300 text-xs rounded">{charge.level}</span>
+                        <span className="text-white">{getLevelLabel(charge)}</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <div className="text-white font-medium">{charge.spreadValue} <span className="text-gray-500 text-sm">({charge.spreadType})</span></div>
+                          <div className="text-xs text-gray-400">≈ ${usd.toFixed(2)} USD · ₹{inr.toFixed(2)} INR <span className="text-gray-600">per lot</span></div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => openEditModal(charge, 'spread')} className="p-1.5 hover:bg-dark-600 rounded text-gray-400 hover:text-white"><Edit size={14} /></button>
+                          <button onClick={() => handleDelete(charge._id)} className="p-1.5 hover:bg-dark-600 rounded text-gray-400 hover:text-red-400"><Trash2 size={14} /></button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -825,6 +899,55 @@ const AdminForexCharges = () => {
                 <button onClick={() => setModalType(null)} className="flex-1 py-2 bg-dark-700 hover:bg-dark-600 text-white rounded-lg text-sm">Cancel</button>
                 <button onClick={handleSave} className="flex-1 py-2 bg-white text-black hover:bg-gray-200 rounded-lg text-sm font-medium">Save</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Apply Spread Modal */}
+      {showBulkSpreadModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-dark-800 rounded-xl border border-gray-700 w-full max-w-md p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-white font-semibold">Apply Spread to All Symbols</h3>
+              <button onClick={() => setShowBulkSpreadModal(false)} className="text-gray-400 hover:text-white"><X size={18} /></button>
+            </div>
+            <p className="text-gray-400 text-sm mb-4">Sets the same INSTRUMENT-level spread on every symbol in the catalog. Existing per-symbol entries are updated; missing ones are created.</p>
+
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label className="block text-gray-400 text-xs mb-1">Spread Value</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={bulkSpread.value}
+                  onChange={(e) => setBulkSpread({ ...bulkSpread, value: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-gray-400 text-xs mb-1">Type</label>
+                <select
+                  value={bulkSpread.type}
+                  onChange={(e) => setBulkSpread({ ...bulkSpread, type: e.target.value })}
+                  className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm"
+                >
+                  <option value="FIXED">FIXED</option>
+                  <option value="PERCENTAGE">PERCENTAGE</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="bg-dark-700 rounded-lg p-3 mb-4 text-xs text-gray-400">
+              For Forex pairs: spread is in pips (1 pip ≈ $10 per lot). For metals: cents. For crypto: USD. At {bulkSpread.value} {bulkSpread.type}, a Forex pair would cost ≈ ${(bulkSpread.value * 10).toFixed(2)} USD / ₹{(bulkSpread.value * 10 * inrRate).toFixed(2)} INR per lot.
+            </div>
+
+            <div className="flex gap-2">
+              <button onClick={() => setShowBulkSpreadModal(false)} className="flex-1 py-2 bg-dark-700 hover:bg-dark-600 text-white rounded-lg text-sm">Cancel</button>
+              <button onClick={handleBulkApplySpread} disabled={bulkApplying} className="flex-1 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium">
+                {bulkApplying ? 'Applying...' : 'Apply to All'}
+              </button>
             </div>
           </div>
         </div>

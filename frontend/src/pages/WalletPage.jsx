@@ -50,6 +50,7 @@ const WalletPage = () => {
   const [transactions, setTransactions] = useState([])
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
   const [paymentMethods, setPaymentMethods] = useState([])
+  const [paymentUsage, setPaymentUsage] = useState([])
   const [loading, setLoading] = useState(true)
   const [showDepositModal, setShowDepositModal] = useState(false)
   const [showWithdrawModal, setShowWithdrawModal] = useState(false)
@@ -266,9 +267,16 @@ const WalletPage = () => {
 
   const fetchPaymentMethods = async () => {
     try {
-      const res = await userFetch(`${API_URL}/payment-methods`)
-      const data = await res.json()
-      setPaymentMethods(data.paymentMethods || [])
+      const [methodsRes, usageRes] = await Promise.all([
+        userFetch(`${API_URL}/payment-methods`),
+        userFetch(`${API_URL}/payment-methods/usage`)
+      ])
+      const methodsData = await methodsRes.json()
+      setPaymentMethods(methodsData.paymentMethods || [])
+      if (usageRes.ok) {
+        const usageData = await usageRes.json()
+        setPaymentUsage(usageData.usage || [])
+      }
     } catch (error) {
       console.error('Error fetching payment methods:', error)
     }
@@ -292,6 +300,17 @@ const WalletPage = () => {
     const usdAmount = selectedCurrency && selectedCurrency.currency !== 'USD'
       ? calculateUSDAmount(parseFloat(localAmount), selectedCurrency)
       : parseFloat(localAmount)
+
+    // Client-side limit check — backend re-checks but this avoids the round-trip
+    const usage = paymentUsage.find(u => u.type === selectedPaymentMethod.type)
+    if (usage?.perTransactionLimit > 0 && usdAmount > usage.perTransactionLimit) {
+      setError(`Max per transaction for ${selectedPaymentMethod.type} is ${usage.perTransactionLimit}. Please reduce the amount or choose another option.`)
+      return
+    }
+    if (usage?.dailyLimit > 0 && (usage.usedToday + usdAmount) > usage.dailyLimit) {
+      setError(`Daily limit reached for ${selectedPaymentMethod.type} (remaining: ${usage.dailyRemaining}). Please choose another option.`)
+      return
+    }
 
     try {
       setUploadingScreenshot(true)
@@ -859,24 +878,58 @@ const WalletPage = () => {
             <div className="mb-4">
               <label className="block text-gray-400 text-sm mb-2">Payment Method</label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-                {paymentMethods.map((method) => (
-                  <button
-                    key={method._id}
-                    onClick={() => setSelectedPaymentMethod(method)}
-                    className={`p-4 rounded-lg border transition-colors flex flex-col items-center gap-2 ${
-                      selectedPaymentMethod?._id === method._id
-                        ? 'border-accent-green bg-accent-green/10'
-                        : 'border-gray-700 bg-dark-700 hover:border-gray-600'
-                    }`}
-                  >
-                    {getPaymentIcon(method.type)}
-                    <span className="text-white text-sm">{method.type}</span>
-                  </button>
-                ))}
+                {paymentMethods.map((method) => {
+                  const usage = paymentUsage.find(u => u.type === method.type)
+                  const exhausted = !!usage?.exhausted
+                  const isSelected = selectedPaymentMethod?._id === method._id
+                  return (
+                    <button
+                      key={method._id}
+                      onClick={() => {
+                        if (exhausted) {
+                          setError(`Daily limit reached for ${method.type}. Please choose another option.`)
+                          return
+                        }
+                        setSelectedPaymentMethod(method)
+                        setError('')
+                      }}
+                      disabled={exhausted}
+                      title={exhausted ? `Daily limit reached for ${method.type}` : ''}
+                      className={`p-4 rounded-lg border transition-colors flex flex-col items-center gap-1 ${
+                        exhausted
+                          ? 'border-gray-800 bg-dark-700/40 opacity-50 cursor-not-allowed'
+                          : isSelected
+                            ? 'border-accent-green bg-accent-green/10'
+                            : 'border-gray-700 bg-dark-700 hover:border-gray-600'
+                      }`}
+                    >
+                      {getPaymentIcon(method.type)}
+                      <span className="text-white text-sm">{method.type}</span>
+                      {usage && (usage.perTransactionLimit > 0 || usage.dailyLimit > 0) && (
+                        <span className="text-[10px] text-gray-400 text-center leading-tight">
+                          {usage.perTransactionLimit > 0 && <>Max/tx: {usage.perTransactionLimit}<br/></>}
+                          {usage.dailyLimit > 0 && (
+                            exhausted
+                              ? <span className="text-red-400">Daily limit reached</span>
+                              : <>Left today: {usage.dailyRemaining}</>
+                          )}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
               </div>
               {paymentMethods.length === 0 && (
                 <p className="text-gray-500 text-sm text-center py-4">No payment methods available</p>
               )}
+            </div>
+
+            {/* Same-account disclaimer */}
+            <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-2">
+              <span className="text-yellow-400 text-sm">⚠️</span>
+              <p className="text-yellow-200 text-xs leading-relaxed">
+                You must use the <span className="font-semibold">same account</span> for deposits and withdrawals. Deposits from one account and withdrawals to another will be rejected.
+              </p>
             </div>
 
             {selectedPaymentMethod && (
@@ -1030,6 +1083,13 @@ const WalletPage = () => {
             <div className={`mb-2 p-3 rounded-lg ${isDarkMode ? 'bg-dark-700' : 'bg-gray-100'}`}>
               <p className="text-gray-400 text-sm">Available Balance</p>
               <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>${wallet?.balance?.toLocaleString() || '0.00'}</p>
+            </div>
+
+            <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-2">
+              <span className="text-yellow-400 text-sm">⚠️</span>
+              <p className="text-yellow-200 text-xs leading-relaxed">
+                You must withdraw to the <span className="font-semibold">same account</span> you used for deposit. Withdrawals to a different account will be rejected.
+              </p>
             </div>
 
             <div className="mb-4">

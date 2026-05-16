@@ -53,6 +53,19 @@ const paymentMethodSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  // Transaction limits (in INR for INR-denominated methods, USD for USDT, etc).
+  // 0 = no limit. perTransactionLimit caps a single deposit; dailyLimit caps the
+  // cumulative deposit per user per UTC day through this method.
+  perTransactionLimit: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  dailyLimit: {
+    type: Number,
+    default: 0,
+    min: 0
   }
 }, { timestamps: true })
 
