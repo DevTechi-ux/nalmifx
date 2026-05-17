@@ -102,12 +102,27 @@ router.get('/stats', requirePermission('canManageTrades'), async (req, res) => {
 })
 
 // GET /api/admin/trade/all - Get all trades with pagination (for admin dashboard)
+// Supports filters: status, dateFrom, dateTo, userId (restrict to one user's
+// trades), symbol, side (BUY/SELL). userId still respects branch scope so a
+// sub-admin can't read trades for users outside their branch.
 router.get('/all', requirePermission('canManageTrades'), async (req, res) => {
   try {
-    const { status, limit = 20, offset = 0, dateFrom, dateTo } = req.query
+    const { status, limit = 20, offset = 0, dateFrom, dateTo, userId, symbol, side } = req.query
 
     let query = await userIdFilter(req)
     if (status) query.status = status
+    if (userId) {
+      // Combine the per-user filter with the existing branch scope.
+      if (query.userId && query.userId.$in) {
+        const allowed = query.userId.$in.map(String)
+        if (!allowed.includes(String(userId))) {
+          return res.status(403).json({ success: false, message: 'User not in your branch' })
+        }
+      }
+      query.userId = userId
+    }
+    if (symbol) query.symbol = symbol.toUpperCase()
+    if (side) query.side = side.toUpperCase()
     if (dateFrom || dateTo) {
       query.openedAt = {}
       if (dateFrom) query.openedAt.$gte = new Date(dateFrom)

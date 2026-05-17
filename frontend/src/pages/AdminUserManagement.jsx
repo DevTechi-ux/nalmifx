@@ -29,7 +29,10 @@ import {
   Minus,
   Key,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  TrendingUp,
+  TrendingDown,
+  Activity
 } from 'lucide-react'
 
 const AdminUserManagement = () => {
@@ -64,6 +67,20 @@ const AdminUserManagement = () => {
   const [userWalletBalance, setUserWalletBalance] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const usersPerPage = 20
+
+  // Trade history modal state
+  const [userTrades, setUserTrades] = useState([])
+  const [userTradesLoading, setUserTradesLoading] = useState(false)
+  const [userTradesTotal, setUserTradesTotal] = useState(0)
+  const [tradeFilters, setTradeFilters] = useState({
+    status: 'all',
+    side: 'all',
+    symbol: '',
+    dateFrom: '',
+    dateTo: '',
+    page: 1
+  })
+  const tradesPerPage = 50
   
   const adminUser = JSON.parse(localStorage.getItem('adminUser') || '{}')
 
@@ -179,6 +196,38 @@ const AdminUserManagement = () => {
       console.error('Error fetching user wallet:', error)
     }
   }
+
+  // Pull a single user's trade history via the existing /admin/trade/all
+  // endpoint, threading the current filter state through the query.
+  const fetchUserTrades = async (userId) => {
+    setUserTradesLoading(true)
+    try {
+      const offset = (tradeFilters.page - 1) * tradesPerPage
+      const params = new URLSearchParams({ userId, limit: String(tradesPerPage), offset: String(offset) })
+      if (tradeFilters.status !== 'all') params.set('status', tradeFilters.status.toUpperCase())
+      if (tradeFilters.side !== 'all') params.set('side', tradeFilters.side.toUpperCase())
+      if (tradeFilters.symbol) params.set('symbol', tradeFilters.symbol.toUpperCase())
+      if (tradeFilters.dateFrom) params.set('dateFrom', tradeFilters.dateFrom)
+      if (tradeFilters.dateTo) params.set('dateTo', tradeFilters.dateTo)
+      const res = await adminFetch(`${API_URL}/admin/trade/all?${params}`)
+      const data = await res.json()
+      if (data.success) {
+        setUserTrades(data.trades || [])
+        setUserTradesTotal(data.total || 0)
+      }
+    } catch (e) {
+      console.error('Error fetching user trades:', e)
+    }
+    setUserTradesLoading(false)
+  }
+
+  // Refetch trades whenever filters change while the trades modal is open.
+  useEffect(() => {
+    if (modalType === 'tradeHistory' && selectedUser?._id) {
+      fetchUserTrades(selectedUser._id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalType, selectedUser?._id, tradeFilters])
 
   const openModal = async (type, user) => {
     setSelectedUser(user)
@@ -541,9 +590,15 @@ const AdminUserManagement = () => {
   const renderModal = () => {
     if (!showModal || !selectedUser) return null
 
+    // Trade history needs much more horizontal room than the default form
+    // modals. Widen the container only for that view so other modals stay tidy.
+    const modalWidthClass = modalType === 'tradeHistory'
+      ? 'max-w-[1400px] max-h-[95vh] flex flex-col'
+      : 'max-w-md'
+
     return (
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div className="bg-dark-800 rounded-2xl w-full max-w-md border border-gray-700 overflow-hidden">
+        <div className={`bg-dark-800 rounded-2xl w-full ${modalWidthClass} border border-gray-700 overflow-hidden`}>
           {/* Modal Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-700">
             <div className="flex items-center gap-3">
@@ -566,7 +621,7 @@ const AdminUserManagement = () => {
           </div>
 
           {/* Modal Content */}
-          <div className="p-4">
+          <div className={`p-4 ${modalType === 'tradeHistory' ? 'overflow-y-auto flex-1' : ''}`}>
             {/* Message */}
             {message.text && (
               <div className={`mb-4 p-3 rounded-lg flex items-center gap-2 ${
@@ -706,12 +761,24 @@ const AdminUserManagement = () => {
                     <Shield size={16} />
                     <span className="text-sm">{selectedUser.isBanned ? 'Unban' : 'Ban'}</span>
                   </button>
-                  <button 
+                  <button
                     onClick={() => setModalType('tradingAccounts')}
                     className="flex items-center justify-center gap-2 p-3 bg-teal-500/20 text-teal-500 rounded-lg hover:bg-teal-500/30 transition-colors"
                   >
                     <CreditCard size={16} />
                     <span className="text-sm">Trading Accounts</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setTradeFilters({ status: 'all', side: 'all', symbol: '', dateFrom: '', dateTo: '', page: 1 })
+                      setUserTrades([])
+                      setUserTradesTotal(0)
+                      setModalType('tradeHistory')
+                    }}
+                    className="flex items-center justify-center gap-2 p-3 bg-indigo-500/20 text-indigo-400 rounded-lg hover:bg-indigo-500/30 transition-colors"
+                  >
+                    <Activity size={16} />
+                    <span className="text-sm">Trade History</span>
                   </button>
                   <button 
                     onClick={handleLoginAsUser}
@@ -784,6 +851,217 @@ const AdminUserManagement = () => {
                     Back
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* Trade History */}
+            {modalType === 'tradeHistory' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2 text-indigo-400">
+                    <Activity size={20} />
+                    <h4 className="font-semibold">Trade History — {selectedUser.firstName || selectedUser.email}</h4>
+                  </div>
+                  <button
+                    onClick={() => setModalType('view')}
+                    className="text-xs text-gray-400 hover:text-white"
+                  >
+                    ← Back
+                  </button>
+                </div>
+
+                {/* Filters */}
+                <div className="grid grid-cols-2 lg:grid-cols-6 gap-2 p-3 bg-dark-700 rounded-lg">
+                  <div>
+                    <label className="block text-gray-500 text-xs mb-1">Status</label>
+                    <select
+                      value={tradeFilters.status}
+                      onChange={(e) => setTradeFilters({ ...tradeFilters, status: e.target.value, page: 1 })}
+                      className="w-full px-2 py-1.5 bg-dark-600 border border-gray-700 rounded text-white text-xs"
+                    >
+                      <option value="all">All</option>
+                      <option value="open">Open</option>
+                      <option value="closed">Closed</option>
+                      <option value="pending">Pending</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-gray-500 text-xs mb-1">Side</label>
+                    <select
+                      value={tradeFilters.side}
+                      onChange={(e) => setTradeFilters({ ...tradeFilters, side: e.target.value, page: 1 })}
+                      className="w-full px-2 py-1.5 bg-dark-600 border border-gray-700 rounded text-white text-xs"
+                    >
+                      <option value="all">All</option>
+                      <option value="buy">Buy</option>
+                      <option value="sell">Sell</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-gray-500 text-xs mb-1">Symbol</label>
+                    <input
+                      type="text"
+                      value={tradeFilters.symbol}
+                      onChange={(e) => setTradeFilters({ ...tradeFilters, symbol: e.target.value, page: 1 })}
+                      placeholder="e.g. BTCUSD"
+                      className="w-full px-2 py-1.5 bg-dark-600 border border-gray-700 rounded text-white text-xs font-mono uppercase"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-500 text-xs mb-1">From</label>
+                    <input
+                      type="date"
+                      value={tradeFilters.dateFrom}
+                      onChange={(e) => setTradeFilters({ ...tradeFilters, dateFrom: e.target.value, page: 1 })}
+                      className="w-full px-2 py-1.5 bg-dark-600 border border-gray-700 rounded text-white text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-500 text-xs mb-1">To</label>
+                    <input
+                      type="date"
+                      value={tradeFilters.dateTo}
+                      onChange={(e) => setTradeFilters({ ...tradeFilters, dateTo: e.target.value, page: 1 })}
+                      className="w-full px-2 py-1.5 bg-dark-600 border border-gray-700 rounded text-white text-xs"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      onClick={() => setTradeFilters({ status: 'all', side: 'all', symbol: '', dateFrom: '', dateTo: '', page: 1 })}
+                      className="w-full px-2 py-1.5 bg-dark-600 hover:bg-dark-500 text-gray-300 rounded text-xs"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                </div>
+
+                {/* Summary */}
+                {!userTradesLoading && userTrades.length > 0 && (() => {
+                  const closed = userTrades.filter(t => t.status === 'CLOSED')
+                  const totalPnl = closed.reduce((s, t) => s + (t.realizedPnl || 0), 0)
+                  const wins = closed.filter(t => (t.realizedPnl || 0) > 0).length
+                  const winRate = closed.length > 0 ? (wins / closed.length) * 100 : 0
+                  return (
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                      <div className="bg-dark-700 p-3 rounded-lg">
+                        <p className="text-gray-500 text-xs">Total</p>
+                        <p className="text-white text-lg font-bold">{userTradesTotal}</p>
+                      </div>
+                      <div className="bg-dark-700 p-3 rounded-lg">
+                        <p className="text-gray-500 text-xs">Closed (on page)</p>
+                        <p className="text-white text-lg font-bold">{closed.length}</p>
+                      </div>
+                      <div className="bg-dark-700 p-3 rounded-lg">
+                        <p className="text-gray-500 text-xs">P&L (on page)</p>
+                        <p className={`text-lg font-bold ${totalPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}
+                        </p>
+                      </div>
+                      <div className="bg-dark-700 p-3 rounded-lg">
+                        <p className="text-gray-500 text-xs">Win Rate</p>
+                        <p className="text-white text-lg font-bold">{winRate.toFixed(1)}%</p>
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* Trades table */}
+                <div className="bg-dark-700 rounded-lg max-h-[calc(95vh-340px)] min-h-[400px] overflow-y-auto">
+                  {userTradesLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <RefreshCw size={20} className="text-gray-500 animate-spin" />
+                    </div>
+                  ) : userTrades.length === 0 ? (
+                    <p className="text-gray-500 text-sm text-center py-12">No trades match these filters</p>
+                  ) : (
+                    <table className="w-full text-xs">
+                      <thead className="sticky top-0 bg-dark-700 z-10">
+                        <tr className="border-b border-gray-700">
+                          <th className="text-left text-gray-500 font-medium py-2 px-3">Symbol</th>
+                          <th className="text-left text-gray-500 font-medium py-2 px-3">Side</th>
+                          <th className="text-right text-gray-500 font-medium py-2 px-3">Lots</th>
+                          <th className="text-right text-gray-500 font-medium py-2 px-3">Open</th>
+                          <th className="text-right text-gray-500 font-medium py-2 px-3">Close</th>
+                          <th className="text-right text-gray-500 font-medium py-2 px-3">P&L</th>
+                          <th className="text-left text-gray-500 font-medium py-2 px-3">Status</th>
+                          <th className="text-left text-gray-500 font-medium py-2 px-3">Opened</th>
+                          <th className="text-left text-gray-500 font-medium py-2 px-3">Closed</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {userTrades.map((t) => (
+                          <tr key={t._id} className="border-b border-gray-800 hover:bg-dark-600/50">
+                            <td className="py-2 px-3 text-white font-mono">{t.symbol}</td>
+                            <td className="py-2 px-3">
+                              <span className={`inline-flex items-center gap-1 ${t.side === 'BUY' ? 'text-green-500' : 'text-red-500'}`}>
+                                {t.side === 'BUY' ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+                                {t.side}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-right text-white">{t.quantity}</td>
+                            <td className="py-2 px-3 text-right text-gray-300">${t.openPrice?.toFixed(5)}</td>
+                            <td className="py-2 px-3 text-right text-gray-300">
+                              {t.closePrice ? `$${t.closePrice.toFixed(5)}` : '—'}
+                            </td>
+                            <td className={`py-2 px-3 text-right font-medium ${(t.realizedPnl || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                              {t.status === 'CLOSED'
+                                ? `${(t.realizedPnl || 0) >= 0 ? '+' : ''}$${(t.realizedPnl || 0).toFixed(2)}`
+                                : '—'}
+                            </td>
+                            <td className="py-2 px-3">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] ${
+                                t.status === 'OPEN' ? 'bg-green-500/20 text-green-400' :
+                                t.status === 'CLOSED' ? 'bg-gray-600/30 text-gray-300' :
+                                'bg-yellow-500/20 text-yellow-400'
+                              }`}>{t.status}</span>
+                            </td>
+                            <td className="py-2 px-3 text-gray-400 whitespace-nowrap">
+                              {t.openedAt ? (
+                                <>
+                                  <div>{new Date(t.openedAt).toLocaleDateString()}</div>
+                                  <div className="text-gray-500 text-[10px]">{new Date(t.openedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
+                                </>
+                              ) : '—'}
+                            </td>
+                            <td className="py-2 px-3 text-gray-400 whitespace-nowrap">
+                              {t.closedAt ? (
+                                <>
+                                  <div>{new Date(t.closedAt).toLocaleDateString()}</div>
+                                  <div className="text-gray-500 text-[10px]">{new Date(t.closedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
+                                </>
+                              ) : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+
+                {/* Pagination */}
+                {userTradesTotal > tradesPerPage && (
+                  <div className="flex items-center justify-between pt-2">
+                    <p className="text-gray-500 text-xs">
+                      Page {tradeFilters.page} of {Math.ceil(userTradesTotal / tradesPerPage)} · {userTradesTotal} trades
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setTradeFilters(f => ({ ...f, page: Math.max(1, f.page - 1) }))}
+                        disabled={tradeFilters.page === 1}
+                        className="px-3 py-1 bg-dark-700 hover:bg-dark-600 text-white rounded text-xs disabled:opacity-40"
+                      >
+                        Prev
+                      </button>
+                      <button
+                        onClick={() => setTradeFilters(f => ({ ...f, page: Math.min(Math.ceil(userTradesTotal / tradesPerPage), f.page + 1) }))}
+                        disabled={tradeFilters.page >= Math.ceil(userTradesTotal / tradesPerPage)}
+                        className="px-3 py-1 bg-dark-700 hover:bg-dark-600 text-white rounded text-xs disabled:opacity-40"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

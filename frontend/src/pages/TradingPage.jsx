@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import userFetch from '../utils/userFetch.js'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Search, Star, X, Plus, Minus, Settings, Home, Wallet, LayoutGrid, BarChart3, Pencil, Trophy, AlertTriangle, Sun, Moon, Grid2X2 } from 'lucide-react'
+import { Search, Star, X, Plus, Minus, Settings, Home, Wallet, LayoutGrid, BarChart3, Pencil, Trophy, AlertTriangle, Sun, Moon, Grid2X2, Maximize2, Minimize2 } from 'lucide-react'
 import metaApiService from '../services/metaApi'
 import binanceApiService from '../services/binanceApi'
 import priceStreamService from '../services/priceStream'
@@ -34,6 +34,15 @@ const TradingPage = () => {
   const [openTabs, setOpenTabs] = useState([{ symbol: 'XAUUSD', name: 'CFDs on Gold (US$ / OZ)', bid: 0, ask: 0, spread: 0 }])
   const [activeTab, setActiveTab] = useState('XAUUSD')
   const [showFourCharts, setShowFourCharts] = useState(false)
+  // In-app chart fullscreen — different from iframe's native fullscreen so we
+  // can overlay buy/sell + volume controls on top of the TradingView widget.
+  const [isChartFullscreen, setIsChartFullscreen] = useState(false)
+  useEffect(() => {
+    if (!isChartFullscreen) return
+    const onKey = (e) => { if (e.key === 'Escape') setIsChartFullscreen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isChartFullscreen])
   const chartContainerRef = useRef(null)
   const [fourChartTimeframes, setFourChartTimeframes] = useState(['5', '15', '60', '240']) // 5m, 15m, 1h, 4h
   const [showTakeProfit, setShowTakeProfit] = useState(false)
@@ -1484,16 +1493,27 @@ const TradingPage = () => {
             
             {/* 4 Charts Toggle Button */}
             {!isMobile && (
-              <button 
+              <button
                 onClick={() => setShowFourCharts(!showFourCharts)}
                 className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded transition-colors ${
-                  showFourCharts 
-                    ? 'bg-blue-600 text-white' 
+                  showFourCharts
+                    ? 'bg-blue-600 text-white'
                     : isDarkMode ? 'bg-[#1a1a1a] text-gray-400 hover:bg-[#252525] hover:text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
                 <Grid2X2 size={16} />
                 <span className="text-sm font-medium">{showFourCharts ? 'Single' : '4 Charts'}</span>
+              </button>
+            )}
+            {/* Fullscreen toggle — only available for single-chart view */}
+            {!isMobile && !showFourCharts && (
+              <button
+                onClick={() => setIsChartFullscreen(true)}
+                className={`${!showFourCharts && 'ml-1'} flex items-center gap-1.5 px-3 py-1.5 rounded transition-colors ${isDarkMode ? 'bg-[#1a1a1a] text-gray-400 hover:bg-[#252525] hover:text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                title="Fullscreen chart with trade controls (Esc to exit)"
+              >
+                <Maximize2 size={16} />
+                <span className="text-sm font-medium">Fullscreen</span>
               </button>
             )}
           </div>
@@ -1519,14 +1539,105 @@ const TradingPage = () => {
               <div ref={chartContainerRef} style={{ width: '100%', height: '100%' }}>
                 <iframe
                   key={`${selectedInstrument.symbol}-${isMobile}`}
-                  src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_chart&symbol=${getSymbolForTradingView(selectedInstrument.symbol)}&interval=5&hidesidetoolbar=0&hidetoptoolbar=0&symboledit=1&saveimage=1&toolbarbg=${isDarkMode ? '0d0d0d' : 'ffffff'}&studies=[]&theme=${isDarkMode ? 'dark' : 'light'}&style=1&timezone=Etc%2FUTC&withdateranges=1&showpopupbutton=1&studies_overrides={}&overrides={}&enabled_features=["left_toolbar","header_widget","drawing_templates"]&disabled_features=["hide_left_toolbar_by_default"]&locale=en&utm_source=localhost&utm_medium=widget_new&utm_campaign=chart&hide_side_toolbar=0&allow_symbol_change=1&details=1&calendar=0&hotlist=0`}
+                  src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_chart&symbol=${getSymbolForTradingView(selectedInstrument.symbol)}&interval=5&hidesidetoolbar=0&hidetoptoolbar=0&symboledit=1&saveimage=1&toolbarbg=${isDarkMode ? '0d0d0d' : 'ffffff'}&studies=[]&theme=${isDarkMode ? 'dark' : 'light'}&style=1&timezone=Etc%2FUTC&withdateranges=1&showpopupbutton=1&studies_overrides={}&overrides={}&enabled_features=["left_toolbar","header_widget","drawing_templates"]&disabled_features=["hide_left_toolbar_by_default","header_fullscreen_button"]&locale=en&utm_source=localhost&utm_medium=widget_new&utm_campaign=chart&hide_side_toolbar=0&allow_symbol_change=1&details=1&calendar=0&hotlist=0`}
                   style={{ width: '100%', height: '100%', border: 'none' }}
-                  allowFullScreen
                   title="TradingView Chart"
                 />
               </div>
             )}
           </div>
+
+          {/* Fullscreen chart overlay — re-renders the same iframe edge-to-edge
+              and floats a buy/sell + volume toolbar on top. The TradingView
+              widget keeps its left tools and indicators panel built-in. */}
+          {isChartFullscreen && (() => {
+            const liveBid = livePrices[selectedInstrument.symbol]?.bid || selectedInstrument.bid
+            const liveAsk = livePrices[selectedInstrument.symbol]?.ask || selectedInstrument.ask
+            const digits = selectedInstrument.digits ?? 5
+            return (
+              <div className={`fixed inset-0 z-[60] flex flex-col ${isDarkMode ? 'bg-[#0d0d0d]' : 'bg-white'}`}>
+                {/* Floating top toolbar */}
+                <div className={`flex items-center gap-2 sm:gap-3 px-3 py-2 border-b ${isDarkMode ? 'bg-[#0d0d0d] border-gray-800' : 'bg-white border-gray-200'}`}>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`text-sm font-semibold truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedInstrument.symbol}</span>
+                    <span className={`text-xs truncate ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>{selectedInstrument.name}</span>
+                  </div>
+
+                  {/* Volume control */}
+                  <div className={`flex items-center rounded border ml-auto ${isDarkMode ? 'border-gray-700 bg-[#1a1a1a]' : 'border-gray-300 bg-gray-50'}`}>
+                    <button
+                      onClick={() => setVolume((Math.max(0.01, parseFloat(volume) - 0.01)).toFixed(2))}
+                      className={`px-2 py-1.5 ${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'}`}
+                    >
+                      <Minus size={14} />
+                    </button>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={volume}
+                      onChange={(e) => setVolume(e.target.value)}
+                      className={`w-20 text-center text-sm py-1 bg-transparent border-x ${isDarkMode ? 'border-gray-700 text-white' : 'border-gray-300 text-gray-900'} focus:outline-none`}
+                    />
+                    <button
+                      onClick={() => setVolume((parseFloat(volume) + 0.01).toFixed(2))}
+                      className={`px-2 py-1.5 ${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'}`}
+                    >
+                      <Plus size={14} />
+                    </button>
+                    <span className={`px-2 text-[10px] ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>lot</span>
+                  </div>
+
+                  {/* SELL — uses bid */}
+                  <button
+                    onClick={() => executeMarketOrder('SELL')}
+                    disabled={isExecutingTrade || killSwitchActive}
+                    className="flex flex-col items-center justify-center px-4 py-1.5 rounded bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white"
+                  >
+                    <span className="text-[10px] font-medium leading-none">SELL</span>
+                    <span className="text-sm font-bold leading-tight">{liveBid ? liveBid.toFixed(digits) : '—'}</span>
+                  </button>
+
+                  {/* BUY — uses ask */}
+                  <button
+                    onClick={() => executeMarketOrder('BUY')}
+                    disabled={isExecutingTrade || killSwitchActive}
+                    className="flex flex-col items-center justify-center px-4 py-1.5 rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white"
+                  >
+                    <span className="text-[10px] font-medium leading-none">BUY</span>
+                    <span className="text-sm font-bold leading-tight">{liveAsk ? liveAsk.toFixed(digits) : '—'}</span>
+                  </button>
+
+                  {/* Exit fullscreen */}
+                  <button
+                    onClick={() => setIsChartFullscreen(false)}
+                    className={`p-2 rounded ${isDarkMode ? 'text-gray-400 hover:text-white hover:bg-[#1a1a1a]' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`}
+                    title="Exit fullscreen (Esc)"
+                  >
+                    <Minimize2 size={16} />
+                  </button>
+                </div>
+
+                {/* Inline status under toolbar */}
+                {(tradeSuccess || tradeError) && (
+                  <div className={`px-3 py-1.5 text-xs ${tradeError ? 'bg-red-500/15 text-red-400' : 'bg-emerald-500/15 text-emerald-400'}`}>
+                    {tradeError || tradeSuccess}
+                  </div>
+                )}
+
+                {/* Full-bleed chart — same widget params as the single chart
+                    so all left-toolbar tools/indicators are available. */}
+                <div className="flex-1 min-h-0">
+                  <iframe
+                    key={`fs-${selectedInstrument.symbol}-${isDarkMode}`}
+                    src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_chart_fs&symbol=${getSymbolForTradingView(selectedInstrument.symbol)}&interval=5&hidesidetoolbar=0&hidetoptoolbar=0&symboledit=1&saveimage=1&toolbarbg=${isDarkMode ? '0d0d0d' : 'ffffff'}&studies=[]&theme=${isDarkMode ? 'dark' : 'light'}&style=1&timezone=Etc%2FUTC&withdateranges=1&showpopupbutton=1&studies_overrides={}&overrides={}&enabled_features=["left_toolbar","header_widget","drawing_templates"]&disabled_features=["hide_left_toolbar_by_default","header_fullscreen_button"]&locale=en&utm_source=localhost&utm_medium=widget_new&utm_campaign=chart&hide_side_toolbar=0&allow_symbol_change=1&details=1&calendar=0&hotlist=0`}
+                    style={{ width: '100%', height: '100%', border: 'none' }}
+                    title="TradingView Chart Fullscreen"
+                  />
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Positions Panel */}
           <div className={`${isMobile ? 'h-32' : 'h-44'} border-t flex flex-col shrink-0 ${isDarkMode ? 'bg-[#0d0d0d] border-gray-800' : 'bg-white border-gray-200'}`}>
