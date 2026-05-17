@@ -5,7 +5,8 @@ import ReportDownload from '../components/ReportDownload'
 import {
   Shield, Plus, Search, Eye, Edit, Trash2, Key, Mail, Calendar, X, Wallet,
   Users, DollarSign, Link, Copy, Check, AlertCircle, Lock, MapPin, Building2,
-  Phone, Globe, TrendingUp, ChevronDown, ChevronUp, BarChart3, ArrowLeft
+  Phone, Globe, TrendingUp, BarChart3,
+  ArrowRightLeft, Hash, UserPlus
 } from 'lucide-react'
 import { API_URL } from '../config/api'
 
@@ -40,6 +41,25 @@ const AdminManagement = () => {
   const [fundDescription, setFundDescription] = useState('')
   const [deductAmount, setDeductAmount] = useState('')
   const [deductDescription, setDeductDescription] = useState('')
+
+  // Transfer-users state
+  const [showTransferModal, setShowTransferModal] = useState(false)
+  const [transferSourceAdmin, setTransferSourceAdmin] = useState(null)
+  const [transferTargetAdminId, setTransferTargetAdminId] = useState('')
+  const [transferMode, setTransferMode] = useState('all') // 'all' | 'select'
+  const [transferSelectedIds, setTransferSelectedIds] = useState([])
+  const [transferring, setTransferring] = useState(false)
+  const [transferMsg, setTransferMsg] = useState(null)
+
+  // Add-users-to-branch state
+  const [showAddUsersModal, setShowAddUsersModal] = useState(false)
+  const [addUsersTargetAdmin, setAddUsersTargetAdmin] = useState(null)
+  const [addUsersSearch, setAddUsersSearch] = useState('')
+  const [addUsersResults, setAddUsersResults] = useState([])
+  const [addUsersSearching, setAddUsersSearching] = useState(false)
+  const [addUsersSelectedIds, setAddUsersSelectedIds] = useState([])
+  const [addingUsers, setAddingUsers] = useState(false)
+  const [addUsersMsg, setAddUsersMsg] = useState(null)
 
   const allPermissions = [
     { key: 'canManageUsers', label: 'Manage Users', category: 'Users' },
@@ -107,6 +127,130 @@ const AdminManagement = () => {
       console.error('Error fetching branch users:', error)
     }
     setBranchUsersLoading(false)
+  }
+
+  // Open the transfer-users modal. Preloads the source branch's users so the
+  // super admin can either bulk-move all or pick specific ones.
+  const openTransferModal = async (admin) => {
+    setTransferSourceAdmin(admin)
+    setTransferTargetAdminId('')
+    setTransferMode('all')
+    setTransferSelectedIds([])
+    setTransferMsg(null)
+    setShowTransferModal(true)
+    fetchBranchUsers(admin._id)
+  }
+
+  const handleTransferUsers = async () => {
+    if (!transferSourceAdmin || !transferTargetAdminId) {
+      setTransferMsg({ type: 'error', text: 'Pick a destination branch' })
+      return
+    }
+    if (transferMode === 'select' && transferSelectedIds.length === 0) {
+      setTransferMsg({ type: 'error', text: 'Select at least one user' })
+      return
+    }
+    setTransferring(true)
+    setTransferMsg(null)
+    try {
+      const body = {
+        fromAdminId: transferSourceAdmin._id,
+        toAdminId: transferTargetAdminId,
+        ...(transferMode === 'all' ? { all: true } : { userIds: transferSelectedIds })
+      }
+      const res = await adminFetch(`${API_URL}/admin-mgmt/admins/transfer-users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+      const data = await res.json()
+      if (data.success) {
+        setTransferMsg({ type: 'success', text: data.message })
+        fetchAdmins()
+        setTimeout(() => setShowTransferModal(false), 1200)
+      } else {
+        setTransferMsg({ type: 'error', text: data.message || 'Transfer failed' })
+      }
+    } catch (e) {
+      setTransferMsg({ type: 'error', text: 'Network error' })
+    }
+    setTransferring(false)
+  }
+
+  // Open the "Add Users" picker for a specific branch.
+  const openAddUsersModal = (admin) => {
+    setAddUsersTargetAdmin(admin)
+    setAddUsersSearch('')
+    setAddUsersResults([])
+    setAddUsersSelectedIds([])
+    setAddUsersMsg(null)
+    setShowAddUsersModal(true)
+  }
+
+  // Debounced user search (excludes users already in the target branch).
+  useEffect(() => {
+    if (!showAddUsersModal || !addUsersTargetAdmin) return
+    const handle = setTimeout(async () => {
+      setAddUsersSearching(true)
+      try {
+        const params = new URLSearchParams({ q: addUsersSearch, excludeAdminId: addUsersTargetAdmin._id })
+        const res = await adminFetch(`${API_URL}/admin-mgmt/searchable-users?${params}`)
+        const data = await res.json()
+        if (data.success) setAddUsersResults(data.users || [])
+      } catch (e) {
+        // ignore — user can retry
+      }
+      setAddUsersSearching(false)
+    }, 250)
+    return () => clearTimeout(handle)
+  }, [addUsersSearch, showAddUsersModal, addUsersTargetAdmin])
+
+  const handleAddUsersToBranch = async () => {
+    if (!addUsersTargetAdmin || addUsersSelectedIds.length === 0) {
+      setAddUsersMsg({ type: 'error', text: 'Pick at least one user' })
+      return
+    }
+    setAddingUsers(true)
+    setAddUsersMsg(null)
+    try {
+      const res = await adminFetch(`${API_URL}/admin-mgmt/admins/${addUsersTargetAdmin._id}/add-users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userIds: addUsersSelectedIds })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setAddUsersMsg({ type: 'success', text: data.message })
+        setAddUsersSelectedIds([])
+        fetchAdmins()
+        // Refresh the search results so newly-added users are filtered out
+        const params = new URLSearchParams({ q: addUsersSearch, excludeAdminId: addUsersTargetAdmin._id })
+        const r2 = await adminFetch(`${API_URL}/admin-mgmt/searchable-users?${params}`)
+        const d2 = await r2.json()
+        if (d2.success) setAddUsersResults(d2.users || [])
+      } else {
+        setAddUsersMsg({ type: 'error', text: data.message || 'Failed' })
+      }
+    } catch (e) {
+      setAddUsersMsg({ type: 'error', text: 'Network error' })
+    }
+    setAddingUsers(false)
+  }
+
+  const handleBackfillBranchCodes = async () => {
+    if (!confirm('Assign 5-digit branch codes to any existing branches/users that don\'t have one? Safe to run multiple times.')) return
+    try {
+      const res = await adminFetch(`${API_URL}/admin-mgmt/admins/backfill-branch-codes`, { method: 'POST' })
+      const data = await res.json()
+      if (data.success) {
+        alert(data.message)
+        fetchAdmins()
+      } else {
+        alert(data.message || 'Backfill failed')
+      }
+    } catch (e) {
+      alert('Network error')
+    }
   }
 
   const handleCreateAdmin = async () => {
@@ -299,7 +443,7 @@ const AdminManagement = () => {
   const totals = overviewData?.totals || {}
 
   return (
-    <AdminLayout title="Employee Management" subtitle="Manage branch sub-admins, permissions, funds and users">
+    <AdminLayout title="Branch Management" subtitle="Manage branches, permissions, funds and users">
       {/* Overview Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 mb-6">
         {[
@@ -339,6 +483,9 @@ const AdminManagement = () => {
         </div>
         <div className="flex gap-2">
           <ReportDownload endpoint="admin-report" title="Export" />
+          <button onClick={handleBackfillBranchCodes} className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700" title="Assign 5-digit branch codes to legacy branches/users that don't have one">
+            <Hash size={16} /> Backfill Codes
+          </button>
           <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
             <Plus size={16} /> Add Branch
           </button>
@@ -365,6 +512,11 @@ const AdminManagement = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="text-white font-semibold text-lg">{admin.branchName || `${admin.firstName} ${admin.lastName}`}</h3>
+                        {admin.branchCode && (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-mono font-medium bg-purple-500/20 text-purple-300">
+                            #{admin.branchCode}
+                          </span>
+                        )}
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${admin.status === 'ACTIVE' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                           {admin.status}
                         </span>
@@ -389,18 +541,30 @@ const AdminManagement = () => {
                   </div>
 
                   {/* Middle: Stats */}
-                  <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-5 flex-wrap">
                     <div className="text-center">
                       <p className="text-white font-bold">{admin.userCount || 0}</p>
                       <p className="text-gray-500 text-xs">Users</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-green-400 font-bold">${(admin.walletBalance || 0).toLocaleString()}</p>
-                      <p className="text-gray-500 text-xs">Balance</p>
+                      <p className={`font-bold ${(admin.netDeposit || 0) >= 0 ? 'text-cyan-400' : 'text-red-400'}`}>
+                        ${(admin.netDeposit || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      </p>
+                      <p className="text-gray-500 text-xs">Net Deposit</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-yellow-400 font-bold">${(admin.maxFundLimit || 0).toLocaleString()}</p>
-                      <p className="text-gray-500 text-xs">Fund Limit</p>
+                      <p className={`font-bold ${(admin.netPnl || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {(admin.netPnl || 0) >= 0 ? '+' : ''}${(admin.netPnl || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      </p>
+                      <p className="text-gray-500 text-xs">Net P&L</p>
+                    </div>
+                    <div className="text-center">
+                      <p className={`font-bold ${(admin.pendingWithdrawals || 0) > 0 ? 'text-orange-400' : 'text-gray-400'}`}>{admin.pendingWithdrawals || 0}</p>
+                      <p className="text-gray-500 text-xs">Pending W/D</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-green-400 font-bold">${(admin.walletBalance || 0).toLocaleString()}</p>
+                      <p className="text-gray-500 text-xs">Balance</p>
                     </div>
                     <div className="text-center">
                       <p className="text-purple-400 font-bold">{getPermissionCount(admin.permissions)}</p>
@@ -412,6 +576,12 @@ const AdminManagement = () => {
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <button onClick={() => { setSelectedAdmin(admin); fetchBranchUsers(admin._id); setShowUsersModal(true) }} className="p-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30" title="View Users">
                       <Users size={16} />
+                    </button>
+                    <button onClick={() => openAddUsersModal(admin)} className="p-2 bg-teal-500/20 text-teal-400 rounded-lg hover:bg-teal-500/30" title="Add Existing User to This Branch">
+                      <UserPlus size={16} />
+                    </button>
+                    <button onClick={() => openTransferModal(admin)} className="p-2 bg-indigo-500/20 text-indigo-400 rounded-lg hover:bg-indigo-500/30" title="Transfer Users to Another Branch">
+                      <ArrowRightLeft size={16} />
                     </button>
                     <button onClick={() => { setSelectedAdmin(admin); setShowFundModal(true) }} className="p-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30" title="Add Fund">
                       <DollarSign size={16} />
@@ -722,6 +892,231 @@ const AdminManagement = () => {
                   </table>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer Users Modal */}
+      {showTransferModal && transferSourceAdmin && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-800 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-700">
+            <div className="flex items-center justify-between p-4 border-b border-gray-700">
+              <div>
+                <h2 className="text-white font-semibold">Transfer Users</h2>
+                <p className="text-gray-500 text-xs mt-0.5">
+                  From: <span className="text-white">{transferSourceAdmin.branchName || `${transferSourceAdmin.firstName} ${transferSourceAdmin.lastName}`}</span>
+                  {transferSourceAdmin.branchCode && <span className="text-purple-300 ml-1">#{transferSourceAdmin.branchCode}</span>}
+                </p>
+              </div>
+              <button onClick={() => setShowTransferModal(false)} className="text-gray-400 hover:text-white"><X size={18} /></button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {transferMsg && (
+                <div className={`p-3 rounded-lg flex items-center gap-2 text-sm ${transferMsg.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                  {transferMsg.type === 'success' ? <Check size={16} /> : <AlertCircle size={16} />}
+                  {transferMsg.text}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-gray-400 text-xs mb-1">Destination Branch</label>
+                <select
+                  value={transferTargetAdminId}
+                  onChange={(e) => setTransferTargetAdminId(e.target.value)}
+                  className="w-full px-3 py-2 bg-dark-700 border border-gray-700 rounded-lg text-white text-sm"
+                >
+                  <option value="">Select a branch…</option>
+                  {admins
+                    .filter(a => a._id !== transferSourceAdmin._id)
+                    .map(a => (
+                      <option key={a._id} value={a._id}>
+                        {a.branchName || `${a.firstName} ${a.lastName}`} {a.branchCode ? `(#${a.branchCode})` : ''}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-gray-400 text-xs mb-2">What to transfer</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setTransferMode('all')}
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm border ${transferMode === 'all' ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/50' : 'bg-dark-700 text-gray-400 border-gray-700'}`}
+                  >
+                    All {branchUsers.length || ''} user{branchUsers.length === 1 ? '' : 's'}
+                  </button>
+                  <button
+                    onClick={() => setTransferMode('select')}
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm border ${transferMode === 'select' ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/50' : 'bg-dark-700 text-gray-400 border-gray-700'}`}
+                  >
+                    Pick specific users
+                  </button>
+                </div>
+              </div>
+
+              {transferMode === 'select' && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-gray-400 text-xs">Select users to transfer</label>
+                    <button
+                      onClick={() => setTransferSelectedIds(branchUsers.map(u => u._id))}
+                      className="text-xs text-indigo-400 hover:text-indigo-300"
+                    >
+                      Select all
+                    </button>
+                  </div>
+                  <div className="bg-dark-700 border border-gray-700 rounded-lg max-h-72 overflow-y-auto">
+                    {branchUsersLoading ? (
+                      <div className="p-4 text-center text-gray-500 text-sm">Loading users…</div>
+                    ) : branchUsers.length === 0 ? (
+                      <div className="p-4 text-center text-gray-500 text-sm">No users in this branch</div>
+                    ) : (
+                      branchUsers.map(u => {
+                        const checked = transferSelectedIds.includes(u._id)
+                        return (
+                          <label key={u._id} className={`flex items-center gap-3 px-3 py-2 border-b border-gray-800 last:border-b-0 cursor-pointer hover:bg-dark-600 ${checked ? 'bg-indigo-500/10' : ''}`}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => setTransferSelectedIds(prev => prev.includes(u._id) ? prev.filter(id => id !== u._id) : [...prev, u._id])}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white text-sm truncate">{u.firstName} {u.lastName || ''}</p>
+                              <p className="text-gray-500 text-xs truncate">{u.email}</p>
+                            </div>
+                            {u.branchCode && (
+                              <span className="text-xs font-mono text-purple-300">#{u.branchCode}</span>
+                            )}
+                          </label>
+                        )
+                      })
+                    )}
+                  </div>
+                  <p className="text-gray-500 text-xs mt-2">{transferSelectedIds.length} selected</p>
+                </div>
+              )}
+
+              <div className="bg-dark-700/50 border border-gray-700 rounded-lg p-3 text-xs text-gray-400">
+                Transferred users will get the destination branch's 5-digit code stamped on their profile, and any pending withdrawals will move to the new branch admin's queue. Closed transaction history stays on the original branch for audit.
+              </div>
+            </div>
+
+            <div className="flex gap-2 p-4 border-t border-gray-700">
+              <button onClick={() => setShowTransferModal(false)} className="flex-1 py-2 bg-dark-700 hover:bg-dark-600 text-white rounded-lg text-sm">Cancel</button>
+              <button onClick={handleTransferUsers} disabled={transferring} className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2">
+                <ArrowRightLeft size={14} />
+                {transferring ? 'Transferring…' : 'Transfer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Users to Branch Modal */}
+      {showAddUsersModal && addUsersTargetAdmin && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-800 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-700">
+            <div className="flex items-center justify-between p-4 border-b border-gray-700">
+              <div>
+                <h2 className="text-white font-semibold">Add Users to Branch</h2>
+                <p className="text-gray-500 text-xs mt-0.5">
+                  Target: <span className="text-white">{addUsersTargetAdmin.branchName || `${addUsersTargetAdmin.firstName} ${addUsersTargetAdmin.lastName}`}</span>
+                  {addUsersTargetAdmin.branchCode && <span className="text-purple-300 ml-1">#{addUsersTargetAdmin.branchCode}</span>}
+                </p>
+              </div>
+              <button onClick={() => setShowAddUsersModal(false)} className="text-gray-400 hover:text-white"><X size={18} /></button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {addUsersMsg && (
+                <div className={`p-3 rounded-lg flex items-center gap-2 text-sm ${addUsersMsg.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                  {addUsersMsg.type === 'success' ? <Check size={16} /> : <AlertCircle size={16} />}
+                  {addUsersMsg.text}
+                </div>
+              )}
+
+              <div>
+                <div className="relative">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Search by name, email, phone, or branch code…"
+                    value={addUsersSearch}
+                    onChange={(e) => setAddUsersSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 bg-dark-700 border border-gray-700 rounded-lg text-white text-sm"
+                  />
+                </div>
+                <p className="text-gray-500 text-xs mt-1">
+                  Shows users from any other branch + unassigned users. Users already in this branch are filtered out.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <p className="text-gray-400 text-xs">{addUsersResults.length} result{addUsersResults.length === 1 ? '' : 's'}</p>
+                {addUsersResults.length > 0 && (
+                  <button
+                    onClick={() => setAddUsersSelectedIds(addUsersResults.map(u => u._id))}
+                    className="text-xs text-teal-400 hover:text-teal-300"
+                  >
+                    Select all
+                  </button>
+                )}
+              </div>
+
+              <div className="bg-dark-700 border border-gray-700 rounded-lg max-h-80 overflow-y-auto">
+                {addUsersSearching ? (
+                  <div className="p-4 text-center text-gray-500 text-sm">Searching…</div>
+                ) : addUsersResults.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500 text-sm">
+                    {addUsersSearch ? 'No matching users' : 'Type to search for users'}
+                  </div>
+                ) : (
+                  addUsersResults.map(u => {
+                    const checked = addUsersSelectedIds.includes(u._id)
+                    const currentBranch = u.assignedAdmin
+                      ? (u.assignedAdmin.branchName || `${u.assignedAdmin.firstName || ''} ${u.assignedAdmin.lastName || ''}`.trim())
+                      : null
+                    return (
+                      <label key={u._id} className={`flex items-center gap-3 px-3 py-2 border-b border-gray-800 last:border-b-0 cursor-pointer hover:bg-dark-600 ${checked ? 'bg-teal-500/10' : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => setAddUsersSelectedIds(prev => prev.includes(u._id) ? prev.filter(id => id !== u._id) : [...prev, u._id])}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white text-sm truncate">{u.firstName} {u.lastName || ''}</p>
+                          <p className="text-gray-500 text-xs truncate">{u.email}</p>
+                        </div>
+                        <div className="text-right">
+                          {currentBranch ? (
+                            <p className="text-gray-400 text-xs">
+                              In: <span className="text-gray-300">{currentBranch}</span>
+                              {u.assignedAdmin?.branchCode && <span className="text-purple-300 ml-1">#{u.assignedAdmin.branchCode}</span>}
+                            </p>
+                          ) : (
+                            <p className="text-orange-400 text-xs">Unassigned</p>
+                          )}
+                        </div>
+                      </label>
+                    )
+                  })
+                )}
+              </div>
+
+              <div className="bg-dark-700/50 border border-gray-700 rounded-lg p-3 text-xs text-gray-400">
+                Selected users will be re-assigned to this branch. Their branch code will update; closed transaction history stays where it was for audit.
+              </div>
+            </div>
+
+            <div className="flex gap-2 p-4 border-t border-gray-700">
+              <button onClick={() => setShowAddUsersModal(false)} className="flex-1 py-2 bg-dark-700 hover:bg-dark-600 text-white rounded-lg text-sm">Close</button>
+              <button onClick={handleAddUsersToBranch} disabled={addingUsers || addUsersSelectedIds.length === 0} className="flex-1 py-2 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2">
+                <UserPlus size={14} />
+                {addingUsers ? 'Adding…' : `Add ${addUsersSelectedIds.length || ''} user${addUsersSelectedIds.length === 1 ? '' : 's'}`}
+              </button>
             </div>
           </div>
         </div>

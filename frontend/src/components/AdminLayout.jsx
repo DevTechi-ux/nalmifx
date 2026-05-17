@@ -50,7 +50,11 @@ const AdminLayout = ({ children, title, subtitle }) => {
   const tokenKey = isBranchSpace ? 'branchToken' : 'adminToken'
   const basePath = isAdminSpace ? '/admin' : `/${firstSeg}`
 
-  const adminUser = JSON.parse(localStorage.getItem(storageKey) || '{}')
+  // Live admin profile. Initial value comes from the cached localStorage
+  // snapshot written at login; we refresh from /admin-mgmt/me on mount and
+  // every 30s so permission changes by the super admin take effect without
+  // requiring the branch admin to log out.
+  const [adminUser, setAdminUser] = useState(() => JSON.parse(localStorage.getItem(storageKey) || '{}'))
   const isSuperAdmin = adminUser?.role === 'SUPER_ADMIN'
   const perms = adminUser?.permissions || {}
 
@@ -67,6 +71,25 @@ const AdminLayout = ({ children, title, subtitle }) => {
     }
   }, [])
 
+  // Pull a fresh admin profile so permission edits propagate live. We diff
+  // against the cached snapshot before re-rendering to avoid a render storm.
+  const refreshAdminProfile = useCallback(async () => {
+    try {
+      const res = await adminFetch(`${API_URL}/admin-mgmt/me`)
+      if (!res.ok) return
+      const data = await res.json()
+      if (!data.success || !data.admin) return
+      const cached = localStorage.getItem(storageKey)
+      const next = JSON.stringify(data.admin)
+      if (cached !== next) {
+        localStorage.setItem(storageKey, next)
+        setAdminUser(data.admin)
+      }
+    } catch (e) {
+      // silently fail — stale perms are still usable until next refresh
+    }
+  }, [storageKey])
+
   useEffect(() => {
     const token = localStorage.getItem(tokenKey)
     if (!token) {
@@ -74,9 +97,14 @@ const AdminLayout = ({ children, title, subtitle }) => {
       return
     }
     fetchPendingCounts()
-    const interval = setInterval(fetchPendingCounts, 30000)
-    return () => clearInterval(interval)
-  }, [navigate, fetchPendingCounts, tokenKey, isBranchSpace, firstSeg])
+    refreshAdminProfile()
+    const pendingInterval = setInterval(fetchPendingCounts, 30000)
+    const profileInterval = setInterval(refreshAdminProfile, 30000)
+    return () => {
+      clearInterval(pendingInterval)
+      clearInterval(profileInterval)
+    }
+  }, [navigate, fetchPendingCounts, refreshAdminProfile, tokenKey, isBranchSpace, firstSeg])
 
   // All possible menu items with their required permission key.
   // Paths use `basePath` so sub-admins see /branch/* and super admin sees /admin/*.
@@ -100,7 +128,7 @@ const AdminLayout = ({ children, title, subtitle }) => {
     { name: 'Email Templates',       icon: Mail,            path: `${basePath}/email-templates`,   permKey: 'canManageSettings' },
     { name: 'Bonus Management',      icon: Gift,            path: `${basePath}/bonus-management`,  permKey: 'canManageSettings' },
     { name: 'Banner Management',     icon: Image,           path: `${basePath}/banners`,           permKey: 'canManageTheme' },
-    { name: 'Employee Management',   icon: Shield,          path: `${basePath}/admin-management`,  superOnly: true },
+    { name: 'Branch Management',     icon: Shield,          path: `${basePath}/admin-management`,  superOnly: true },
     { name: 'KYC Verification',      icon: FileCheck,       path: `${basePath}/kyc`,               permKey: 'canManageKYC', badge: pendingCounts.kyc },
     { name: 'Support Tickets',       icon: HeadphonesIcon,  path: `${basePath}/support`,           permKey: null, badge: pendingCounts.support },
   ]

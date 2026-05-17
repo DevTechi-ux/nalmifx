@@ -100,6 +100,13 @@ const userSchema = new mongoose.Schema({
     ref: 'Admin',
     default: null
   },
+  // Mirror of the assigned branch's 5-digit code. Updated server-side when
+  // assignedAdmin changes (via branch transfer endpoint).
+  branchCode: {
+    type: String,
+    default: null,
+    match: /^\d{5}$/
+  },
   adminUrlSlug: {
     type: String,
     default: null

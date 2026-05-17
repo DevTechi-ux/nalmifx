@@ -39,6 +39,16 @@ const adminSchema = new mongoose.Schema({
     unique: true,
     lowercase: true
   },
+
+  // 5-digit branch code stamped on every user assigned to this admin. Used to
+  // prefix user-facing account numbers, and lets super-admin filter records
+  // by branch. Auto-generated on creation; never reused after deletion.
+  branchCode: {
+    type: String,
+    unique: true,
+    sparse: true,
+    match: /^\d{5}$/
+  },
   
   // Company/Brand Info for this admin
   brandName: {

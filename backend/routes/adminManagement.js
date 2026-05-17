@@ -5,7 +5,10 @@ import Admin from '../models/Admin.js'
 import AdminWallet from '../models/AdminWallet.js'
 import AdminWalletTransaction from '../models/AdminWalletTransaction.js'
 import User from '../models/User.js'
+import Transaction from '../models/Transaction.js'
+import Trade from '../models/Trade.js'
 import { authAdmin, authSuperAdmin } from '../middleware/auth.js'
+import { allocateBranchCode, backfillBranchCodes, transferUsers, assignUsersToBranch } from '../services/branchService.js'
 
 const router = express.Router()
 
@@ -187,26 +190,57 @@ router.put('/me/password', async (req, res) => {
 // ==================== SUPER ADMIN - ADMIN MANAGEMENT ====================
 
 // GET /api/admin-mgmt/admins - Get all admins (super admin only)
+// Each branch is enriched with userCount, walletBalance, netDeposit
+// (deposits − withdrawals across all branch users), netPnl (sum of CLOSED
+// realizedPnl), and pendingWithdrawals count.
 router.get('/admins', authSuperAdmin, async (req, res) => {
   try {
     const admins = await Admin.find({ role: 'ADMIN' })
       .select('-password')
       .sort({ createdAt: -1 })
 
-    // Get wallet balances for each admin
-    const adminsWithWallets = await Promise.all(admins.map(async (admin) => {
+    const adminsEnriched = await Promise.all(admins.map(async (admin) => {
       const wallet = await AdminWallet.findOne({ adminId: admin._id })
-      const userCount = await User.countDocuments({ assignedAdmin: admin._id })
+      const userIds = await User.find({ assignedAdmin: admin._id }).distinct('_id')
+
+      let netDeposit = 0
+      let netPnl = 0
+      let pendingWithdrawals = 0
+
+      if (userIds.length > 0) {
+        const [deposits, withdrawals, pnl, pendingW] = await Promise.all([
+          Transaction.aggregate([
+            { $match: { userId: { $in: userIds }, type: 'Deposit', status: 'Approved' } },
+            { $group: { _id: null, total: { $sum: '$amount' } } }
+          ]),
+          Transaction.aggregate([
+            { $match: { userId: { $in: userIds }, type: 'Withdrawal', status: 'Approved' } },
+            { $group: { _id: null, total: { $sum: '$amount' } } }
+          ]),
+          Trade.aggregate([
+            { $match: { userId: { $in: userIds }, status: 'CLOSED' } },
+            { $group: { _id: null, total: { $sum: '$realizedPnl' } } }
+          ]),
+          Transaction.countDocuments({ userId: { $in: userIds }, type: 'Withdrawal', status: 'Pending' })
+        ])
+        netDeposit = (deposits[0]?.total || 0) - (withdrawals[0]?.total || 0)
+        netPnl = pnl[0]?.total || 0
+        pendingWithdrawals = pendingW
+      }
+
       return {
         ...admin.toObject(),
         walletBalance: wallet?.balance || 0,
         totalReceived: wallet?.totalReceived || 0,
         totalGivenToUsers: wallet?.totalGivenToUsers || 0,
-        userCount
+        userCount: userIds.length,
+        netDeposit,
+        netPnl,
+        pendingWithdrawals
       }
     }))
 
-    res.json({ success: true, admins: adminsWithWallets })
+    res.json({ success: true, admins: adminsEnriched })
   } catch (error) {
     res.status(500).json({ message: 'Error fetching admins', error: error.message })
   }
@@ -278,6 +312,9 @@ router.post('/admins', authSuperAdmin, async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10)
 
+    // Auto-allocate a 5-digit branch code for this new branch
+    const branchCode = await allocateBranchCode()
+
     // Create admin
     const admin = new Admin({
       email: email.toLowerCase(),
@@ -286,6 +323,7 @@ router.post('/admins', authSuperAdmin, async (req, res) => {
       lastName,
       phone: phone || '',
       urlSlug: urlSlug.toLowerCase(),
+      branchCode,
       brandName: brandName || firstName + "'s Trading",
       branchName: branchName || '',
       branchLocation: branchLocation || '',
@@ -316,6 +354,7 @@ router.post('/admins', authSuperAdmin, async (req, res) => {
         firstName: admin.firstName,
         lastName: admin.lastName,
         urlSlug: admin.urlSlug,
+        branchCode: admin.branchCode,
         brandName: admin.brandName,
         branchName: admin.branchName,
         branchLocation: admin.branchLocation,
@@ -325,6 +364,83 @@ router.post('/admins', authSuperAdmin, async (req, res) => {
     })
   } catch (error) {
     res.status(500).json({ message: 'Error creating admin', error: error.message })
+  }
+})
+
+// POST /api/admin-mgmt/admins/transfer-users - Move users from one branch to
+// another. Accepts either userIds: [] or all: true.
+router.post('/admins/transfer-users', authSuperAdmin, async (req, res) => {
+  try {
+    const { fromAdminId, toAdminId, userIds, all } = req.body
+    if (!fromAdminId || !toAdminId) {
+      return res.status(400).json({ message: 'fromAdminId and toAdminId are required' })
+    }
+    const result = await transferUsers({ fromAdminId, toAdminId, userIds, all: !!all })
+    res.json({ success: true, ...result, message: `Transferred ${result.transferredUsers} user(s).` })
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message })
+  }
+})
+
+// POST /api/admin-mgmt/admins/:id/add-users - Add existing users (from any
+// branch or unassigned) to this branch. Skips users already in this branch.
+router.post('/admins/:id/add-users', authSuperAdmin, async (req, res) => {
+  try {
+    const { userIds } = req.body
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ message: 'userIds[] is required' })
+    }
+    const result = await assignUsersToBranch({ toAdminId: req.params.id, userIds })
+    res.json({
+      success: true,
+      ...result,
+      message: result.message || `Added ${result.assigned} user(s) to this branch${result.skipped ? ` (skipped ${result.skipped} already here)` : ''}.`
+    })
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message })
+  }
+})
+
+// GET /api/admin-mgmt/searchable-users - Find users by name/email/branchCode
+// for the "Add Users to Branch" picker. Optionally exclude users already in
+// a given branch (excludeAdminId). Returns up to 50 matches.
+router.get('/searchable-users', authSuperAdmin, async (req, res) => {
+  try {
+    const { q = '', excludeAdminId } = req.query
+    const term = String(q).trim()
+    const filter = {}
+    if (term) {
+      const re = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
+      filter.$or = [
+        { firstName: re },
+        { lastName: re },
+        { email: re },
+        { phone: re },
+        { branchCode: re }
+      ]
+    }
+    if (excludeAdminId) {
+      filter.assignedAdmin = { $ne: excludeAdminId }
+    }
+    const users = await User.find(filter)
+      .select('firstName lastName email phone branchCode assignedAdmin')
+      .populate('assignedAdmin', 'branchName firstName lastName branchCode')
+      .sort({ createdAt: -1 })
+      .limit(50)
+    res.json({ success: true, users })
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
+// POST /api/admin-mgmt/admins/backfill-branch-codes - One-click migration to
+// assign branch codes to any pre-existing admins/users that don't have one.
+router.post('/admins/backfill-branch-codes', authSuperAdmin, async (req, res) => {
+  try {
+    const result = await backfillBranchCodes()
+    res.json({ success: true, ...result, message: `Backfilled ${result.adminsUpdated} branches and ${result.usersUpdated} users.` })
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message })
   }
 })
 
