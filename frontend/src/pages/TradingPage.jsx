@@ -47,21 +47,28 @@ const TradingPage = () => {
   const [loadingInstruments, setLoadingInstruments] = useState(true)
   const [starredSymbols, setStarredSymbols] = useState(['XAUUSD', 'EURUSD', 'GBPUSD', 'BTCUSD'])
   
-  // Fetch all instruments from API
+  // Fetch all instruments from API. Merges with existing state by symbol so
+  // periodic refetches (for newly-added admin instruments) don't flicker
+  // already-streaming bid/ask values back to zero.
   const fetchInstruments = async () => {
     try {
       const res = await userFetch(`${API_URL}/prices/instruments`)
       const data = await res.json()
       if (data.success && data.instruments) {
-        const instrumentsWithState = data.instruments.map(inst => ({
-          ...inst,
-          bid: 0,
-          ask: 0,
-          spread: 0,
-          change: 0,
-          starred: starredSymbols.includes(inst.symbol)
-        }))
-        setInstruments(instrumentsWithState)
+        setInstruments(prev => {
+          const prevBySymbol = new Map(prev.map(i => [i.symbol, i]))
+          return data.instruments.map(inst => {
+            const existing = prevBySymbol.get(inst.symbol)
+            return {
+              ...inst,
+              bid: existing?.bid ?? 0,
+              ask: existing?.ask ?? 0,
+              spread: existing?.spread ?? 0,
+              change: existing?.change ?? 0,
+              starred: starredSymbols.includes(inst.symbol)
+            }
+          })
+        })
         setLoadingInstruments(false)
       } else {
         setLoadingInstruments(false)
@@ -134,9 +141,17 @@ const TradingPage = () => {
     const priceInterval = setInterval(() => {
       fetchLivePrices()
     }, 2000)
-    
+
+    // Re-fetch the instrument catalog every 30s so new symbols added by
+    // admin show up without the user having to refresh the page. Existing
+    // instruments keep their bid/ask state because we merge by symbol.
+    const instrumentInterval = setInterval(() => {
+      fetchInstruments()
+    }, 30000)
+
     return () => {
       clearInterval(priceInterval)
+      clearInterval(instrumentInterval)
       metaApiService.disconnect()
     }
   }, [accountId])
@@ -1062,31 +1077,30 @@ const TradingPage = () => {
     return `OANDA:${symbol}`
   }
 
-  // Filter instruments: show all instruments for each category (only those with valid prices)
+  // Filter instruments for the watchlist. Admin-added instruments (source=
+  // 'admin') always show even before their price has streamed, so super-
+  // admins can verify what they added. Legacy hardcoded symbols still require
+  // a valid bid to avoid cluttering the list with 100+ unsubscribed pairs.
   const filteredInstruments = instruments.filter(inst => {
-    // Hide instruments without valid prices (bid must be > 0)
-    const hasValidPrice = inst.bid > 0
-    
+    const isAdminAdded = inst.source === 'admin'
+    const showRegardlessOfPrice = isAdminAdded || inst.bid > 0
+
     const matchesSearch = inst.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
       inst.name.toLowerCase().includes(searchTerm.toLowerCase())
-    
-    // When searching, show all matching instruments with valid prices
+
     if (searchTerm.length > 0) {
-      return matchesSearch && hasValidPrice
+      return matchesSearch && showRegardlessOfPrice
     }
-    
-    // When viewing Starred, show all starred instruments with valid prices
+
     if (activeCategory === 'Starred') {
-      return inst.starred && hasValidPrice
+      return inst.starred && showRegardlessOfPrice
     }
-    
-    // When viewing "All", show ALL instruments with valid prices
+
     if (activeCategory === 'All') {
-      return hasValidPrice
+      return showRegardlessOfPrice
     }
-    
-    // For specific categories (Forex, Metals, etc.), show ALL instruments with valid prices
-    return inst.category === activeCategory && hasValidPrice
+
+    return inst.category === activeCategory && showRegardlessOfPrice
   })
 
   const handleInstrumentClick = (inst) => {

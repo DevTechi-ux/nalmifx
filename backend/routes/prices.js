@@ -320,10 +320,13 @@ router.get('/instruments', async (req, res) => {
           minVolume: 0.01,
           maxVolume: 100,
           volumeStep: 0.01,
-          popular: isPopular
+          popular: isPopular,
+          source: 'legacy'
         }
       })
 
+    // Admin-managed instruments. Marked source='admin' so the user-facing UI
+    // can always render them even when the price feed hasn't streamed yet.
     const fromDb = reg.list.map(d => ({
       symbol: d.symbol,
       name: d.name,
@@ -333,7 +336,8 @@ router.get('/instruments', async (req, res) => {
       minVolume: d.minLotSize ?? 0.01,
       maxVolume: d.maxLotSize ?? 100,
       volumeStep: d.lotStep ?? 0.01,
-      popular: !!d.popular
+      popular: !!d.popular,
+      source: 'admin'
     }))
 
     res.json({ success: true, instruments: [...fromDb, ...fromLegacy] })

@@ -10,6 +10,7 @@ import {
   getContractSize
 } from './prices.js'
 
+
 const router = express.Router()
 
 function requireAdmin(req, res, next) {
