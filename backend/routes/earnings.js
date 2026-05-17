@@ -222,7 +222,17 @@ router.get('/by-user', async (req, res) => {
       {
         $project: {
           userId: '$_id',
-          userName: '$user.name',
+          userName: {
+            $trim: {
+              input: {
+                $concat: [
+                  { $ifNull: ['$user.firstName', ''] },
+                  ' ',
+                  { $ifNull: ['$user.lastName', ''] }
+                ]
+              }
+            }
+          },
           userEmail: '$user.email',
           commission: 1,
           spread: 1,

@@ -447,7 +447,7 @@ const AdminEarnings = () => {
                         <tr key={idx} className="border-t border-gray-800 hover:bg-dark-700">
                           <td className="px-4 py-3">
                             <div>
-                              <p className="text-white text-sm font-medium">{user.userName || 'Unknown'}</p>
+                              <p className="text-white text-sm font-medium">{user.userName?.trim() || user.userEmail?.split('@')[0] || 'Unknown'}</p>
                               <p className="text-gray-500 text-xs">{user.userEmail}</p>
                             </div>
                           </td>

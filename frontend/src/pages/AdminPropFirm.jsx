@@ -466,6 +466,26 @@ const AdminPropFirm = () => {
                       <p className="text-white font-medium">{challenge.durationDays || 30} days</p>
                     </div>
                   </div>
+
+                  {/* Aggregated P&L across all participants of this challenge */}
+                  <div className="grid grid-cols-2 gap-3 mb-4 p-3 bg-dark-800/60 border border-gray-700 rounded-lg">
+                    <div>
+                      <p className="text-gray-500 text-xs mb-1">Total P&L</p>
+                      <p className={`text-lg font-bold ${(challenge.totalPnl || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {(challenge.totalPnl || 0) >= 0 ? '+' : '-'}${Math.abs(challenge.totalPnl || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs mb-1">P&L %</p>
+                      <p className={`text-lg font-bold ${(challenge.totalPnlPercent || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {(challenge.totalPnlPercent || 0) >= 0 ? '+' : ''}{(challenge.totalPnlPercent || 0).toFixed(2)}%
+                      </p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-gray-600 text-xs">{challenge.accountCount || 0} participant{challenge.accountCount === 1 ? '' : 's'}</p>
+                    </div>
+                  </div>
+
                   <div className="flex items-center justify-between pt-4 border-t border-gray-600">
                     <div>
                       <p className="text-yellow-500 font-bold text-xl">${(challenge.challengeFee || 0).toLocaleString()}</p>

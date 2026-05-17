@@ -529,10 +529,37 @@ router.post('/admin/challenges', authAdmin, async (req, res) => {
 })
 
 // GET /api/prop/admin/challenges - Get all challenges (admin)
+// Each challenge is enriched with totalPnl (sum of totalProfitLoss across
+// every ChallengeAccount for that challenge) and totalPnlPercent (P&L vs.
+// summed initial capital). accountCount included for context.
 router.get('/admin/challenges', authAdmin, async (req, res) => {
   try {
-    const challenges = await Challenge.find().sort({ sortOrder: 1, fundSize: 1 })
-    res.json({ success: true, challenges })
+    const challenges = await Challenge.find().sort({ sortOrder: 1, fundSize: 1 }).lean()
+
+    const pnlAgg = await ChallengeAccount.aggregate([
+      { $group: {
+          _id: '$challengeId',
+          totalPnl: { $sum: { $ifNull: ['$totalProfitLoss', 0] } },
+          totalInitialBalance: { $sum: { $ifNull: ['$initialBalance', 0] } },
+          accountCount: { $sum: 1 }
+      } }
+    ])
+    const pnlByChallenge = new Map(pnlAgg.map(r => [String(r._id), r]))
+
+    const enriched = challenges.map(c => {
+      const row = pnlByChallenge.get(String(c._id))
+      const totalPnl = row?.totalPnl || 0
+      const totalInitialBalance = row?.totalInitialBalance || 0
+      const totalPnlPercent = totalInitialBalance > 0 ? (totalPnl / totalInitialBalance) * 100 : 0
+      return {
+        ...c,
+        totalPnl,
+        totalPnlPercent,
+        accountCount: row?.accountCount || 0
+      }
+    })
+
+    res.json({ success: true, challenges: enriched })
   } catch (error) {
     res.status(500).json({ success: false, message: error.message })
   }
