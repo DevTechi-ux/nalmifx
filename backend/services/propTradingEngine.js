@@ -260,32 +260,40 @@ class PropTradingEngine {
     const challenge = account.challengeId
     const rules = challenge.rules
 
-    const { symbol, segment, side, orderType, quantity, bid, ask, sl, tp } = tradeParams
+    const { symbol, segment, side, orderType, quantity, bid, ask, sl, tp, pendingPrice } = tradeParams
+    const isPending = orderType && orderType !== 'MARKET'
 
     // MT5-style SL/TP validation
+    // For pending orders, validate against the user's entry price (not current market)
     if (sl || tp) {
+      const refBid = isPending ? pendingPrice : bid
+      const refAsk = isPending ? pendingPrice : ask
       if (side === 'BUY') {
-        if (sl && sl >= bid) {
-          throw new Error(`Invalid Stop Loss. For BUY trades, SL (${sl}) must be below current price (${bid})`)
+        if (sl && sl >= refBid) {
+          throw new Error(`Invalid Stop Loss. For BUY trades, SL (${sl}) must be below ${isPending ? 'entry price' : 'current price'} (${refBid})`)
         }
-        if (tp && tp <= bid) {
-          throw new Error(`Invalid Take Profit. For BUY trades, TP (${tp}) must be above current price (${bid})`)
+        if (tp && tp <= refBid) {
+          throw new Error(`Invalid Take Profit. For BUY trades, TP (${tp}) must be above ${isPending ? 'entry price' : 'current price'} (${refBid})`)
         }
       } else {
-        if (sl && sl <= ask) {
-          throw new Error(`Invalid Stop Loss. For SELL trades, SL (${sl}) must be above current price (${ask})`)
+        if (sl && sl <= refAsk) {
+          throw new Error(`Invalid Stop Loss. For SELL trades, SL (${sl}) must be above ${isPending ? 'entry price' : 'current price'} (${refAsk})`)
         }
-        if (tp && tp >= ask) {
-          throw new Error(`Invalid Take Profit. For SELL trades, TP (${tp}) must be below current price (${ask})`)
+        if (tp && tp >= refAsk) {
+          throw new Error(`Invalid Take Profit. For SELL trades, TP (${tp}) must be below ${isPending ? 'entry price' : 'current price'} (${refAsk})`)
         }
       }
     }
 
     // Get charges for this trade (use default charges for challenge accounts)
     const charges = await Charges.getChargesForTrade(userId, symbol, segment || 'Forex', null)
-    
+
     // Calculate execution price with spread
-    const openPrice = this.calculateExecutionPrice(side, bid, ask, charges.spreadValue, charges.spreadType, symbol)
+    // For MARKET orders: use current bid/ask + spread
+    // For pending orders: openPrice is the user's entry price; actual fill is applied later
+    const openPrice = isPending
+      ? pendingPrice
+      : this.calculateExecutionPrice(side, bid, ask, charges.spreadValue, charges.spreadType, symbol)
 
     // Get contract size based on symbol
     const contractSize = this.getContractSize(symbol)
@@ -323,7 +331,8 @@ class PropTradingEngine {
       contractSize,
       leverage: leverage,
       spread: charges.spreadValue || 0,
-      status: 'OPEN',
+      status: isPending ? 'PENDING' : 'OPEN',
+      pendingPrice: isPending ? pendingPrice : null,
       openedAt: new Date(),
       sl: sl || null,
       tp: tp || null,
@@ -333,8 +342,11 @@ class PropTradingEngine {
       swap: 0
     })
 
-    // Update challenge account stats
-    await this.onTradeOpened(challengeAccountId, trade)
+    // Update challenge account stats only when the trade actually opens
+    // (pending orders defer this until checkPendingOrders triggers execution)
+    if (!isPending) {
+      await this.onTradeOpened(challengeAccountId, trade)
+    }
 
     return trade
   }

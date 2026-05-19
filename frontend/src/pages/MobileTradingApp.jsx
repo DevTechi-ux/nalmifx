@@ -123,6 +123,7 @@ const MobileTradingApp = () => {
       fetchAccountSummary()
       const interval = setInterval(() => {
         fetchOpenTrades()
+        fetchPendingOrders()
         fetchAccountSummary()
       }, 5000)
       return () => clearInterval(interval)
@@ -283,7 +284,7 @@ const MobileTradingApp = () => {
     try {
       const res = await userFetch(`${API_URL}/trade/pending/${selectedAccount._id}`)
       const data = await res.json()
-      if (data.success) setPendingOrders(data.orders || [])
+      if (data.success) setPendingOrders(data.trades || [])
     } catch (e) {}
   }
 
@@ -310,6 +311,14 @@ const MobileTradingApp = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     navigate('/user/login')
+  }
+
+  const closeOrderPanel = () => {
+    setShowOrderPanel(false)
+    setEntryPrice('')
+    setStopLoss('')
+    setTakeProfit('')
+    setOrderType('market')
   }
 
   const openOrderPanel = (instrument) => {
@@ -373,16 +382,15 @@ const MobileTradingApp = () => {
       })
       const data = await res.json()
       if (data.success) {
-        setShowOrderPanel(false)
         if (orderType === 'pending') {
           fetchPendingOrders()
           showNotification(`${pendingOrderType.replace('_', ' ')} order placed!`, 'success')
-          setEntryPrice('')
         } else {
           fetchOpenTrades()
           showNotification('Order executed successfully!', 'success')
         }
         fetchAccountSummary()
+        closeOrderPanel()
       } else {
         showNotification(data.message || 'Order failed', 'error')
       }
@@ -1406,7 +1414,7 @@ const MobileTradingApp = () => {
       {/* Order Panel Slide-up */}
       {showOrderPanel && selectedInstrument && (
         <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setShowOrderPanel(false)} />
+          <div className="absolute inset-0 bg-black/60" onClick={closeOrderPanel} />
           <div className="absolute bottom-0 left-0 right-0 bg-dark-800 rounded-t-3xl animate-slide-up max-h-[80vh] overflow-auto">
             <div className="flex justify-center pt-3 pb-2">
               <div className="w-10 h-1 bg-gray-600 rounded-full" />
@@ -1418,7 +1426,7 @@ const MobileTradingApp = () => {
                   <h3 className="text-white font-semibold text-lg">{selectedInstrument.symbol}</h3>
                   <p className="text-gray-500 text-sm">{selectedInstrument.name}</p>
                 </div>
-                <button onClick={() => setShowOrderPanel(false)} className="p-2">
+                <button onClick={closeOrderPanel} className="p-2">
                   <X size={20} className="text-gray-400" />
                 </button>
               </div>

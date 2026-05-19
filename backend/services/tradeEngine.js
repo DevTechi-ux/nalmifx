@@ -825,6 +825,17 @@ class TradeEngine {
           trade.openedAt = new Date()
           await trade.save()
 
+          // For challenge-account pending orders, run the challenge-side
+          // open hook now (it was deferred when the order was placed)
+          if (trade.isChallengeAccount) {
+            try {
+              const propTradingEngine = (await import('./propTradingEngine.js')).default
+              await propTradingEngine.onTradeOpened(trade.tradingAccountId, trade)
+            } catch (e) {
+              console.error(`Error running onTradeOpened for challenge pending ${trade.tradeId}:`, e)
+            }
+          }
+
           executedTrades.push({
             trade,
             executedAt: new Date(),
