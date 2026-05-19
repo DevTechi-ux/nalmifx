@@ -299,7 +299,7 @@ class TradeEngine {
   }
 
   // Open a new trade
-  async openTrade(userId, tradingAccountId, symbol, segment, side, orderType, quantity, bid, ask, sl = null, tp = null, userLeverage = null, priceCache = null) {
+  async openTrade(userId, tradingAccountId, symbol, segment, side, orderType, quantity, bid, ask, sl = null, tp = null, userLeverage = null, priceCache = null, pendingPrice = null) {
     const account = await TradingAccount.findById(tradingAccountId).populate('accountTypeId')
     if (!account) throw new Error('Trading account not found')
 
@@ -314,8 +314,11 @@ class TradeEngine {
     }
 
     // MT5-style SL/TP validation
+    // For pending orders, validate against the user's entry price (not current market)
     if (sl || tp) {
-      const slTpValidation = this.validateSlTp(side, sl, tp, bid, ask)
+      const refBid = orderType === 'MARKET' ? bid : pendingPrice
+      const refAsk = orderType === 'MARKET' ? ask : pendingPrice
+      const slTpValidation = this.validateSlTp(side, sl, tp, refBid, refAsk)
       if (!slTpValidation.valid) {
         throw new Error(slTpValidation.error)
       }
@@ -338,7 +341,12 @@ class TradeEngine {
     console.log(`Charges retrieved: spread=${charges.spreadValue}, commission=${charges.commissionValue}, commissionType=${charges.commissionType}`)
 
     // Calculate execution price with spread
-    const openPrice = this.calculateExecutionPrice(side, bid, ask, charges.spreadValue, charges.spreadType, symbol)
+    // For MARKET orders: use current bid/ask + spread
+    // For pending orders: use the user's entry price as the target. The actual fill price
+    // (with spread) will be applied when checkPendingOrders triggers execution.
+    const openPrice = orderType === 'MARKET'
+      ? this.calculateExecutionPrice(side, bid, ask, charges.spreadValue, charges.spreadType, symbol)
+      : pendingPrice
 
     // Get contract size based on symbol
     const contractSize = this.getContractSize(symbol)

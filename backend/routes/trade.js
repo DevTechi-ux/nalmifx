@@ -24,7 +24,8 @@ router.post('/open', async (req, res) => {
       quantity,
       leverage,
       sl,
-      tp
+      tp,
+      pendingPrice
     } = req.body
 
     // Use authenticated userId from middleware — never trust client-supplied userId
@@ -64,10 +65,52 @@ router.post('/open', async (req, res) => {
     // Validate order type
     const validOrderTypes = ['MARKET', 'BUY_LIMIT', 'BUY_STOP', 'SELL_LIMIT', 'SELL_STOP']
     if (!validOrderTypes.includes(orderType)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Invalid order type' 
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid order type'
       })
+    }
+
+    // For pending orders, require a valid pendingPrice and validate it makes sense vs. current market
+    let parsedPendingPrice = null
+    if (orderType !== 'MARKET') {
+      parsedPendingPrice = parseFloat(pendingPrice)
+      if (!parsedPendingPrice || isNaN(parsedPendingPrice) || parsedPendingPrice <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Entry price is required for pending orders'
+        })
+      }
+
+      // Validate entry price direction against current market
+      // BUY_LIMIT: below current ask (waiting for price to drop)
+      // BUY_STOP: above current ask (waiting for price to rise)
+      // SELL_LIMIT: above current bid (waiting for price to rise)
+      // SELL_STOP: below current bid (waiting for price to drop)
+      if (orderType === 'BUY_LIMIT' && parsedPendingPrice >= ask) {
+        return res.status(400).json({
+          success: false,
+          message: `BUY LIMIT entry price (${parsedPendingPrice}) must be below current ask (${ask})`
+        })
+      }
+      if (orderType === 'BUY_STOP' && parsedPendingPrice <= ask) {
+        return res.status(400).json({
+          success: false,
+          message: `BUY STOP entry price (${parsedPendingPrice}) must be above current ask (${ask})`
+        })
+      }
+      if (orderType === 'SELL_LIMIT' && parsedPendingPrice <= bid) {
+        return res.status(400).json({
+          success: false,
+          message: `SELL LIMIT entry price (${parsedPendingPrice}) must be above current bid (${bid})`
+        })
+      }
+      if (orderType === 'SELL_STOP' && parsedPendingPrice >= bid) {
+        return res.status(400).json({
+          success: false,
+          message: `SELL STOP entry price (${parsedPendingPrice}) must be below current bid (${bid})`
+        })
+      }
     }
 
     // Check if this is a challenge account first
@@ -84,7 +127,8 @@ router.post('/open', async (req, res) => {
         bid: parseFloat(bid),
         ask: parseFloat(ask),
         sl: sl ? parseFloat(sl) : null,
-        tp: tp ? parseFloat(tp) : null
+        tp: tp ? parseFloat(tp) : null,
+        pendingPrice: parsedPendingPrice
       }
 
       // Validate trade against challenge rules
@@ -134,7 +178,8 @@ router.post('/open', async (req, res) => {
       sl ? parseFloat(sl) : null,
       tp ? parseFloat(tp) : null,
       leverage,
-      priceCache // For cross-currency margin conversion (e.g. EURJPY → USD)
+      priceCache, // For cross-currency margin conversion (e.g. EURJPY → USD)
+      parsedPendingPrice
     )
 
     // Check if this is a master trader and copy to followers

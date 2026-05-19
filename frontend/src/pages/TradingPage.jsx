@@ -751,8 +751,9 @@ const TradingPage = () => {
       side,
       orderType,
       quantity: parseFloat(volume),
-      bid: pendingPrice || currentBid,
-      ask: pendingPrice || currentAsk,
+      bid: currentBid,
+      ask: currentAsk,
+      pendingPrice,
       sl: showStopLoss && stopLoss ? parseFloat(stopLoss) : null,
       tp: showTakeProfit && takeProfit ? parseFloat(takeProfit) : null
     }

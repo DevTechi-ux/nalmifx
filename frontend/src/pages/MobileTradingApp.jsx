@@ -363,8 +363,9 @@ const MobileTradingApp = () => {
           side: side,
           orderType: actualOrderType,
           quantity: parseFloat(volume),
-          bid: pendingPrice || prices.bid,
-          ask: pendingPrice || prices.ask,
+          bid: prices.bid,
+          ask: prices.ask,
+          pendingPrice,
           leverage: leverage,
           sl: stopLoss ? parseFloat(stopLoss) : null,
           tp: takeProfit ? parseFloat(takeProfit) : null

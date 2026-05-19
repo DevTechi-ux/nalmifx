@@ -488,7 +488,7 @@ router.put('/users/:id/ban', async (req, res) => {
           email: user.email,
           reason: reason || 'Policy violation',
           date: new Date().toLocaleString(),
-          platformName: settings?.platformName || 'NalmiFX',
+          platformName: settings?.platformName || 'Prop.InvestminFx',
           loginUrl: settings?.loginUrl || 'https://nalmifx.com/login',
           supportEmail: settings?.supportEmail || 'support@nalmifx.com',
           year: new Date().getFullYear().toString()
