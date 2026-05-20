@@ -2,6 +2,7 @@ import express from 'express'
 import Trade from '../models/Trade.js'
 import mongoose from 'mongoose'
 import { getScopedUserIds } from '../middleware/auth.js'
+import { buildTradeAccountKindFilter } from '../utils/accountKindFilter.js'
 
 const router = express.Router()
 
@@ -21,6 +22,8 @@ router.get('/summary', async (req, res) => {
     const userIds = await getScopedUserIds(req)
     const userIdMatch = userIds !== null ? { userId: { $in: userIds } } : {}
 
+    const kindFilter = await buildTradeAccountKindFilter(req.query.accountKind)
+
     // Aggregate earnings from trades
     const aggregateEarnings = async (startDate, endDate = now) => {
       const result = await Trade.aggregate([
@@ -28,7 +31,8 @@ router.get('/summary', async (req, res) => {
           $match: {
             openedAt: { $gte: startDate, $lte: endDate },
             status: { $in: ['OPEN', 'CLOSED'] },
-            ...userIdMatch
+            ...userIdMatch,
+            ...(kindFilter || {})
           }
         },
         {
@@ -126,13 +130,15 @@ router.get('/daily', async (req, res) => {
 
     const userIds = await getScopedUserIds(req)
     const userIdMatch = userIds !== null ? { userId: { $in: userIds } } : {}
+    const kindFilter = await buildTradeAccountKindFilter(req.query.accountKind)
 
     const dailyEarnings = await Trade.aggregate([
       {
         $match: {
           openedAt: { $gte: start, $lte: end },
           status: { $in: ['OPEN', 'CLOSED'] },
-          ...userIdMatch
+          ...userIdMatch,
+          ...(kindFilter || {})
         }
       },
       {
@@ -189,13 +195,15 @@ router.get('/by-user', async (req, res) => {
 
     const userIds = await getScopedUserIds(req)
     const userIdMatch = userIds !== null ? { userId: { $in: userIds } } : {}
+    const kindFilter = await buildTradeAccountKindFilter(req.query.accountKind)
 
     const userEarnings = await Trade.aggregate([
       {
         $match: {
           openedAt: { $gte: start, $lte: end },
           status: { $in: ['OPEN', 'CLOSED'] },
-          ...userIdMatch
+          ...userIdMatch,
+          ...(kindFilter || {})
         }
       },
       {
@@ -271,13 +279,15 @@ router.get('/by-symbol', async (req, res) => {
 
     const userIds = await getScopedUserIds(req)
     const userIdMatch = userIds !== null ? { userId: { $in: userIds } } : {}
+    const kindFilter = await buildTradeAccountKindFilter(req.query.accountKind)
 
     const symbolEarnings = await Trade.aggregate([
       {
         $match: {
           openedAt: { $gte: start, $lte: end },
           status: { $in: ['OPEN', 'CLOSED'] },
-          ...userIdMatch
+          ...userIdMatch,
+          ...(kindFilter || {})
         }
       },
       {

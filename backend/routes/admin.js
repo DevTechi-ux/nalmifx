@@ -12,6 +12,7 @@ import { sendTemplateEmail } from '../services/emailService.js'
 import EmailSettings from '../models/EmailSettings.js'
 import { requirePermission } from '../middleware/auth.js'
 import tradeEngine from '../services/tradeEngine.js'
+import { buildTradeAccountKindFilter, buildTransactionAccountKindFilter } from '../utils/accountKindFilter.js'
 
 const router = express.Router()
 
@@ -79,9 +80,11 @@ router.get('/pending-counts', async (req, res) => {
 // GET /api/admin/dashboard-stats - Get dashboard statistics
 router.get('/dashboard-stats', async (req, res) => {
   try {
+    const { accountKind } = req.query
     const scope = scopeFilter(req)
 
-    // Get user stats (scoped)
+    // Get user stats (scoped). Total users isn't filtered by accountKind
+    // since a single user can have both kinds — that count is global.
     const totalUsers = await User.countDocuments(scope)
     const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
     const newThisWeek = await User.countDocuments({ ...scope, createdAt: { $gte: oneWeekAgo } })
@@ -96,6 +99,12 @@ router.get('/dashboard-stats', async (req, res) => {
       tradeFilter = { userId: { $in: userIds } }
       kycFilter = { userId: { $in: userIds } }
     }
+
+    // Apply live/demo filter on top of branch scope
+    const tradeKindFilter = await buildTradeAccountKindFilter(accountKind)
+    if (tradeKindFilter) Object.assign(tradeFilter, tradeKindFilter)
+    const txKindFilter = await buildTransactionAccountKindFilter(accountKind)
+    if (txKindFilter) Object.assign(txFilter, txKindFilter)
 
     // Use KYC collection (same source as KYC page) instead of User.kycStatus
     const pendingKYC = await KYC.countDocuments({ status: 'pending', ...kycFilter })

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import adminFetch from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
+import LiveDemoToggle from '../components/LiveDemoToggle'
 import { 
   TrendingUp,
   TrendingDown,
@@ -59,6 +60,7 @@ const AdminTradeManagement = () => {
   
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [accountKind, setAccountKind] = useState('live')
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
@@ -68,7 +70,8 @@ const AdminTradeManagement = () => {
   useEffect(() => {
     fetchTrades()
     fetchUsers()
-  }, [filterStatus, currentPage, dateFrom, dateTo])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterStatus, currentPage, dateFrom, dateTo, accountKind])
 
   // Fetch live prices for open trades via WebSocket for institutional-grade streaming
   useEffect(() => {
@@ -377,11 +380,15 @@ const AdminTradeManagement = () => {
       const statusParam = filterStatus !== 'all' ? `&status=${filterStatus.toUpperCase()}` : ''
       const dateFromParam = dateFrom ? `&dateFrom=${dateFrom}` : ''
       const dateToParam = dateTo ? `&dateTo=${dateTo}` : ''
-      const statsDateParams = `${dateFrom ? `?dateFrom=${dateFrom}` : ''}${dateTo ? `${dateFrom ? '&' : '?'}dateTo=${dateTo}` : ''}`
+      const kindParam = `&accountKind=${accountKind}`
+      const statsParams = new URLSearchParams()
+      if (dateFrom) statsParams.set('dateFrom', dateFrom)
+      if (dateTo) statsParams.set('dateTo', dateTo)
+      statsParams.set('accountKind', accountKind)
 
       const [tradesRes, statsRes] = await Promise.all([
-        adminFetch(`${API_URL}/admin/trade/all?limit=${tradesPerPage}&offset=${offset}${statusParam}${dateFromParam}${dateToParam}`),
-        adminFetch(`${API_URL}/admin/trade/stats${statsDateParams}`)
+        adminFetch(`${API_URL}/admin/trade/all?limit=${tradesPerPage}&offset=${offset}${statusParam}${dateFromParam}${dateToParam}${kindParam}`),
+        adminFetch(`${API_URL}/admin/trade/stats?${statsParams.toString()}`)
       ])
 
       const data = await tradesRes.json()
@@ -429,6 +436,10 @@ const AdminTradeManagement = () => {
 
   return (
     <AdminLayout title="Trade Management" subtitle="Monitor and manage all trading activities">
+      <div className="flex justify-end mb-4">
+        <LiveDemoToggle value={accountKind} onChange={(v) => { setAccountKind(v); setCurrentPage(1) }} />
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="bg-dark-800 rounded-xl p-5 border border-gray-800">

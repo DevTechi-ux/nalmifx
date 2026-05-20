@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import adminFetch from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
+import LiveDemoToggle from '../components/LiveDemoToggle'
 import ReportDownload from '../components/ReportDownload'
 import SettlementPanel from '../components/SettlementPanel'
 import {
@@ -30,6 +31,7 @@ const AdminEarnings = () => {
   const [resetPeriod, setResetPeriod] = useState('all')
   const [resetting, setResetting] = useState(false)
   const [totalSettled, setTotalSettled] = useState(0)
+  const [accountKind, setAccountKind] = useState('live')
 
   const fetchSettledTotal = async () => {
     try {
@@ -44,7 +46,8 @@ const AdminEarnings = () => {
   useEffect(() => {
     fetchAllData()
     fetchSettledTotal()
-  }, [dateRange])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange, accountKind])
 
   const fetchAllData = async () => {
     setLoading(true)
@@ -59,7 +62,7 @@ const AdminEarnings = () => {
 
   const fetchSummary = async () => {
     try {
-      const res = await adminFetch(`${API_URL}/earnings/summary`)
+      const res = await adminFetch(`${API_URL}/earnings/summary?accountKind=${accountKind}`)
       const data = await res.json()
       if (data.success) {
         setSummary(data.earnings)
@@ -71,7 +74,7 @@ const AdminEarnings = () => {
 
   const fetchDailyEarnings = async () => {
     try {
-      const res = await adminFetch(`${API_URL}/earnings/daily?days=${dateRange}`)
+      const res = await adminFetch(`${API_URL}/earnings/daily?days=${dateRange}&accountKind=${accountKind}`)
       const data = await res.json()
       if (data.success) {
         setDailyEarnings(data.earnings || [])
@@ -83,7 +86,7 @@ const AdminEarnings = () => {
 
   const fetchUserEarnings = async () => {
     try {
-      const res = await adminFetch(`${API_URL}/earnings/by-user?days=${dateRange}`)
+      const res = await adminFetch(`${API_URL}/earnings/by-user?days=${dateRange}&accountKind=${accountKind}`)
       const data = await res.json()
       if (data.success) {
         setUserEarnings(data.earnings || [])
@@ -95,7 +98,7 @@ const AdminEarnings = () => {
 
   const fetchSymbolEarnings = async () => {
     try {
-      const res = await adminFetch(`${API_URL}/earnings/by-symbol?days=${dateRange}`)
+      const res = await adminFetch(`${API_URL}/earnings/by-symbol?days=${dateRange}&accountKind=${accountKind}`)
       const data = await res.json()
       if (data.success) {
         setSymbolEarnings(data.earnings || [])
@@ -164,6 +167,7 @@ const AdminEarnings = () => {
             <option value="90">Last 90 Days</option>
             <option value="365">Last Year</option>
           </select>
+          <LiveDemoToggle value={accountKind} onChange={setAccountKind} />
           <button
             onClick={fetchAllData}
             className="p-2 bg-dark-800 hover:bg-dark-700 rounded-lg text-gray-400"

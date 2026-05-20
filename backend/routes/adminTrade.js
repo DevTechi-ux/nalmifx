@@ -10,6 +10,7 @@ import tradeEngine from '../services/tradeEngine.js'
 import copyTradingEngine from '../services/copyTradingEngine.js'
 import MasterTrader from '../models/MasterTrader.js'
 import { getScopedUserIds, requirePermission } from '../middleware/auth.js'
+import { buildTradeAccountKindFilter } from '../utils/accountKindFilter.js'
 
 const router = express.Router()
 
@@ -61,7 +62,7 @@ async function assertAccountInScope(req, res, tradingAccountId) {
 router.get('/stats', requirePermission('canManageTrades'), async (req, res) => {
   try {
     const baseFilter = await userIdFilter(req)
-    const { dateFrom, dateTo } = req.query
+    const { dateFrom, dateTo, accountKind } = req.query
 
     if (dateFrom || dateTo) {
       baseFilter.openedAt = {}
@@ -72,6 +73,9 @@ router.get('/stats', requirePermission('canManageTrades'), async (req, res) => {
         baseFilter.openedAt.$lte = end
       }
     }
+
+    const tradeKindFilter = await buildTradeAccountKindFilter(accountKind)
+    if (tradeKindFilter) Object.assign(baseFilter, tradeKindFilter)
 
     const [total, open, volumeAgg, pnlAgg] = await Promise.all([
       Trade.countDocuments(baseFilter),
@@ -133,31 +137,8 @@ router.get('/all', requirePermission('canManageTrades'), async (req, res) => {
       }
     }
 
-    // Live vs Demo filter.
-    // Demo flag lives on TradingAccount, not on Trade. Look up the demo
-    // trading accounts (scoped to userId if provided) and partition.
-    // Challenge-account trades are always considered "live" (real money).
-    if (accountKind === 'live' || accountKind === 'demo') {
-      const accountQuery = { isDemo: true }
-      if (userId) accountQuery.userId = userId
-      const demoAccountIds = await TradingAccount.find(accountQuery).distinct('_id')
-
-      if (accountKind === 'demo') {
-        // Only TradingAccount trades whose tradingAccountId is in demo list
-        query.accountType = 'TradingAccount'
-        query.tradingAccountId = { $in: demoAccountIds }
-      } else {
-        // Live = everything except demo TradingAccount trades.
-        // Either it's a ChallengeAccount trade, or it's a TradingAccount trade
-        // whose tradingAccountId is NOT in the demo list.
-        query.$or = [
-          { accountType: 'ChallengeAccount' },
-          { accountType: 'TradingAccount', tradingAccountId: { $nin: demoAccountIds } },
-          // Legacy rows that don't set accountType — treat as TradingAccount.
-          { accountType: { $exists: false }, tradingAccountId: { $nin: demoAccountIds } }
-        ]
-      }
-    }
+    const tradeKindFilter = await buildTradeAccountKindFilter(accountKind, userId)
+    if (tradeKindFilter) Object.assign(query, tradeKindFilter)
 
     const total = await Trade.countDocuments(query)
     const trades = await Trade.find(query)

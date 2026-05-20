@@ -372,8 +372,14 @@ router.get('/transactions/:userId', async (req, res) => {
 // GET /api/wallet/admin/transactions - Get all transactions (admin, scoped)
 router.get('/admin/transactions', requirePermission('canManageDeposits'), async (req, res) => {
   try {
+    const { accountKind } = req.query
     const userIds = await getScopedUserIds(req)
     const query = userIds !== null ? { userId: { $in: userIds } } : {}
+
+    const { buildTransactionAccountKindFilter } = await import('../utils/accountKindFilter.js')
+    const kindFilter = await buildTransactionAccountKindFilter(accountKind)
+    if (kindFilter) Object.assign(query, kindFilter)
+
     const transactions = await Transaction.find(query)
       .populate('userId', 'firstName lastName email')
       .populate('tradingAccountId', 'accountId isDemo')

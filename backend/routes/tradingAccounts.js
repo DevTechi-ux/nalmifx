@@ -22,8 +22,11 @@ router.get('/user/:userId', async (req, res) => {
 // GET /api/trading-accounts/all - Get all trading accounts (admin, scoped)
 router.get('/all', async (req, res) => {
   try {
+    const { accountKind } = req.query
     const userIds = await getScopedUserIds(req)
     const filter = userIds !== null ? { userId: { $in: userIds } } : {}
+    if (accountKind === 'live') filter.isDemo = { $ne: true }
+    else if (accountKind === 'demo') filter.isDemo = true
     const accounts = await TradingAccount.find(filter)
       .populate('userId', 'firstName email')
       .populate('accountTypeId', 'name')

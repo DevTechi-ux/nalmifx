@@ -17,6 +17,7 @@ import {
   Ban
 } from 'lucide-react'
 import { API_URL } from '../config/api'
+import LiveDemoToggle from '../components/LiveDemoToggle'
 
 const AdminAccounts = () => {
   const navigate = useNavigate()
@@ -36,6 +37,7 @@ const AdminAccounts = () => {
     status: ''
   })
   const [newPin, setNewPin] = useState('')
+  const [accountKind, setAccountKind] = useState('live')
 
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/admin/dashboard' },
@@ -50,12 +52,13 @@ const AdminAccounts = () => {
     const adminToken = localStorage.getItem('adminToken')
     if (!adminToken) navigate('/admin')
     fetchAccounts()
-  }, [navigate])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigate, accountKind])
 
   const fetchAccounts = async () => {
     setLoading(true)
     try {
-      const res = await adminFetch(`${API_URL}/trading-accounts/all`)
+      const res = await adminFetch(`${API_URL}/trading-accounts/all?accountKind=${accountKind}`)
       const data = await res.json()
       setAccounts(data.accounts || [])
     } catch (error) {
@@ -160,6 +163,7 @@ const AdminAccounts = () => {
             <p className="text-gray-500 text-sm">Manage all user trading accounts</p>
           </div>
           <div className="flex items-center gap-3">
+            <LiveDemoToggle value={accountKind} onChange={setAccountKind} />
             <div className="relative">
               <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
               <input

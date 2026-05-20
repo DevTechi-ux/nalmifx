@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import adminFetch from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
+import LiveDemoToggle from '../components/LiveDemoToggle'
 import {
   Users,
   TrendingUp,
@@ -20,6 +21,7 @@ import { API_URL } from '../config/api'
 const AdminOverview = () => {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
+  const [accountKind, setAccountKind] = useState('live')
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalDeposits: 0,
@@ -35,12 +37,13 @@ const AdminOverview = () => {
 
   useEffect(() => {
     fetchData()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountKind])
 
   const fetchData = async () => {
     setLoading(true)
     try {
-      const statsResponse = await adminFetch(`${API_URL}/admin/dashboard-stats`)
+      const statsResponse = await adminFetch(`${API_URL}/admin/dashboard-stats?accountKind=${accountKind}`)
 
       if (statsResponse.ok) {
         const data = await statsResponse.json()
@@ -167,6 +170,10 @@ const AdminOverview = () => {
 
   return (
     <AdminLayout title="Overview Dashboard" subtitle="Welcome back, Admin">
+      <div className="flex justify-end mb-4">
+        <LiveDemoToggle value={accountKind} onChange={setAccountKind} />
+      </div>
+
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {statCards.map((stat, index) => {

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { API_URL } from '../config/api'
 import AdminLayout from '../components/AdminLayout'
+import LiveDemoToggle from '../components/LiveDemoToggle'
 
 const AdminTransactions = () => {
   const navigate = useNavigate()
@@ -25,12 +26,14 @@ const AdminTransactions = () => {
   const [selectedTx, setSelectedTx] = useState(null)
   const [actionType, setActionType] = useState('')
   const [adminRemarks, setAdminRemarks] = useState('')
+  const [accountKind, setAccountKind] = useState('live')
 
   useEffect(() => {
     const adminToken = localStorage.getItem('adminToken')
     if (!adminToken) navigate('/admin')
     fetchTransactions()
-  }, [navigate])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigate, accountKind])
 
   useEffect(() => {
     const q = searchParams.get('filter')
@@ -40,7 +43,7 @@ const AdminTransactions = () => {
   const fetchTransactions = async () => {
     setLoading(true)
     try {
-      const res = await adminFetch(`${API_URL}/wallet/admin/transactions`)
+      const res = await adminFetch(`${API_URL}/wallet/admin/transactions?accountKind=${accountKind}`)
       const data = await res.json()
       setTransactions(data.transactions || [])
     } catch (error) {
@@ -83,10 +86,13 @@ const AdminTransactions = () => {
 
   return (
     <AdminLayout title="Transactions" subtitle="Manage deposits & withdrawals">
-      <div className="flex flex-wrap gap-2 mb-4">
-        {['all', 'pending', 'deposits', 'withdrawals'].map(f => (
-          <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-lg text-sm capitalize ${filter === f ? 'bg-red-500 text-white' : 'bg-dark-700 text-gray-400'}`}>{f}</button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <div className="flex flex-wrap gap-2">
+          {['all', 'pending', 'deposits', 'withdrawals'].map(f => (
+            <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-lg text-sm capitalize ${filter === f ? 'bg-red-500 text-white' : 'bg-dark-700 text-gray-400'}`}>{f}</button>
+          ))}
+        </div>
+        <LiveDemoToggle value={accountKind} onChange={setAccountKind} />
       </div>
 
       {success && <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg text-green-500 flex items-center gap-2"><Check size={18} /> {success}</div>}

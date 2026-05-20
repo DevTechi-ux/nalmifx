@@ -60,7 +60,7 @@ const AdminAccountTypes = () => {
         ? `${API_URL}/account-types/${editingType._id}`
         : `${API_URL}/account-types`
       
-      const res = await fetch(url, {
+      const res = await adminFetch(url, {
         method: editingType ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
