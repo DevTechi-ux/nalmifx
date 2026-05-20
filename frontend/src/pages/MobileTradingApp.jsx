@@ -45,6 +45,9 @@ const MobileTradingApp = () => {
   const [isExecuting, setIsExecuting] = useState(false)
   const [accountSummary, setAccountSummary] = useState({ balance: 0, equity: 0, credit: 0, freeMargin: 0, usedMargin: 0, floatingPnl: 0 })
   const [expandedTrade, setExpandedTrade] = useState(null)
+  const [historyFilter, setHistoryFilter] = useState('all') // all, today, week, month, year
+  const [historySearch, setHistorySearch] = useState('')
+  const [historySide, setHistorySide] = useState('all') // all, BUY, SELL
   const chartContainerRef = useRef(null)
   const wsRef = useRef(null)
   
@@ -54,6 +57,9 @@ const MobileTradingApp = () => {
   const [modifySL, setModifySL] = useState('')
   const [modifyTP, setModifyTP] = useState('')
   const [isModifying, setIsModifying] = useState(false)
+
+  // History trade details modal
+  const [historyDetailTrade, setHistoryDetailTrade] = useState(null)
   
   // iOS-style notification states
   const [notifications, setNotifications] = useState([])
@@ -479,11 +485,13 @@ const MobileTradingApp = () => {
       })
       const data = await res.json()
       if (data.success) {
-        showNotification('Trade modified successfully', 'success')
+        showNotification('Modified successfully', 'success')
+        // Pending orders share the modify endpoint; refresh both lists
         fetchOpenTrades()
+        fetchPendingOrders()
         setShowModifyModal(false)
       } else {
-        showNotification(data.message || 'Failed to modify trade', 'error')
+        showNotification(data.message || 'Failed to modify', 'error')
       }
     } catch (e) {
       showNotification('Error modifying trade', 'error')
@@ -509,6 +517,35 @@ const MobileTradingApp = () => {
     } catch (e) {
       showNotification('Error cancelling order', 'error')
     }
+  }
+
+  // Filter trade history by period, side, and symbol search
+  const getFilteredHistory = () => {
+    const now = new Date()
+    const q = historySearch.trim().toLowerCase()
+    return tradeHistory.filter(trade => {
+      // Period filter
+      if (historyFilter !== 'all') {
+        const closedAt = new Date(trade.closedAt || trade.updatedAt)
+        if (historyFilter === 'today') {
+          if (closedAt.toDateString() !== now.toDateString()) return false
+        } else if (historyFilter === 'week') {
+          const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7)
+          if (closedAt < weekAgo) return false
+        } else if (historyFilter === 'month') {
+          const monthAgo = new Date(now); monthAgo.setMonth(now.getMonth() - 1)
+          if (closedAt < monthAgo) return false
+        } else if (historyFilter === 'year') {
+          const yearAgo = new Date(now); yearAgo.setFullYear(now.getFullYear() - 1)
+          if (closedAt < yearAgo) return false
+        }
+      }
+      // Side filter
+      if (historySide !== 'all' && trade.side !== historySide) return false
+      // Symbol search
+      if (q && !trade.symbol?.toLowerCase().includes(q)) return false
+      return true
+    })
   }
 
   // Filter instruments: show all instruments for each category (only those with valid prices)
@@ -786,8 +823,17 @@ const MobileTradingApp = () => {
             placeholder="Search instruments..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-dark-700 border border-gray-700 rounded-xl pl-10 pr-4 py-3 text-white placeholder-gray-500"
+            className="w-full bg-dark-700 border border-gray-700 rounded-xl pl-10 pr-10 py-3 text-white placeholder-gray-500"
           />
+          {searchTerm.length > 0 && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+              aria-label="Clear search"
+            >
+              <X size={18} />
+            </button>
+          )}
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1">
           {categories.map(cat => (
@@ -1079,49 +1125,138 @@ const MobileTradingApp = () => {
                       <p className="text-white">{new Date(order.createdAt).toLocaleDateString()}</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => cancelPendingOrder(order._id)}
-                    className="w-full py-2 bg-red-500/20 text-red-500 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
-                  >
-                    <Trash2 size={14} />
-                    Cancel Order
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => openModifyModal(order)}
+                      className="flex-1 py-2 bg-blue-500/20 text-blue-500 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                    >
+                      <Pencil size={14} />
+                      Modify SL/TP
+                    </button>
+                    <button
+                      onClick={() => cancelPendingOrder(order._id)}
+                      className="flex-1 py-2 bg-red-500/20 text-red-500 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                    >
+                      <Trash2 size={14} />
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               )})}
             </div>
           )
         )}
 
-        {tradeTab === 'history' && (
-          tradeHistory.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-gray-500">
-              <FileText size={48} className="mb-2 opacity-50" />
-              <p>No trade history</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-800">
-              {tradeHistory.map(trade => (
-                <div key={trade._id} className="p-4">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-white font-medium">{trade.symbol}</span>
-                      <span className={`text-xs ${trade.side === 'BUY' ? 'text-green-500' : 'text-red-500'}`}>
-                        {trade.side}
-                      </span>
-                    </div>
-                    <span className={`font-semibold ${trade.realizedPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {trade.realizedPnl >= 0 ? '+' : ''}${trade.realizedPnl?.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span>{trade.quantity} lots</span>
-                    <span>{new Date(trade.closedAt).toLocaleDateString()}</span>
-                  </div>
+        {tradeTab === 'history' && (() => {
+          const filtered = getFilteredHistory()
+          const totalPnl = filtered.reduce((s, t) => s + (t.realizedPnl || 0), 0)
+          return (
+            <div>
+              {/* History Filters */}
+              <div className="bg-dark-800 border-b border-gray-800 p-3 space-y-2 sticky top-0 z-10">
+                {/* Symbol search */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                  <input
+                    type="text"
+                    placeholder="Search symbol..."
+                    value={historySearch}
+                    onChange={(e) => setHistorySearch(e.target.value)}
+                    className="w-full bg-dark-700 border border-gray-700 rounded-lg pl-9 pr-9 py-2 text-sm text-white placeholder-gray-500"
+                  />
+                  {historySearch.length > 0 && (
+                    <button
+                      onClick={() => setHistorySearch('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                      aria-label="Clear search"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
                 </div>
-              ))}
+                {/* Period pills */}
+                <div className="flex gap-2 overflow-x-auto">
+                  {[
+                    { key: 'all', label: 'All' },
+                    { key: 'today', label: 'Today' },
+                    { key: 'week', label: 'Week' },
+                    { key: 'month', label: 'Month' },
+                    { key: 'year', label: 'Year' }
+                  ].map(f => (
+                    <button
+                      key={f.key}
+                      onClick={() => setHistoryFilter(f.key)}
+                      className={`px-3 py-1 rounded-full text-xs whitespace-nowrap ${
+                        historyFilter === f.key ? 'bg-accent-green text-black font-medium' : 'bg-dark-700 text-gray-400'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+                {/* Side pills + summary */}
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-2">
+                    {[
+                      { key: 'all', label: 'All' },
+                      { key: 'BUY', label: 'Buy' },
+                      { key: 'SELL', label: 'Sell' }
+                    ].map(s => (
+                      <button
+                        key={s.key}
+                        onClick={() => setHistorySide(s.key)}
+                        className={`px-3 py-1 rounded-full text-xs ${
+                          historySide === s.key ? 'bg-accent-green text-black font-medium' : 'bg-dark-700 text-gray-400'
+                        }`}
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="text-[11px] text-gray-500">
+                    {filtered.length} • <span className={totalPnl >= 0 ? 'text-green-500' : 'text-red-500'}>
+                      {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}
+                    </span>
+                  </span>
+                </div>
+              </div>
+
+              {/* History list */}
+              {filtered.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-gray-500">
+                  <FileText size={48} className="mb-2 opacity-50" />
+                  <p>{tradeHistory.length === 0 ? 'No trade history' : 'No trades match filters'}</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-800">
+                  {filtered.map(trade => (
+                    <button
+                      key={trade._id}
+                      onClick={() => setHistoryDetailTrade(trade)}
+                      className="w-full text-left p-4 active:bg-dark-800 transition-colors"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white font-medium">{trade.symbol}</span>
+                          <span className={`text-xs ${trade.side === 'BUY' ? 'text-green-500' : 'text-red-500'}`}>
+                            {trade.side}
+                          </span>
+                        </div>
+                        <span className={`font-semibold ${trade.realizedPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {trade.realizedPnl >= 0 ? '+' : ''}${trade.realizedPnl?.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-gray-500">
+                        <span>{trade.quantity} lots @ {trade.openPrice?.toFixed(5)} → {trade.closePrice?.toFixed(5)}</span>
+                        <span>{new Date(trade.closedAt).toLocaleDateString()}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )
-        )}
+        })()}
       </div>
     </div>
   )
@@ -1680,6 +1815,169 @@ const MobileTradingApp = () => {
                   </div>
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* History Trade Details Modal */}
+      {historyDetailTrade && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end justify-center" onClick={() => setHistoryDetailTrade(null)}>
+          <div className="w-full bg-[#1c1c1e] rounded-t-3xl overflow-hidden animate-slide-up max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            {/* Handle bar */}
+            <div className="flex justify-center pt-3 pb-2 shrink-0">
+              <div className="w-10 h-1 bg-gray-600 rounded-full" />
+            </div>
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700/50 shrink-0">
+              <div>
+                <h3 className="text-white font-semibold text-lg">{historyDetailTrade.symbol}</h3>
+                <p className="text-gray-400 text-xs">Closed Trade</p>
+              </div>
+              <button onClick={() => setHistoryDetailTrade(null)} className="p-2">
+                <X size={20} className="text-gray-400" />
+              </button>
+            </div>
+
+            {/* Scrollable content */}
+            <div className="overflow-auto p-4 space-y-4">
+              {/* Trade Info */}
+              <div className="bg-[#2c2c2e] rounded-xl p-3">
+                <h4 className="text-gray-400 text-xs uppercase tracking-wide mb-2">Trade Info</h4>
+                <div className="flex justify-between py-2 border-b border-gray-700/50">
+                  <span className="text-gray-400 text-sm">Trade ID</span>
+                  <span className="text-white text-sm">{historyDetailTrade.tradeId}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-gray-700/50">
+                  <span className="text-gray-400 text-sm">Status</span>
+                  <span className="text-gray-400 text-sm">{historyDetailTrade.status}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-gray-700/50">
+                  <span className="text-gray-400 text-sm">Side</span>
+                  <span className={`text-sm font-medium ${historyDetailTrade.side === 'BUY' ? 'text-green-500' : 'text-red-500'}`}>
+                    {historyDetailTrade.side}
+                  </span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-gray-700/50">
+                  <span className="text-gray-400 text-sm">Order Type</span>
+                  <span className="text-white text-sm">{historyDetailTrade.orderType}</span>
+                </div>
+                <div className="flex justify-between py-2">
+                  <span className="text-gray-400 text-sm">Closed By</span>
+                  <span className={`text-sm ${
+                    historyDetailTrade.closedBy === 'STOP_OUT' ? 'text-red-500' :
+                    historyDetailTrade.closedBy === 'SL' ? 'text-red-500' :
+                    historyDetailTrade.closedBy === 'TP' ? 'text-green-500' : 'text-gray-400'
+                  }`}>
+                    {historyDetailTrade.closedBy === 'STOP_OUT' ? 'Stop Out (Equity Zero)' :
+                     historyDetailTrade.closedBy === 'SL' ? 'Stop Loss Hit' :
+                     historyDetailTrade.closedBy === 'TP' ? 'Take Profit Hit' :
+                     'Manual Close'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Position */}
+              <div className="bg-[#2c2c2e] rounded-xl p-3">
+                <h4 className="text-gray-400 text-xs uppercase tracking-wide mb-2">Position</h4>
+                <div className="flex justify-between py-2 border-b border-gray-700/50">
+                  <span className="text-gray-400 text-sm">Volume</span>
+                  <span className="text-white text-sm">{historyDetailTrade.quantity} lots</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-gray-700/50">
+                  <span className="text-gray-400 text-sm">Open Price</span>
+                  <span className="text-white text-sm">{historyDetailTrade.openPrice?.toFixed(5)}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-gray-700/50">
+                  <span className="text-gray-400 text-sm">Close Price</span>
+                  <span className="text-white text-sm">{historyDetailTrade.closePrice?.toFixed(5)}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-gray-700/50">
+                  <span className="text-gray-400 text-sm">Contract Size</span>
+                  <span className="text-white text-sm">{historyDetailTrade.contractSize?.toLocaleString() || '-'}</span>
+                </div>
+                <div className="flex justify-between py-2">
+                  <span className="text-gray-400 text-sm">Leverage</span>
+                  <span className="text-white text-sm">1:{historyDetailTrade.leverage}</span>
+                </div>
+              </div>
+
+              {/* SL / TP */}
+              <div className="bg-[#2c2c2e] rounded-xl p-3">
+                <h4 className="text-gray-400 text-xs uppercase tracking-wide mb-2">Stop Loss / Take Profit</h4>
+                <div className="flex justify-between py-2 border-b border-gray-700/50">
+                  <span className="text-gray-400 text-sm">Stop Loss</span>
+                  <span className={`text-sm ${(historyDetailTrade.sl || historyDetailTrade.stopLoss) ? 'text-red-500' : 'text-gray-500'}`}>
+                    {(historyDetailTrade.sl || historyDetailTrade.stopLoss)?.toFixed(5) || 'Not Set'}
+                  </span>
+                </div>
+                <div className="flex justify-between py-2">
+                  <span className="text-gray-400 text-sm">Take Profit</span>
+                  <span className={`text-sm ${(historyDetailTrade.tp || historyDetailTrade.takeProfit) ? 'text-green-500' : 'text-gray-500'}`}>
+                    {(historyDetailTrade.tp || historyDetailTrade.takeProfit)?.toFixed(5) || 'Not Set'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Charges */}
+              <div className="bg-[#2c2c2e] rounded-xl p-3">
+                <h4 className="text-gray-400 text-xs uppercase tracking-wide mb-2">Charges</h4>
+                <div className="flex justify-between py-2 border-b border-gray-700/50">
+                  <span className="text-gray-400 text-sm">Margin Used</span>
+                  <span className="text-white text-sm">${historyDetailTrade.marginUsed?.toFixed(2) || '0.00'}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-gray-700/50">
+                  <span className="text-gray-400 text-sm">Spread</span>
+                  <span className="text-white text-sm">{historyDetailTrade.spread || 0} pips</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-gray-700/50">
+                  <span className="text-gray-400 text-sm">Commission</span>
+                  <span className="text-white text-sm">${historyDetailTrade.commission?.toFixed(2) || '0.00'}</span>
+                </div>
+                <div className="flex justify-between py-2">
+                  <span className="text-gray-400 text-sm">Swap</span>
+                  <span className="text-white text-sm">${historyDetailTrade.swap?.toFixed(2) || '0.00'}</span>
+                </div>
+              </div>
+
+              {/* P&L */}
+              <div className="bg-[#2c2c2e] rounded-xl p-3">
+                <h4 className="text-gray-400 text-xs uppercase tracking-wide mb-2">Realized Profit & Loss</h4>
+                <div className="flex justify-between items-center py-2">
+                  <span className="text-gray-400 text-sm">Realized P&L</span>
+                  <span className={`font-bold text-lg ${(historyDetailTrade.realizedPnl || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {(historyDetailTrade.realizedPnl || 0) >= 0 ? '+' : ''}${historyDetailTrade.realizedPnl?.toFixed(2) || '0.00'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Timestamps */}
+              <div className="bg-[#2c2c2e] rounded-xl p-3">
+                <h4 className="text-gray-400 text-xs uppercase tracking-wide mb-2">Timing</h4>
+                {historyDetailTrade.openedAt && (
+                  <div className="flex justify-between py-2 border-b border-gray-700/50">
+                    <span className="text-gray-400 text-sm">Opened</span>
+                    <span className="text-white text-sm">{new Date(historyDetailTrade.openedAt).toLocaleString()}</span>
+                  </div>
+                )}
+                {historyDetailTrade.closedAt && (
+                  <div className="flex justify-between py-2">
+                    <span className="text-gray-400 text-sm">Closed</span>
+                    <span className="text-white text-sm">{new Date(historyDetailTrade.closedAt).toLocaleString()}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Close button */}
+            <div className="border-t border-gray-700/50 shrink-0">
+              <button
+                onClick={() => setHistoryDetailTrade(null)}
+                className="w-full py-4 text-gray-400 font-medium text-lg"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
