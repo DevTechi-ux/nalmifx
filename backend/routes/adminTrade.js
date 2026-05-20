@@ -107,7 +107,7 @@ router.get('/stats', requirePermission('canManageTrades'), async (req, res) => {
 // sub-admin can't read trades for users outside their branch.
 router.get('/all', requirePermission('canManageTrades'), async (req, res) => {
   try {
-    const { status, limit = 20, offset = 0, dateFrom, dateTo, userId, symbol, side } = req.query
+    const { status, limit = 20, offset = 0, dateFrom, dateTo, userId, symbol, side, accountKind } = req.query
 
     let query = await userIdFilter(req)
     if (status) query.status = status
@@ -130,6 +130,32 @@ router.get('/all', requirePermission('canManageTrades'), async (req, res) => {
         const end = new Date(dateTo)
         end.setHours(23, 59, 59, 999)
         query.openedAt.$lte = end
+      }
+    }
+
+    // Live vs Demo filter.
+    // Demo flag lives on TradingAccount, not on Trade. Look up the demo
+    // trading accounts (scoped to userId if provided) and partition.
+    // Challenge-account trades are always considered "live" (real money).
+    if (accountKind === 'live' || accountKind === 'demo') {
+      const accountQuery = { isDemo: true }
+      if (userId) accountQuery.userId = userId
+      const demoAccountIds = await TradingAccount.find(accountQuery).distinct('_id')
+
+      if (accountKind === 'demo') {
+        // Only TradingAccount trades whose tradingAccountId is in demo list
+        query.accountType = 'TradingAccount'
+        query.tradingAccountId = { $in: demoAccountIds }
+      } else {
+        // Live = everything except demo TradingAccount trades.
+        // Either it's a ChallengeAccount trade, or it's a TradingAccount trade
+        // whose tradingAccountId is NOT in the demo list.
+        query.$or = [
+          { accountType: 'ChallengeAccount' },
+          { accountType: 'TradingAccount', tradingAccountId: { $nin: demoAccountIds } },
+          // Legacy rows that don't set accountType — treat as TradingAccount.
+          { accountType: { $exists: false }, tradingAccountId: { $nin: demoAccountIds } }
+        ]
       }
     }
 

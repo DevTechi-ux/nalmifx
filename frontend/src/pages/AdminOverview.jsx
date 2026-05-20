@@ -19,7 +19,6 @@ import { API_URL } from '../config/api'
 
 const AdminOverview = () => {
   const navigate = useNavigate()
-  const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -27,6 +26,8 @@ const AdminOverview = () => {
     totalWithdrawals: 0,
     netDeposit: 0,
     netPnl: 0,
+    runningPnl: 0,
+    runningPnlPct: 0,
     pendingKYC: 0,
     pendingWithdrawals: 0,
     activeTrades: 0
@@ -39,15 +40,7 @@ const AdminOverview = () => {
   const fetchData = async () => {
     setLoading(true)
     try {
-      const [usersResponse, statsResponse] = await Promise.all([
-        adminFetch(`${API_URL}/admin/users`),
-        adminFetch(`${API_URL}/admin/dashboard-stats`)
-      ])
-
-      if (usersResponse.ok) {
-        const data = await usersResponse.json()
-        setUsers(data.users || [])
-      }
+      const statsResponse = await adminFetch(`${API_URL}/admin/dashboard-stats`)
 
       if (statsResponse.ok) {
         const data = await statsResponse.json()
@@ -58,6 +51,8 @@ const AdminOverview = () => {
             totalWithdrawals: data.stats.totalWithdrawals || 0,
             netDeposit: data.stats.netDeposit || 0,
             netPnl: data.stats.netPnl || 0,
+            runningPnl: data.stats.runningPnl || 0,
+            runningPnlPct: data.stats.runningPnlPct || 0,
             pendingKYC: data.stats.pendingKYC || 0,
             pendingWithdrawals: data.stats.pendingWithdrawals || 0,
             activeTrades: data.stats.activeTrades || 0
@@ -68,14 +63,6 @@ const AdminOverview = () => {
       console.error('Error fetching data:', error)
     }
     setLoading(false)
-  }
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
   }
 
   const formatCurrency = (value) => {
@@ -118,6 +105,22 @@ const AdminOverview = () => {
       color: stats.netPnl >= 0 ? 'green' : 'red',
       route: '/admin/trades',
       sub: 'All closed trades'
+    },
+    {
+      title: 'Running P&L',
+      value: formatCurrency(stats.runningPnl),
+      icon: stats.runningPnl >= 0 ? TrendingUp : TrendingDown,
+      color: stats.runningPnl >= 0 ? 'green' : 'red',
+      route: '/admin/trades',
+      sub: 'Floating PnL on open trades'
+    },
+    {
+      title: 'Running P&L %',
+      value: `${stats.runningPnlPct >= 0 ? '+' : ''}${stats.runningPnlPct.toFixed(2)}%`,
+      icon: stats.runningPnlPct >= 0 ? TrendingUp : TrendingDown,
+      color: stats.runningPnlPct >= 0 ? 'green' : 'red',
+      route: '/admin/trades',
+      sub: 'vs total deposits'
     },
     {
       title: 'Total Deposits',
@@ -181,7 +184,11 @@ const AdminOverview = () => {
                 <BarChart2 size={14} className="text-gray-700 group-hover:text-gray-500 transition-colors" />
               </div>
               <p className="text-gray-500 text-sm mb-1">{stat.title}</p>
-              <p className={`text-2xl font-bold ${stat.title === 'Net P&L' ? (stats.netPnl >= 0 ? 'text-green-400' : 'text-red-400') : stat.title === 'Net Deposit' ? (stats.netDeposit >= 0 ? 'text-white' : 'text-red-400') : 'text-white'}`}>
+              <p className={`text-2xl font-bold ${
+                stat.color === 'green' ? 'text-green-400' :
+                stat.color === 'red' ? 'text-red-400' :
+                'text-white'
+              }`}>
                 {loading ? '—' : stat.value}
               </p>
               {stat.sub && (
@@ -192,68 +199,27 @@ const AdminOverview = () => {
         })}
       </div>
 
-      {/* Two Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Users */}
+      {/* Platform Overview */}
+      <div className="grid grid-cols-1 gap-6">
         <div className="bg-dark-800 rounded-xl p-5 border border-gray-800">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-white font-semibold">Recent Users</h2>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => navigate('/admin/users')}
-                className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
-              >
-                View all
-              </button>
-              <button
-                onClick={fetchData}
-                className="p-2 hover:bg-dark-700 rounded-lg transition-colors"
-              >
-                <RefreshCw size={16} className={`text-gray-400 ${loading ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
+            <h2 className="text-white font-semibold">Platform Overview</h2>
+            <button
+              onClick={fetchData}
+              className="p-2 hover:bg-dark-700 rounded-lg transition-colors"
+              title="Refresh"
+            >
+              <RefreshCw size={16} className={`text-gray-400 ${loading ? 'animate-spin' : ''}`} />
+            </button>
           </div>
-          <div className="space-y-3">
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <RefreshCw size={20} className="text-gray-500 animate-spin" />
-              </div>
-            ) : users.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">No users registered yet</p>
-            ) : (
-              users.slice(0, 5).map((user, index) => (
-                <div
-                  key={index}
-                  onClick={() => navigate('/admin/users')}
-                  className="flex items-center justify-between p-3 bg-dark-700 rounded-lg cursor-pointer hover:bg-dark-600 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-accent-green/20 rounded-full flex items-center justify-center">
-                      <span className="text-accent-green font-medium">
-                        {user.firstName?.charAt(0)?.toUpperCase() || 'U'}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-white font-medium">{user.firstName || 'Unknown'}</p>
-                      <p className="text-gray-500 text-sm">{user.email}</p>
-                    </div>
-                  </div>
-                  <span className="text-gray-500 text-sm">{formatDate(user.createdAt)}</span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Platform Overview */}
-        <div className="bg-dark-800 rounded-xl p-5 border border-gray-800">
-          <h2 className="text-white font-semibold mb-4">Platform Overview</h2>
           <div className="space-y-3">
             {[
               { label: 'Open Trades', value: stats.activeTrades, icon: Activity, color: 'green', route: '/admin/trades' },
               { label: 'Pending KYC', value: stats.pendingKYC, icon: Calendar, color: 'yellow', route: '/admin/kyc' },
               { label: 'Pending Withdrawals', value: stats.pendingWithdrawals, icon: ArrowUpCircle, color: 'orange', route: '/admin/funds' },
-              { label: 'Net P&L (All Time)', value: formatCurrency(stats.netPnl), icon: stats.netPnl >= 0 ? TrendingUp : TrendingDown, color: stats.netPnl >= 0 ? 'green' : 'red', route: '/admin/trades' },
+              { label: 'Net P&L (All Time)', value: formatCurrency(stats.netPnl), icon: stats.netPnl >= 0 ? TrendingUp : TrendingDown, color: stats.netPnl >= 0 ? 'green' : 'red', route: '/admin/trades', tone: stats.netPnl >= 0 ? 'green' : 'red' },
+              { label: 'Running P&L', value: formatCurrency(stats.runningPnl), icon: stats.runningPnl >= 0 ? TrendingUp : TrendingDown, color: stats.runningPnl >= 0 ? 'green' : 'red', route: '/admin/trades', tone: stats.runningPnl >= 0 ? 'green' : 'red' },
+              { label: 'Running P&L %', value: `${stats.runningPnlPct >= 0 ? '+' : ''}${stats.runningPnlPct.toFixed(2)}%`, icon: stats.runningPnlPct >= 0 ? TrendingUp : TrendingDown, color: stats.runningPnlPct >= 0 ? 'green' : 'red', route: '/admin/trades', tone: stats.runningPnlPct >= 0 ? 'green' : 'red' },
             ].map((item, i) => {
               const c = colorMap[item.color] || colorMap.blue
               return (
@@ -268,7 +234,11 @@ const AdminOverview = () => {
                     </div>
                     <span className="text-gray-400">{item.label}</span>
                   </div>
-                  <span className={`font-semibold ${item.label.includes('P&L') ? (stats.netPnl >= 0 ? 'text-green-400' : 'text-red-400') : 'text-white'}`}>
+                  <span className={`font-semibold ${
+                    item.tone === 'green' ? 'text-green-400' :
+                    item.tone === 'red' ? 'text-red-400' :
+                    'text-white'
+                  }`}>
                     {loading ? '—' : item.value}
                   </span>
                 </div>

@@ -73,7 +73,8 @@ const AdminUserManagement = () => {
   const [userTradesLoading, setUserTradesLoading] = useState(false)
   const [userTradesTotal, setUserTradesTotal] = useState(0)
   const [tradeFilters, setTradeFilters] = useState({
-    status: 'all',
+    accountKind: 'live', // 'live' | 'demo'
+    status: 'open',
     side: 'all',
     symbol: '',
     dateFrom: '',
@@ -204,6 +205,7 @@ const AdminUserManagement = () => {
     try {
       const offset = (tradeFilters.page - 1) * tradesPerPage
       const params = new URLSearchParams({ userId, limit: String(tradesPerPage), offset: String(offset) })
+      if (tradeFilters.accountKind) params.set('accountKind', tradeFilters.accountKind)
       if (tradeFilters.status !== 'all') params.set('status', tradeFilters.status.toUpperCase())
       if (tradeFilters.side !== 'all') params.set('side', tradeFilters.side.toUpperCase())
       if (tradeFilters.symbol) params.set('symbol', tradeFilters.symbol.toUpperCase())
@@ -770,7 +772,7 @@ const AdminUserManagement = () => {
                   </button>
                   <button
                     onClick={() => {
-                      setTradeFilters({ status: 'all', side: 'all', symbol: '', dateFrom: '', dateTo: '', page: 1 })
+                      setTradeFilters({ accountKind: 'live', status: 'open', side: 'all', symbol: '', dateFrom: '', dateTo: '', page: 1 })
                       setUserTrades([])
                       setUserTradesTotal(0)
                       setModalType('tradeHistory')
@@ -870,6 +872,26 @@ const AdminUserManagement = () => {
                   </button>
                 </div>
 
+                {/* Live / Demo tabs */}
+                <div className="flex gap-1 p-1 bg-dark-700 rounded-lg w-fit">
+                  {[
+                    { key: 'live', label: 'Live' },
+                    { key: 'demo', label: 'Demo' }
+                  ].map(t => (
+                    <button
+                      key={t.key}
+                      onClick={() => setTradeFilters(f => ({ ...f, accountKind: t.key, page: 1 }))}
+                      className={`px-4 py-1.5 rounded text-sm font-medium transition-colors ${
+                        tradeFilters.accountKind === t.key
+                          ? 'bg-indigo-500 text-white'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+
                 {/* Filters */}
                 <div className="grid grid-cols-2 lg:grid-cols-6 gap-2 p-3 bg-dark-700 rounded-lg">
                   <div>
@@ -927,7 +949,7 @@ const AdminUserManagement = () => {
                   </div>
                   <div className="flex items-end">
                     <button
-                      onClick={() => setTradeFilters({ status: 'all', side: 'all', symbol: '', dateFrom: '', dateTo: '', page: 1 })}
+                      onClick={() => setTradeFilters(f => ({ accountKind: f.accountKind, status: 'all', side: 'all', symbol: '', dateFrom: '', dateTo: '', page: 1 }))}
                       className="w-full px-2 py-1.5 bg-dark-600 hover:bg-dark-500 text-gray-300 rounded text-xs"
                     >
                       Reset

@@ -11,6 +11,7 @@ import ChallengeAccount from '../models/ChallengeAccount.js'
 import { sendTemplateEmail } from '../services/emailService.js'
 import EmailSettings from '../models/EmailSettings.js'
 import { requirePermission } from '../middleware/auth.js'
+import tradeEngine from '../services/tradeEngine.js'
 
 const router = express.Router()
 
@@ -117,8 +118,22 @@ router.get('/dashboard-stats', async (req, res) => {
       { $group: { _id: null, total: { $sum: '$realizedPnl' } } }
     ])
 
+    // Running P&L: live floating PnL summed across all open trades.
+    // We compute it on the fly from priceCache since Trade.floatingPnl
+    // is only set at trade creation (default 0) and not maintained.
+    const openTrades = await Trade.find({ status: 'OPEN', ...tradeFilter }).lean()
+    const priceCache = req.app.get('priceCache')
+    let runningPnl = 0
+    for (const trade of openTrades) {
+      const px = priceCache?.get(trade.symbol)
+      if (!px || !px.bid || !px.ask) continue
+      runningPnl += tradeEngine.calculateFloatingPnl(trade, px.bid, px.ask, priceCache)
+    }
+
     const totalDeposits = depositStats[0]?.total || 0
     const totalWithdrawals = withdrawalStats[0]?.total || 0
+    const netPnl = netPnlStats[0]?.total || 0
+    const runningPnlPct = totalDeposits > 0 ? (runningPnl / totalDeposits) * 100 : 0
 
     res.json({
       success: true,
@@ -129,7 +144,9 @@ router.get('/dashboard-stats', async (req, res) => {
         totalDeposits,
         totalWithdrawals,
         netDeposit: totalDeposits - totalWithdrawals,
-        netPnl: netPnlStats[0]?.total || 0,
+        netPnl,
+        runningPnl,
+        runningPnlPct,
         pendingWithdrawals,
         activeTrades
       }
