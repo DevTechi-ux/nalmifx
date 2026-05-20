@@ -174,25 +174,34 @@ router.post('/:id/transfer', async (req, res) => {
 
     if (direction === 'deposit') {
       // Transfer from Main Wallet to Account Wallet
-      if (wallet.balance < amount) {
-        return res.status(400).json({ message: 'Insufficient wallet balance' })
-      }
-
       // Check minimum deposit for first deposit to trading account
       if (account.balance === 0 && account.accountTypeId?.minDeposit) {
         const minDeposit = account.accountTypeId.minDeposit
         if (amount < minDeposit) {
-          return res.status(400).json({ 
-            message: `Minimum first deposit for ${account.accountTypeId.name} account is $${minDeposit}` 
+          return res.status(400).json({
+            message: `Minimum first deposit for ${account.accountTypeId.name} account is $${minDeposit}`
           })
         }
       }
 
-      wallet.balance -= amount
-      account.balance += amount
-      
-      await wallet.save()
-      await account.save()
+      // Atomic deduct from wallet — only succeeds if sufficient balance.
+      // Prevents races where two concurrent transfers both read wallet.balance
+      // before either save lands and drive it below zero.
+      const updatedWallet = await Wallet.findOneAndUpdate(
+        { userId, balance: { $gte: amount } },
+        { $inc: { balance: -amount } },
+        { new: true }
+      )
+      if (!updatedWallet) {
+        return res.status(400).json({ message: 'Insufficient wallet balance' })
+      }
+
+      // Atomic credit to account
+      const updatedAccount = await TradingAccount.findByIdAndUpdate(
+        account._id,
+        { $inc: { balance: amount } },
+        { new: true }
+      )
 
       // Log transaction
       await Transaction.create({
@@ -206,22 +215,28 @@ router.post('/:id/transfer', async (req, res) => {
         transactionRef: `TRF${Date.now()}`
       })
 
-      res.json({ 
+      res.json({
         message: 'Funds transferred to account successfully',
-        walletBalance: wallet.balance,
-        accountBalance: account.balance
+        walletBalance: updatedWallet.balance,
+        accountBalance: updatedAccount.balance
       })
     } else if (direction === 'withdraw') {
-      // Transfer from Account Wallet to Main Wallet
-      if (account.balance < amount) {
+      // Transfer from Account Wallet to Main Wallet — atomic on the account side
+      const updatedAccount = await TradingAccount.findOneAndUpdate(
+        { _id: account._id, balance: { $gte: amount } },
+        { $inc: { balance: -amount } },
+        { new: true }
+      )
+      if (!updatedAccount) {
         return res.status(400).json({ message: 'Insufficient account balance' })
       }
-
-      account.balance -= amount
-      wallet.balance += amount
-      
-      await account.save()
-      await wallet.save()
+      const updatedWallet = await Wallet.findOneAndUpdate(
+        { userId },
+        { $inc: { balance: amount } },
+        { new: true, upsert: true }
+      )
+      account.balance = updatedAccount.balance
+      wallet.balance = updatedWallet.balance
 
       // Log transaction
       await Transaction.create({
