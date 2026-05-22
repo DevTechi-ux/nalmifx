@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import adminFetch from '../utils/adminFetch.js'
+import adminFetch, { getCurrentAdminUser } from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
 import ReportDownload from '../components/ReportDownload'
 import { API_URL } from '../config/api'
@@ -100,6 +100,16 @@ const AdminUserManagement = () => {
       default: return 0
     }
   }
+
+  // Super admin detection — gates trade-history delete buttons
+  const _admin = getCurrentAdminUser()
+  const isSuperAdmin = _admin?.role === 'SUPER_ADMIN'
+
+  // Trade history delete state
+  const [deleteTradeTarget, setDeleteTradeTarget] = useState(null) // single trade row
+  const [deletingTrade, setDeletingTrade] = useState(false)
+  const [showDeleteAllHistory, setShowDeleteAllHistory] = useState(false)
+  const [deletingAllHistory, setDeletingAllHistory] = useState(false)
 
   // Create new user modal
   const [showCreateUserModal, setShowCreateUserModal] = useState(false)
@@ -308,6 +318,48 @@ const AdminUserManagement = () => {
       console.error('Error fetching user trades:', e)
     }
     setUserTradesLoading(false)
+  }
+
+  const handleDeleteSingleTrade = async () => {
+    if (!deleteTradeTarget) return
+    setDeletingTrade(true)
+    try {
+      const res = await adminFetch(`${API_URL}/admin/trade/${deleteTradeTarget._id}`, {
+        method: 'DELETE'
+      })
+      const data = await res.json()
+      if (data.success) {
+        setDeleteTradeTarget(null)
+        setMessage({ type: 'success', text: `Trade ${data.tradeId} deleted` })
+        if (selectedUser?._id) fetchUserTrades(selectedUser._id)
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to delete trade' })
+      }
+    } catch (e) {
+      setMessage({ type: 'error', text: 'Network error deleting trade' })
+    }
+    setDeletingTrade(false)
+  }
+
+  const handleDeleteAllHistory = async () => {
+    if (!selectedUser?._id) return
+    setDeletingAllHistory(true)
+    try {
+      const res = await adminFetch(`${API_URL}/admin/trade/user/${selectedUser._id}/history`, {
+        method: 'DELETE'
+      })
+      const data = await res.json()
+      if (data.success) {
+        setShowDeleteAllHistory(false)
+        setMessage({ type: 'success', text: `Deleted ${data.count} closed trade(s)` })
+        fetchUserTrades(selectedUser._id)
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to delete history' })
+      }
+    } catch (e) {
+      setMessage({ type: 'error', text: 'Network error deleting history' })
+    }
+    setDeletingAllHistory(false)
   }
 
   // Refetch trades whenever filters change while the trades modal is open.
@@ -951,12 +1003,23 @@ const AdminUserManagement = () => {
                     <Activity size={20} />
                     <h4 className="font-semibold">Trade History — {selectedUser.firstName || selectedUser.email}</h4>
                   </div>
-                  <button
-                    onClick={() => setModalType('view')}
-                    className="text-xs text-gray-400 hover:text-white"
-                  >
-                    ← Back
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {isSuperAdmin && (
+                      <button
+                        onClick={() => setShowDeleteAllHistory(true)}
+                        className="flex items-center gap-1 px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded text-xs"
+                        title="Delete all closed trade history (Super Admin)"
+                      >
+                        <Trash2 size={12} /> Delete All History
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setModalType('view')}
+                      className="text-xs text-gray-400 hover:text-white"
+                    >
+                      ← Back
+                    </button>
+                  </div>
                 </div>
 
                 {/* Live / Demo tabs */}
@@ -1095,6 +1158,7 @@ const AdminUserManagement = () => {
                           <th className="text-left text-gray-500 font-medium py-2 px-3">Status</th>
                           <th className="text-left text-gray-500 font-medium py-2 px-3">Opened</th>
                           <th className="text-left text-gray-500 font-medium py-2 px-3">Closed</th>
+                          {isSuperAdmin && <th className="text-center text-gray-500 font-medium py-2 px-3">Actions</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -1140,6 +1204,21 @@ const AdminUserManagement = () => {
                                 </>
                               ) : '—'}
                             </td>
+                            {isSuperAdmin && (
+                              <td className="py-2 px-3 text-center">
+                                {(t.status === 'CLOSED' || t.status === 'CANCELLED') ? (
+                                  <button
+                                    onClick={() => setDeleteTradeTarget(t)}
+                                    className="p-1.5 hover:bg-red-500/20 rounded text-gray-400 hover:text-red-400"
+                                    title="Delete this trade record"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                ) : (
+                                  <span className="text-gray-600 text-xs">—</span>
+                                )}
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </tbody>
@@ -2223,6 +2302,81 @@ const AdminUserManagement = () => {
 
       {/* Modal */}
       {renderModal()}
+
+      {/* Delete Single Trade Confirmation */}
+      {deleteTradeTarget && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => !deletingTrade && setDeleteTradeTarget(null)}>
+          <div className="bg-dark-800 rounded-2xl w-full max-w-md border border-gray-800" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-gray-700 flex items-center gap-2">
+              <div className="w-8 h-8 bg-red-500/20 rounded-lg flex items-center justify-center">
+                <Trash2 size={16} className="text-red-400" />
+              </div>
+              <h3 className="text-white font-semibold">Delete Trade Record</h3>
+            </div>
+            <div className="p-5 space-y-3">
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-start gap-2">
+                <AlertTriangle size={16} className="text-red-400 mt-0.5 shrink-0" />
+                <p className="text-red-200 text-xs">
+                  This deletes the trade record permanently. The user's account balance is <strong>not</strong> reversed — the realized P&L from this trade stays applied to the account.
+                </p>
+              </div>
+              <div className="bg-dark-700 rounded-lg p-3 text-sm space-y-1">
+                <div className="flex justify-between text-gray-400"><span>Trade</span><span className="text-white font-mono">{deleteTradeTarget.tradeId || deleteTradeTarget._id}</span></div>
+                <div className="flex justify-between text-gray-400"><span>Symbol</span><span className="text-white">{deleteTradeTarget.symbol}</span></div>
+                <div className="flex justify-between text-gray-400">
+                  <span>Side</span>
+                  <span className={deleteTradeTarget.side === 'BUY' ? 'text-green-500' : 'text-red-500'}>{deleteTradeTarget.side}</span>
+                </div>
+                <div className="flex justify-between text-gray-400"><span>Status</span><span className="text-white">{deleteTradeTarget.status}</span></div>
+                <div className="flex justify-between text-gray-400">
+                  <span>Realized P&L</span>
+                  <span className={(deleteTradeTarget.realizedPnl || 0) >= 0 ? 'text-green-500' : 'text-red-500'}>
+                    {(deleteTradeTarget.realizedPnl || 0) >= 0 ? '+' : ''}${(deleteTradeTarget.realizedPnl || 0).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="px-5 pb-5 flex gap-2">
+              <button onClick={() => setDeleteTradeTarget(null)} disabled={deletingTrade} className="flex-1 px-4 py-2 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-lg text-sm disabled:opacity-50">Cancel</button>
+              <button onClick={handleDeleteSingleTrade} disabled={deletingTrade} className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium disabled:opacity-50">
+                {deletingTrade ? 'Deleting…' : 'Delete Trade'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete All Trade History Confirmation */}
+      {showDeleteAllHistory && selectedUser && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => !deletingAllHistory && setShowDeleteAllHistory(false)}>
+          <div className="bg-dark-800 rounded-2xl w-full max-w-md border border-gray-800" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-gray-700 flex items-center gap-2">
+              <div className="w-8 h-8 bg-red-500/20 rounded-lg flex items-center justify-center">
+                <Trash2 size={16} className="text-red-400" />
+              </div>
+              <h3 className="text-white font-semibold">Delete All Trade History</h3>
+            </div>
+            <div className="p-5 space-y-3">
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-start gap-2">
+                <AlertTriangle size={16} className="text-red-400 mt-0.5 shrink-0" />
+                <p className="text-red-200 text-xs">
+                  This deletes <strong>every closed and cancelled trade</strong> for{' '}
+                  <strong>{selectedUser.firstName || selectedUser.email}</strong>. Open trades are kept. Account balance is <strong>not</strong> reversed.
+                </p>
+              </div>
+              <p className="text-gray-400 text-xs">
+                This action is logged in the admin audit log and cannot be undone.
+              </p>
+            </div>
+            <div className="px-5 pb-5 flex gap-2">
+              <button onClick={() => setShowDeleteAllHistory(false)} disabled={deletingAllHistory} className="flex-1 px-4 py-2 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-lg text-sm disabled:opacity-50">Cancel</button>
+              <button onClick={handleDeleteAllHistory} disabled={deletingAllHistory} className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium disabled:opacity-50">
+                {deletingAllHistory ? 'Deleting…' : 'Delete All Closed Trades'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create User Modal */}
       {showCreateUserModal && (

@@ -671,77 +671,12 @@ class TradeEngine {
       accountMap[acc._id.toString()] = acc
     }
 
-    // Pre-calculate stop-out per account (once, not per trade)
-    const stopOutClosedAccounts = new Set()
-    if (uniqueAccountIds.length > 0) {
-      console.log(`[STOP-OUT CHECK] Checking ${uniqueAccountIds.length} accounts with open trades`)
-    }
+    // Margin-level stop-out (MARGIN_STOP_OUT) has been disabled per spec —
+    // the only stop-out path is the equity-zero hard close in checkStopOut().
+    // Trades are now allowed to run until SL, TP, manual close, or equity ≤ 0.
 
-    for (const accId of uniqueAccountIds) {
-      const account = accountMap[accId]
-      if (!account) continue
-
-      const stopOutLevel = account.accountTypeId?.stopOutLevel ?? 100
-      const accountOpenTrades = openTrades.filter(t => (t.tradingAccountId?._id || t.tradingAccountId)?.toString() === accId)
-
-      let totalFloatingPnl = 0
-      let totalMarginUsed = 0
-
-      for (const t of accountOpenTrades) {
-        const tPrices = currentPrices[t.symbol]
-        if (tPrices) {
-          const tCurrentPrice = t.side === 'BUY' ? tPrices.bid : (tPrices.ask || tPrices.bid)
-          const usdRate = this.getUsdConversionRate(t.symbol, priceCache)
-          const tPnl = this.calculatePnl(t.side, t.openPrice, tCurrentPrice, t.quantity, t.contractSize, usdRate) - (t.commission || 0) - (t.swap || 0)
-          totalFloatingPnl += tPnl
-          totalMarginUsed += (t.marginUsed || 0)
-        }
-      }
-
-      const balance = account.balance || 0
-      const credit = account.credit || 0
-      const equity = balance + credit + totalFloatingPnl
-      const marginLevel = totalMarginUsed > 0 ? (equity / totalMarginUsed) * 100 : Infinity
-
-      if (marginLevel <= stopOutLevel && totalMarginUsed > 0) {
-        // Find the largest losing trade to close first (MT5 behavior)
-        let worstTrade = null
-        let worstPnl = 0
-
-        for (const t of accountOpenTrades) {
-          const tPrices = currentPrices[t.symbol]
-          if (!tPrices) continue
-          const cp = t.side === 'BUY' ? tPrices.bid : (tPrices.ask || tPrices.bid)
-          const usdRate = this.getUsdConversionRate(t.symbol, priceCache)
-          const pnl = this.calculatePnl(t.side, t.openPrice, cp, t.quantity, t.contractSize, usdRate) - (t.commission || 0) - (t.swap || 0)
-          if (pnl < worstPnl) {
-            worstPnl = pnl
-            worstTrade = t
-          }
-        }
-
-        if (worstTrade) {
-          const tPrices = currentPrices[worstTrade.symbol]
-          const bid = tPrices.bid
-          const ask = tPrices.ask || tPrices.bid
-          console.log(`[Account Stop-Out] Trade ${worstTrade.tradeId}: Equity=$${equity.toFixed(2)} | TotalMargin=$${totalMarginUsed.toFixed(2)} | MarginLevel=${marginLevel.toFixed(2)}% <= StopOut=${stopOutLevel}% | Closing losing trade`)
-          const result = await this.closeTrade(worstTrade._id, bid, ask, 'MARGIN_STOP_OUT', null, priceCache)
-          triggeredTrades.push({ 
-            trade: result.trade, 
-            trigger: 'MARGIN_STOP_OUT', 
-            pnl: result.realizedPnl,
-            reason: `Trade closed: Margin level ${marginLevel.toFixed(2)}% hit stop-out level ${stopOutLevel}% (Equity: $${equity.toFixed(2)})`
-          })
-          stopOutClosedAccounts.add(worstTrade._id.toString())
-        }
-      }
-    }
-
-    // Now check SL/TP for remaining trades
+    // Check SL/TP for all open trades
     for (const trade of openTrades) {
-      // Skip if already closed by stop-out
-      if (stopOutClosedAccounts.has(trade._id.toString())) continue
-
       const prices = currentPrices[trade.symbol]
       if (!prices) continue
 

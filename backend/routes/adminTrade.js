@@ -665,6 +665,98 @@ router.post('/close-user-trades', requirePermission('canManageTrades'), async (r
   }
 })
 
+// DELETE /api/admin/trade/:tradeId - Super admin permanently deletes a CLOSED trade record.
+// Does NOT reverse balance — the P&L was already realized and applied. This is
+// a forensic-cleanup operation. Refuses to delete OPEN/PENDING trades so we
+// never leave a dangling position with no record.
+router.delete('/:tradeId', requireSuperAdmin, async (req, res) => {
+  try {
+    const { tradeId } = req.params
+    const trade = await Trade.findById(tradeId)
+    if (!trade) return res.status(404).json({ success: false, message: 'Trade not found' })
+    if (!(await assertUserInScope(req, res, trade.userId))) return
+    if (trade.status !== 'CLOSED' && trade.status !== 'CANCELLED') {
+      return res.status(400).json({
+        success: false,
+        message: `Can only delete CLOSED or CANCELLED trades. This trade is ${trade.status}. Close it first.`
+      })
+    }
+
+    try {
+      await AdminLog.create({
+        adminId: req.admin._id,
+        action: 'TRADE_DELETE',
+        targetType: 'TRADE',
+        targetId: trade._id,
+        previousValue: {
+          tradeId: trade.tradeId,
+          symbol: trade.symbol,
+          side: trade.side,
+          quantity: trade.quantity,
+          openPrice: trade.openPrice,
+          closePrice: trade.closePrice,
+          realizedPnl: trade.realizedPnl,
+          status: trade.status,
+          userId: trade.userId
+        }
+      })
+    } catch (e) { /* non-fatal */ }
+
+    await trade.deleteOne()
+
+    res.json({ success: true, message: 'Trade record deleted', tradeId: trade.tradeId })
+  } catch (error) {
+    console.error('Error deleting trade:', error)
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
+// DELETE /api/admin/trade/user/:userId/history - Super admin deletes ALL closed
+// trade history for a user. Does NOT reverse account balance. Open trades are
+// preserved.
+router.delete('/user/:userId/history', requireSuperAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params
+    if (!(await assertUserInScope(req, res, userId))) return
+
+    const toDelete = await Trade.find({
+      userId,
+      status: { $in: ['CLOSED', 'CANCELLED'] }
+    }).lean()
+
+    if (toDelete.length === 0) {
+      return res.json({ success: true, message: 'No closed trades to delete', count: 0 })
+    }
+
+    const result = await Trade.deleteMany({
+      userId,
+      status: { $in: ['CLOSED', 'CANCELLED'] }
+    })
+
+    try {
+      await AdminLog.create({
+        adminId: req.admin._id,
+        action: 'TRADE_HISTORY_BULK_DELETE',
+        targetType: 'USER',
+        targetId: userId,
+        newValue: {
+          deletedCount: result.deletedCount,
+          tradeIds: toDelete.map(t => t.tradeId)
+        }
+      })
+    } catch (e) { /* non-fatal */ }
+
+    res.json({
+      success: true,
+      message: `Deleted ${result.deletedCount} trade record(s)`,
+      count: result.deletedCount
+    })
+  } catch (error) {
+    console.error('Error bulk-deleting user trade history:', error)
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
 // GET /api/admin/trades - Get all trades with filters
 router.get('/trades', requirePermission('canManageTrades'), async (req, res) => {
   try {
