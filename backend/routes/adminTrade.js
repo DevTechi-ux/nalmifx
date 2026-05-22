@@ -247,6 +247,83 @@ router.put('/modify/:tradeId', async (req, res) => {
   }
 })
 
+// PUT /api/admin/trade/:tradeId/spread - Super admin updates spread on an OPEN trade.
+// Recomputes openPrice from the delta vs. the old spread (BUY: ask+spread,
+// SELL: bid-spread), recalculates margin, and logs the admin action.
+router.put('/:tradeId/spread', requireSuperAdmin, async (req, res) => {
+  try {
+    const { tradeId } = req.params
+    const { spread } = req.body
+    const newSpread = parseFloat(spread)
+    if (isNaN(newSpread) || newSpread < 0) {
+      return res.status(400).json({ success: false, message: 'Invalid spread (must be a non-negative number in pips)' })
+    }
+
+    const trade = await Trade.findById(tradeId)
+    if (!trade) return res.status(404).json({ success: false, message: 'Trade not found' })
+    if (trade.status !== 'OPEN') {
+      return res.status(400).json({ success: false, message: 'Only OPEN trades can have spread modified' })
+    }
+    if (!(await assertUserInScope(req, res, trade.userId))) return
+
+    // pip factor matches tradeEngine.calculateExecutionPrice
+    const isJPY = trade.symbol.includes('JPY')
+    const isMetal = ['XAUUSD', 'XAGUSD'].includes(trade.symbol)
+    const isCrypto = ['BTCUSD', 'ETHUSD', 'LTCUSD', 'XRPUSD', 'BCHUSD'].includes(trade.symbol)
+    const pipFactor = isCrypto ? 1 : (isMetal || isJPY) ? 0.01 : 0.0001
+
+    const oldSpread = trade.spread || 0
+    const deltaPips = newSpread - oldSpread
+    const priceDelta = deltaPips * pipFactor
+    // BUY entry = ask + spread → increasing spread raises the open price
+    // SELL entry = bid - spread → increasing spread lowers the open price
+    const oldOpenPrice = trade.openPrice
+    const newOpenPrice = trade.side === 'BUY'
+      ? oldOpenPrice + priceDelta
+      : oldOpenPrice - priceDelta
+
+    if (newOpenPrice <= 0) {
+      return res.status(400).json({ success: false, message: `Resulting open price (${newOpenPrice.toFixed(5)}) is invalid` })
+    }
+
+    trade.spread = newSpread
+    trade.openPrice = newOpenPrice
+    // Recalculate margin from the new open price
+    const leverage = trade.leverage || 100
+    const contractSize = trade.contractSize || 100
+    trade.marginUsed = (trade.quantity * contractSize * trade.openPrice) / leverage
+    trade.adminModified = true
+    trade.adminModifiedAt = new Date()
+    trade.adminModifiedBy = req.admin._id
+
+    await trade.save()
+
+    try {
+      await AdminLog.create({
+        adminId: req.admin._id,
+        action: 'TRADE_SPREAD_CHANGE',
+        targetType: 'TRADE',
+        targetId: trade._id,
+        previousValue: { spread: oldSpread, openPrice: oldOpenPrice },
+        newValue: { spread: newSpread, openPrice: newOpenPrice }
+      })
+    } catch (e) { /* non-fatal */ }
+
+    res.json({
+      success: true,
+      message: 'Spread updated',
+      trade,
+      change: {
+        spread: { old: oldSpread, new: newSpread, deltaPips },
+        openPrice: { old: oldOpenPrice, new: newOpenPrice }
+      }
+    })
+  } catch (error) {
+    console.error('Error updating trade spread:', error)
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
 // PUT /api/admin/trade/edit/:tradeId - Admin full edit trade (any field)
 router.put('/edit/:tradeId', async (req, res) => {
   try {
@@ -431,6 +508,159 @@ router.post('/close/:tradeId', async (req, res) => {
     })
   } catch (error) {
     console.error('Error closing trade:', error)
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
+// PUT /api/admin/trade/:tradeId/reopen - Super admin reopens a CLOSED trade.
+// Reverses the realized PnL on the account, clears close fields, and sets
+// the trade back to OPEN. Master/follower propagation is NOT replayed here —
+// the master trader should re-close the trade through normal flow if needed.
+router.put('/:tradeId/reopen', requireSuperAdmin, async (req, res) => {
+  try {
+    const { tradeId } = req.params
+    const trade = await Trade.findById(tradeId)
+    if (!trade) return res.status(404).json({ success: false, message: 'Trade not found' })
+    if (!(await assertUserInScope(req, res, trade.userId))) return
+    if (trade.status !== 'CLOSED') {
+      return res.status(400).json({ success: false, message: 'Only CLOSED trades can be reopened' })
+    }
+
+    const reversedPnl = trade.realizedPnl || 0
+
+    // Reverse the account balance change that the close applied.
+    // Note: the close path clamps balance to 0 when it would go negative,
+    // so a perfect reversal isn't always achievable — we still subtract the
+    // PnL (and clamp at zero) so the admin can see and adjust manually if needed.
+    let account = null
+    if (trade.accountType === 'ChallengeAccount' || trade.isChallengeAccount) {
+      account = await ChallengeAccount.findById(trade.tradingAccountId)
+    } else {
+      account = await TradingAccount.findById(trade.tradingAccountId)
+    }
+    if (account) {
+      account.balance -= reversedPnl
+      if (account.balance < 0) account.balance = 0
+      await account.save()
+    }
+
+    // Reset close fields
+    const prev = {
+      status: trade.status,
+      closePrice: trade.closePrice,
+      closedAt: trade.closedAt,
+      closedBy: trade.closedBy,
+      realizedPnl: trade.realizedPnl
+    }
+    trade.status = 'OPEN'
+    trade.closePrice = null
+    trade.closedAt = null
+    trade.closedBy = null
+    trade.realizedPnl = null
+    trade.adminModified = true
+    trade.adminModifiedAt = new Date()
+    trade.adminModifiedBy = req.admin._id
+    await trade.save()
+
+    try {
+      await AdminLog.create({
+        adminId: req.admin._id,
+        action: 'TRADE_REOPEN',
+        targetType: 'TRADE',
+        targetId: trade._id,
+        previousValue: prev,
+        newValue: { status: 'OPEN' }
+      })
+    } catch (e) { /* non-fatal */ }
+
+    res.json({ success: true, message: 'Trade reopened', trade, reversedPnl })
+  } catch (error) {
+    console.error('Error reopening trade:', error)
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
+// POST /api/admin/trade/close-user-trades - Close ALL open trades for a user
+// at the current market price. Uses tradeEngine.closeTrade so balance updates,
+// IB commissions, and copy-trade follower propagation happen identically to
+// a user-initiated close.
+router.post('/close-user-trades', requirePermission('canManageTrades'), async (req, res) => {
+  try {
+    const { userId } = req.body
+    if (!userId) {
+      return res.status(400).json({ success: false, message: 'userId is required' })
+    }
+    if (!(await assertUserInScope(req, res, userId))) return
+
+    const openTrades = await Trade.find({ userId, status: 'OPEN' })
+    if (openTrades.length === 0) {
+      return res.json({ success: true, message: 'No open trades for this user', closed: [], count: 0 })
+    }
+
+    const priceCache = req.app.get('priceCache')
+    const closed = []
+    const failed = []
+
+    for (const trade of openTrades) {
+      try {
+        const px = priceCache?.get(trade.symbol)
+        if (!px || !px.bid || !px.ask) {
+          failed.push({ tradeId: trade.tradeId, reason: 'No market price available' })
+          continue
+        }
+        // Use the same fill convention as user close: BUY closes on bid, SELL on ask
+        if (trade.accountType === 'ChallengeAccount' || trade.isChallengeAccount) {
+          // Challenge trade — replicate the close path used elsewhere
+          const closePrice = trade.side === 'BUY' ? px.bid : px.ask
+          const rawPnl = trade.side === 'BUY'
+            ? (closePrice - trade.openPrice) * trade.quantity * trade.contractSize
+            : (trade.openPrice - closePrice) * trade.quantity * trade.contractSize
+          const pnl = rawPnl - (trade.swap || 0)
+          trade.closePrice = closePrice
+          trade.realizedPnl = pnl
+          trade.status = 'CLOSED'
+          trade.closedBy = 'ADMIN'
+          trade.closedAt = new Date()
+          trade.adminModified = true
+          trade.adminModifiedAt = new Date()
+          trade.adminModifiedBy = req.admin?._id
+          await trade.save()
+          const acc = await ChallengeAccount.findById(trade.tradingAccountId)
+          if (acc) {
+            acc.balance += pnl
+            if (acc.balance < 0) acc.balance = 0
+            await acc.save()
+          }
+          closed.push({ tradeId: trade.tradeId, symbol: trade.symbol, pnl })
+        } else {
+          // Regular trade — use the existing close engine for full side-effects
+          const result = await tradeEngine.closeTrade(trade._id, px.bid, px.ask, 'ADMIN', req.admin?._id, priceCache)
+          closed.push({ tradeId: trade.tradeId, symbol: trade.symbol, pnl: result.realizedPnl })
+        }
+      } catch (err) {
+        failed.push({ tradeId: trade.tradeId, reason: err.message })
+      }
+    }
+
+    try {
+      await AdminLog.create({
+        adminId: req.admin?._id,
+        action: 'TRADE_BULK_CLOSE',
+        targetType: 'USER',
+        targetId: userId,
+        newValue: { closedCount: closed.length, failedCount: failed.length }
+      })
+    } catch (e) { /* non-fatal */ }
+
+    res.json({
+      success: true,
+      message: `Closed ${closed.length} trade(s) for user`,
+      count: closed.length,
+      closed,
+      failed
+    })
+  } catch (error) {
+    console.error('Error bulk-closing user trades:', error)
     res.status(500).json({ success: false, message: error.message })
   }
 })

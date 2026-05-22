@@ -119,6 +119,11 @@ router.get('/dashboard-stats', async (req, res) => {
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ])
     const pendingWithdrawals = await Transaction.countDocuments({ type: 'Withdrawal', status: 'Pending', ...txFilter })
+    const pendingWithdrawalsStats = await Transaction.aggregate([
+      { $match: { type: 'Withdrawal', status: 'Pending', ...txFilter } },
+      { $group: { _id: null, total: { $sum: '$amount' } } }
+    ])
+    const pendingWithdrawalsAmount = pendingWithdrawalsStats[0]?.total || 0
 
     const activeTrades = await Trade.countDocuments({ status: 'OPEN', ...tradeFilter })
 
@@ -142,7 +147,22 @@ router.get('/dashboard-stats', async (req, res) => {
     const totalDeposits = depositStats[0]?.total || 0
     const totalWithdrawals = withdrawalStats[0]?.total || 0
     const netPnl = netPnlStats[0]?.total || 0
-    const runningPnlPct = totalDeposits > 0 ? (runningPnl / totalDeposits) * 100 : 0
+
+    // Running P&L % uses "all money in" as the denominator, not only real
+    // deposits — otherwise admin-credited platforms always show 0%.
+    const adminCreditStats = await Transaction.aggregate([
+      { $match: { type: 'Admin_Credit', ...txFilter } },
+      { $group: { _id: null, total: { $sum: '$amount' } } }
+    ])
+    const totalCapitalIn = totalDeposits + (adminCreditStats[0]?.total || 0)
+    const runningPnlPct = totalCapitalIn > 0 ? (runningPnl / totalCapitalIn) * 100 : null
+
+    // Running Balance = Net Deposit − Pending Withdrawals − Running P&L
+    // (Subtracting Running P&L is equivalent to "− running profit + running loss":
+    //   profit  → positive runningPnl  → subtracted (platform owes more to users)
+    //   loss    → negative runningPnl  → added back (platform retains that exposure))
+    const netDeposit = totalDeposits - totalWithdrawals
+    const runningBalance = netDeposit - pendingWithdrawalsAmount - runningPnl
 
     res.json({
       success: true,
@@ -152,17 +172,102 @@ router.get('/dashboard-stats', async (req, res) => {
         pendingKYC,
         totalDeposits,
         totalWithdrawals,
-        netDeposit: totalDeposits - totalWithdrawals,
+        netDeposit,
         netPnl,
         runningPnl,
         runningPnlPct,
         pendingWithdrawals,
+        pendingWithdrawalsAmount,
+        runningBalance,
         activeTrades
       }
     })
   } catch (error) {
     console.error('Error fetching dashboard stats:', error)
     res.status(500).json({ success: false, message: 'Error fetching stats', error: error.message })
+  }
+})
+
+// POST /api/admin/users - Admin creates a new user
+// Bypasses email-OTP verification (admin attests for the user).
+// Sub-admins create users in their own branch automatically.
+router.post('/users', requirePermission('canManageUsers'), async (req, res) => {
+  try {
+    const { firstName, email, phone, countryCode, password, walletBalance } = req.body
+
+    if (!firstName || !firstName.trim()) {
+      return res.status(400).json({ success: false, message: 'First name is required' })
+    }
+    if (!email || !email.trim()) {
+      return res.status(400).json({ success: false, message: 'Email is required' })
+    }
+    if (!password || password.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' })
+    }
+
+    const existing = await User.findOne({ email: email.toLowerCase().trim() })
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'A user with this email already exists' })
+    }
+
+    // Sub-admin → auto-assign new user to their own branch
+    let assignedAdmin = null
+    let adminUrlSlug = null
+    if (req.admin && req.admin.role !== 'SUPER_ADMIN') {
+      assignedAdmin = req.admin._id
+      adminUrlSlug = req.admin.urlSlug || null
+    }
+
+    const user = await User.create({
+      firstName: firstName.trim(),
+      email: email.toLowerCase().trim(),
+      phone: phone?.trim() || '',
+      countryCode: countryCode || '+1',
+      password,                  // model's pre-save hook hashes
+      emailVerified: true,       // admin-created, treat as verified
+      assignedAdmin,
+      adminUrlSlug
+    })
+
+    // Bump admin stats if assigned
+    if (assignedAdmin) {
+      await (await import('../models/Admin.js')).default
+        .findByIdAndUpdate(assignedAdmin, { $inc: { 'stats.totalUsers': 1 } })
+    }
+
+    // If admin passed an initial wallet balance, set it via the Wallet model
+    // (don't write to User.walletBalance — that field is parallel/legacy).
+    const initialBalance = parseFloat(walletBalance)
+    if (!isNaN(initialBalance) && initialBalance > 0) {
+      const Wallet = (await import('../models/Wallet.js')).default
+      await Wallet.create({ userId: user._id, balance: initialBalance })
+      await Transaction.create({
+        userId: user._id,
+        type: 'Admin_Credit',
+        amount: initialBalance,
+        paymentMethod: 'System',
+        description: 'Initial balance set by admin at user creation',
+        status: 'Completed'
+      })
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'User created successfully',
+      user: {
+        _id: user._id,
+        firstName: user.firstName,
+        email: user.email,
+        phone: user.phone,
+        countryCode: user.countryCode,
+        assignedAdmin: user.assignedAdmin,
+        adminUrlSlug: user.adminUrlSlug,
+        createdAt: user.createdAt
+      }
+    })
+  } catch (error) {
+    console.error('Error creating user:', error)
+    res.status(500).json({ success: false, message: error.message })
   }
 })
 

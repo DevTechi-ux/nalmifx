@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import adminFetch from '../utils/adminFetch.js'
+import { useSearchParams } from 'react-router-dom'
+import adminFetch, { getCurrentAdminUser } from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
 import LiveDemoToggle from '../components/LiveDemoToggle'
 import { 
@@ -15,7 +16,12 @@ import {
   Plus,
   Edit,
   X,
-  Trash2
+  Trash2,
+  ChevronUp,
+  ChevronDown,
+  Sliders,
+  RotateCcw,
+  AlertTriangle
 } from 'lucide-react'
 import metaApiService from '../services/metaApi'
 import binanceApiService from '../services/binanceApi'
@@ -24,7 +30,18 @@ import { API_URL } from '../config/api'
 
 const AdminTradeManagement = () => {
   const [searchTerm, setSearchTerm] = useState('')
-  const [filterStatus, setFilterStatus] = useState('open')
+  // Initialize filterStatus from ?status=… so dashboard cards can deep-link here
+  const [searchParams] = useSearchParams()
+  const [filterStatus, setFilterStatus] = useState(() => {
+    const s = (searchParams.get('status') || 'open').toLowerCase()
+    return ['all', 'open', 'closed', 'pending'].includes(s) ? s : 'open'
+  })
+  // Sync if the URL changes while we're already on the page
+  useEffect(() => {
+    const s = (searchParams.get('status') || '').toLowerCase()
+    if (s && ['all', 'open', 'closed', 'pending'].includes(s)) setFilterStatus(s)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
   const [trades, setTrades] = useState([])
   const [stats, setStats] = useState({ total: 0, open: 0, volume: 0, pnl: 0 })
   const [loading, setLoading] = useState(true)
@@ -61,6 +78,25 @@ const AdminTradeManagement = () => {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [accountKind, setAccountKind] = useState('live')
+  const [sortBy, setSortBy] = useState('openedAt')
+  const [sortDir, setSortDir] = useState('desc')
+  const [showSpreadModal, setShowSpreadModal] = useState(false)
+  const [spreadInput, setSpreadInput] = useState('')
+  const [updatingSpread, setUpdatingSpread] = useState(false)
+  const currentAdmin = getCurrentAdminUser()
+  const isSuperAdmin = currentAdmin?.role === 'SUPER_ADMIN'
+  const [showReopenModal, setShowReopenModal] = useState(false)
+  const [reopening, setReopening] = useState(false)
+  const [showBulkCloseModal, setShowBulkCloseModal] = useState(false)
+  const [bulkCloseSearch, setBulkCloseSearch] = useState('')
+  const [bulkCloseUser, setBulkCloseUser] = useState(null)
+  const [bulkClosing, setBulkClosing] = useState(false)
+  const [bulkCloseResult, setBulkCloseResult] = useState(null)
+  const toggleSort = (key) => {
+    if (sortBy === key) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(key); setSortDir('desc') }
+    setCurrentPage(1)
+  }
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
@@ -341,6 +377,105 @@ const AdminTradeManagement = () => {
     setShowEditModal(true)
   }
 
+  const openSpreadModal = (trade) => {
+    setSelectedTrade(trade)
+    setSpreadInput(String(trade.spread ?? 0))
+    setShowSpreadModal(true)
+  }
+
+  // Mirror the backend pip factor — used to preview the resulting open price
+  const pipFactorFor = (symbol = '') => {
+    if (['BTCUSD', 'ETHUSD', 'LTCUSD', 'XRPUSD', 'BCHUSD'].includes(symbol)) return 1
+    if (['XAUUSD', 'XAGUSD'].includes(symbol) || symbol.includes('JPY')) return 0.01
+    return 0.0001
+  }
+
+  const openReopenModal = (trade) => {
+    setSelectedTrade(trade)
+    setShowReopenModal(true)
+  }
+
+  const handleReopenTrade = async () => {
+    if (!selectedTrade) return
+    setReopening(true)
+    try {
+      const res = await adminFetch(`${API_URL}/admin/trade/${selectedTrade._id}/reopen`, {
+        method: 'PUT'
+      })
+      const data = await res.json()
+      if (data.success) {
+        setShowReopenModal(false)
+        fetchTrades()
+      } else {
+        alert(data.message || 'Failed to reopen trade')
+      }
+    } catch (e) {
+      alert('Network error reopening trade')
+    }
+    setReopening(false)
+  }
+
+  const openBulkCloseModal = () => {
+    setBulkCloseSearch('')
+    setBulkCloseUser(null)
+    setBulkCloseResult(null)
+    setShowBulkCloseModal(true)
+  }
+
+  const handleBulkClose = async () => {
+    if (!bulkCloseUser) return
+    setBulkClosing(true)
+    setBulkCloseResult(null)
+    try {
+      const res = await adminFetch(`${API_URL}/admin/trade/close-user-trades`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: bulkCloseUser._id })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setBulkCloseResult({
+          count: data.count,
+          closed: data.closed || [],
+          failed: data.failed || []
+        })
+        fetchTrades()
+      } else {
+        alert(data.message || 'Failed to close trades')
+      }
+    } catch (e) {
+      alert('Network error closing trades')
+    }
+    setBulkClosing(false)
+  }
+
+  const handleUpdateSpread = async () => {
+    if (!selectedTrade) return
+    const newSpread = parseFloat(spreadInput)
+    if (isNaN(newSpread) || newSpread < 0) {
+      alert('Enter a valid spread in pips (≥ 0)')
+      return
+    }
+    setUpdatingSpread(true)
+    try {
+      const res = await adminFetch(`${API_URL}/admin/trade/${selectedTrade._id}/spread`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ spread: newSpread })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setShowSpreadModal(false)
+        fetchTrades()
+      } else {
+        alert(data.message || 'Failed to update spread')
+      }
+    } catch (e) {
+      alert('Network error updating spread')
+    }
+    setUpdatingSpread(false)
+  }
+
   const openCloseModal = async (trade) => {
     setSelectedTrade(trade)
     setShowCloseModal(true)
@@ -417,13 +552,48 @@ const AdminTradeManagement = () => {
     }
   }
 
-  const filteredTrades = trades.filter(trade => {
-    const matchesSearch = trade.tradeId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      trade.symbol?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      trade.userId?.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      trade.userId?.email?.toLowerCase().includes(searchTerm.toLowerCase())
-    return matchesSearch
-  })
+  // Per-trade derivations used by sort + display
+  const volumeOf = (t) => (t.quantity || 0) * (t.contractSize || getDefaultContractSize(t.symbol)) * (t.openPrice || 0)
+  const pnlPctOf = (t) => {
+    const margin = t.marginUsed || 0
+    if (margin <= 0) return null
+    return (calculateFloatingPnl(t) / margin) * 100
+  }
+  const sortValue = (t, key) => {
+    switch (key) {
+      case 'tradeId':   return t.tradeId || ''
+      case 'user':      return (t.userId?.firstName || t.userId?.email || '').toLowerCase()
+      case 'symbol':    return t.symbol || ''
+      case 'side':      return t.side || ''
+      case 'quantity':  return t.quantity || 0
+      case 'openPrice': return t.openPrice || 0
+      case 'closePrice':return t.closePrice || 0
+      case 'openedAt':  return new Date(t.openedAt || t.createdAt || 0).getTime()
+      case 'closedAt':  return new Date(t.closedAt || 0).getTime()
+      case 'pnl':       return calculateFloatingPnl(t)
+      case 'pnlPct':    { const p = pnlPctOf(t); return p === null ? -Infinity : p }
+      case 'volume':    return volumeOf(t)
+      case 'status':    return t.status || ''
+      default: return 0
+    }
+  }
+
+  const filteredTrades = trades
+    .filter(trade => {
+      const matchesSearch = trade.tradeId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        trade.symbol?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        trade.userId?.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        trade.userId?.email?.toLowerCase().includes(searchTerm.toLowerCase())
+      return matchesSearch
+    })
+    .slice()
+    .sort((a, b) => {
+      const va = sortValue(a, sortBy)
+      const vb = sortValue(b, sortBy)
+      if (va < vb) return sortDir === 'asc' ? -1 : 1
+      if (va > vb) return sortDir === 'asc' ? 1 : -1
+      return 0
+    })
 
   const getStatusIcon = (status) => {
     switch (status?.toUpperCase()) {
@@ -440,26 +610,54 @@ const AdminTradeManagement = () => {
         <LiveDemoToggle value={accountKind} onChange={(v) => { setAccountKind(v); setCurrentPage(1) }} />
       </div>
 
-      {/* Stats */}
+      {/* Stats — clickable: each card sets a relevant filter/sort */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="bg-dark-800 rounded-xl p-5 border border-gray-800">
+        <button
+          onClick={() => { setFilterStatus('all'); setSortBy('openedAt'); setSortDir('desc'); setCurrentPage(1) }}
+          className={`text-left bg-dark-800 rounded-xl p-5 border transition-colors ${
+            filterStatus === 'all' ? 'border-blue-500 ring-1 ring-blue-500/50' : 'border-gray-800 hover:border-gray-600'
+          }`}
+          title="Show all trades"
+        >
           <p className="text-gray-500 text-sm mb-1">Total Trades</p>
           <p className="text-white text-2xl font-bold">{stats.total.toLocaleString()}</p>
-        </div>
-        <div className="bg-dark-800 rounded-xl p-5 border border-gray-800">
+          <p className="text-gray-600 text-xs mt-1">Click to view all</p>
+        </button>
+        <button
+          onClick={() => { setFilterStatus('open'); setSortBy('pnl'); setSortDir('desc'); setCurrentPage(1) }}
+          className={`text-left bg-dark-800 rounded-xl p-5 border transition-colors ${
+            filterStatus === 'open' ? 'border-green-500 ring-1 ring-green-500/50' : 'border-gray-800 hover:border-gray-600'
+          }`}
+          title="Show open positions"
+        >
           <p className="text-gray-500 text-sm mb-1">Open Positions</p>
           <p className="text-white text-2xl font-bold">{stats.open}</p>
-        </div>
-        <div className="bg-dark-800 rounded-xl p-5 border border-gray-800">
+          <p className="text-gray-600 text-xs mt-1">Click to view open</p>
+        </button>
+        <button
+          onClick={() => { setFilterStatus('all'); setSortBy('volume'); setSortDir('desc'); setCurrentPage(1) }}
+          className={`text-left bg-dark-800 rounded-xl p-5 border transition-colors ${
+            sortBy === 'volume' ? 'border-purple-500 ring-1 ring-purple-500/50' : 'border-gray-800 hover:border-gray-600'
+          }`}
+          title="Sort by volume"
+        >
           <p className="text-gray-500 text-sm mb-1">Total Volume</p>
           <p className="text-white text-2xl font-bold">${(stats.volume / 1000000).toFixed(2)}M</p>
-        </div>
-        <div className="bg-dark-800 rounded-xl p-5 border border-gray-800">
+          <p className="text-gray-600 text-xs mt-1">Click to sort by volume</p>
+        </button>
+        <button
+          onClick={() => { setFilterStatus('closed'); setSortBy('pnl'); setSortDir('desc'); setCurrentPage(1) }}
+          className={`text-left bg-dark-800 rounded-xl p-5 border transition-colors ${
+            sortBy === 'pnl' && filterStatus === 'closed' ? 'border-yellow-500 ring-1 ring-yellow-500/50' : 'border-gray-800 hover:border-gray-600'
+          }`}
+          title="Show closed trades sorted by P&L"
+        >
           <p className="text-gray-500 text-sm mb-1">Platform P&L</p>
           <p className={`text-2xl font-bold ${stats.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
             {stats.pnl >= 0 ? '+' : ''}${stats.pnl.toFixed(2)}
           </p>
-        </div>
+          <p className="text-gray-600 text-xs mt-1">Click to sort by P&L</p>
+        </button>
       </div>
 
       {/* Trades Table */}
@@ -475,6 +673,13 @@ const AdminTradeManagement = () => {
               className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg flex items-center gap-2"
             >
               <Plus size={18} /> Create Trade
+            </button>
+            <button
+              onClick={openBulkCloseModal}
+              className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg flex items-center gap-2"
+              title="Close all open trades for a specific user"
+            >
+              <XCircle size={18} /> Close User Trades
             </button>
             <div className="relative">
               <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
@@ -593,12 +798,28 @@ const AdminTradeManagement = () => {
                     >
                       <Edit size={14} /> Edit
                     </button>
+                    {isSuperAdmin && trade.status === 'OPEN' && (
+                      <button
+                        onClick={() => openSpreadModal(trade)}
+                        className="flex-1 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-500 rounded-lg text-sm font-medium flex items-center justify-center gap-1"
+                      >
+                        <Sliders size={14} /> Spread
+                      </button>
+                    )}
                     {trade.status === 'OPEN' && (
                       <button
                         onClick={() => openCloseModal(trade)}
                         className="flex-1 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-500 rounded-lg text-sm font-medium flex items-center justify-center gap-1"
                       >
                         <XCircle size={14} /> Close
+                      </button>
+                    )}
+                    {isSuperAdmin && trade.status === 'CLOSED' && (
+                      <button
+                        onClick={() => openReopenModal(trade)}
+                        className="flex-1 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-500 rounded-lg text-sm font-medium flex items-center justify-center gap-1"
+                      >
+                        <RotateCcw size={14} /> Reopen
                       </button>
                     )}
                   </div>
@@ -611,17 +832,32 @@ const AdminTradeManagement = () => {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-700">
-                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Trade ID</th>
-                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">User</th>
-                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Symbol</th>
-                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Side</th>
-                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Lots</th>
-                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Open Price</th>
-                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Close Price</th>
-                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Opened At</th>
-                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Closed At</th>
-                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">P&L</th>
-                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Status</th>
+                    {[
+                      { key: 'tradeId',    label: 'Trade ID' },
+                      { key: 'user',       label: 'User' },
+                      { key: 'symbol',     label: 'Symbol' },
+                      { key: 'side',       label: 'Side' },
+                      { key: 'quantity',   label: 'Lots' },
+                      { key: 'openPrice',  label: 'Open Price' },
+                      { key: 'closePrice', label: 'Close Price' },
+                      { key: 'volume',     label: 'Volume' },
+                      { key: 'openedAt',   label: 'Opened At' },
+                      { key: 'closedAt',   label: 'Closed At' },
+                      { key: 'pnl',        label: 'P&L' },
+                      { key: 'pnlPct',     label: 'P&L %' },
+                      { key: 'status',     label: 'Status' }
+                    ].map(col => (
+                      <th
+                        key={col.key}
+                        onClick={() => toggleSort(col.key)}
+                        className="text-left text-gray-500 text-sm font-medium py-3 px-4 select-none cursor-pointer hover:text-white"
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          {col.label}
+                          {sortBy === col.key && (sortDir === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />)}
+                        </span>
+                      </th>
+                    ))}
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Actions</th>
                   </tr>
                 </thead>
@@ -644,6 +880,9 @@ const AdminTradeManagement = () => {
                       <td className="py-4 px-4 text-gray-400">${trade.openPrice?.toFixed(5)}</td>
                       <td className="py-4 px-4 text-gray-400">
                         {trade.closePrice ? `$${trade.closePrice.toFixed(5)}` : <span className="text-gray-600">—</span>}
+                      </td>
+                      <td className="py-4 px-4 text-gray-400 text-sm">
+                        ${volumeOf(trade).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                       </td>
                       <td className="py-4 px-4 text-gray-400 text-xs">
                         {trade.openedAt ? (
@@ -668,6 +907,17 @@ const AdminTradeManagement = () => {
                       <td className={`py-4 px-4 font-medium ${calculateFloatingPnl(trade) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                         {calculateFloatingPnl(trade) >= 0 ? '+' : ''}${calculateFloatingPnl(trade).toFixed(2)}
                       </td>
+                      <td className="py-4 px-4 text-sm">
+                        {(() => {
+                          const pct = pnlPctOf(trade)
+                          if (pct === null) return <span className="text-gray-600">—</span>
+                          return (
+                            <span className={pct >= 0 ? 'text-green-500' : 'text-red-500'}>
+                              {pct >= 0 ? '+' : ''}{pct.toFixed(2)}%
+                            </span>
+                          )
+                        })()}
+                      </td>
                       <td className="py-4 px-4">
                         <div className="flex flex-col gap-1">
                           <span className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs w-fit ${getStatusColor(trade.status)}`}>
@@ -681,20 +931,38 @@ const AdminTradeManagement = () => {
                       </td>
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-1">
-                          <button 
+                          <button
                             onClick={() => openEditModal(trade)}
-                            className="p-2 hover:bg-blue-500/20 rounded-lg transition-colors text-gray-400 hover:text-blue-500" 
+                            className="p-2 hover:bg-blue-500/20 rounded-lg transition-colors text-gray-400 hover:text-blue-500"
                             title="Edit Trade"
                           >
                             <Edit size={16} />
                           </button>
+                          {isSuperAdmin && trade.status === 'OPEN' && (
+                            <button
+                              onClick={() => openSpreadModal(trade)}
+                              className="p-2 hover:bg-purple-500/20 rounded-lg transition-colors text-gray-400 hover:text-purple-500"
+                              title="Change Spread (Super Admin)"
+                            >
+                              <Sliders size={16} />
+                            </button>
+                          )}
                           {trade.status === 'OPEN' && (
-                            <button 
+                            <button
                               onClick={() => openCloseModal(trade)}
-                              className="p-2 hover:bg-red-500/20 rounded-lg transition-colors text-gray-400 hover:text-red-500" 
+                              className="p-2 hover:bg-red-500/20 rounded-lg transition-colors text-gray-400 hover:text-red-500"
                               title="Close Trade"
                             >
                               <XCircle size={16} />
+                            </button>
+                          )}
+                          {isSuperAdmin && trade.status === 'CLOSED' && (
+                            <button
+                              onClick={() => openReopenModal(trade)}
+                              className="p-2 hover:bg-green-500/20 rounded-lg transition-colors text-gray-400 hover:text-green-500"
+                              title="Reopen Trade (Super Admin)"
+                            >
+                              <RotateCcw size={16} />
                             </button>
                           )}
                         </div>
@@ -1081,6 +1349,252 @@ const AdminTradeManagement = () => {
       )}
 
       {/* Close Trade Modal */}
+      {/* Reopen Trade Modal — super admin only */}
+      {showReopenModal && selectedTrade && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => !reopening && setShowReopenModal(false)}>
+          <div className="bg-dark-800 rounded-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b border-gray-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <RotateCcw size={18} className="text-green-400" />
+                <h2 className="text-lg font-bold text-white">Reopen Trade</h2>
+              </div>
+              <button onClick={() => !reopening && setShowReopenModal(false)} className="text-gray-400 hover:text-white"><X size={20} /></button>
+            </div>
+            <div className="p-5 space-y-3">
+              <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                <AlertTriangle size={16} className="text-yellow-500 mt-0.5 shrink-0" />
+                <p className="text-yellow-200 text-xs">
+                  This will reverse the realized P&L on the account and put the trade back to OPEN. The user will see it as a live position again.
+                </p>
+              </div>
+              <div className="bg-dark-700 rounded-lg p-3 text-sm space-y-1">
+                <div className="flex justify-between text-gray-400"><span>Trade</span><span className="text-white font-mono">{selectedTrade.tradeId}</span></div>
+                <div className="flex justify-between text-gray-400"><span>Symbol</span><span className="text-white">{selectedTrade.symbol}</span></div>
+                <div className="flex justify-between text-gray-400">
+                  <span>Side</span>
+                  <span className={selectedTrade.side === 'BUY' ? 'text-green-500' : 'text-red-500'}>{selectedTrade.side}</span>
+                </div>
+                <div className="flex justify-between text-gray-400"><span>Realized P&L (will be reversed)</span>
+                  <span className={(selectedTrade.realizedPnl || 0) >= 0 ? 'text-green-500' : 'text-red-500'}>
+                    {(selectedTrade.realizedPnl || 0) >= 0 ? '+' : ''}${(selectedTrade.realizedPnl || 0).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="p-5 pt-0 flex gap-2">
+              <button onClick={() => setShowReopenModal(false)} disabled={reopening} className="flex-1 px-4 py-2 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-lg text-sm disabled:opacity-50">Cancel</button>
+              <button onClick={handleReopenTrade} disabled={reopening} className="flex-1 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-medium disabled:opacity-50">
+                {reopening ? 'Reopening...' : 'Reopen Trade'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Close All User Trades Modal */}
+      {showBulkCloseModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => !bulkClosing && setShowBulkCloseModal(false)}>
+          <div className="bg-dark-800 rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b border-gray-800 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <XCircle size={18} className="text-red-400" />
+                <h2 className="text-lg font-bold text-white">Close All Open Trades</h2>
+              </div>
+              <button onClick={() => !bulkClosing && setShowBulkCloseModal(false)} className="text-gray-400 hover:text-white"><X size={20} /></button>
+            </div>
+            <div className="p-5 space-y-4 overflow-y-auto">
+              {!bulkCloseResult && (
+                <>
+                  <p className="text-sm text-gray-400">Search a user — every open position will be closed at the current market price.</p>
+                  {!bulkCloseUser ? (
+                    <>
+                      <div className="relative">
+                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                        <input
+                          type="text"
+                          value={bulkCloseSearch}
+                          onChange={(e) => setBulkCloseSearch(e.target.value)}
+                          placeholder="Name or email..."
+                          autoFocus
+                          className="w-full bg-dark-700 border border-gray-700 rounded-lg pl-9 pr-3 py-2 text-white text-sm focus:outline-none focus:border-red-500"
+                        />
+                      </div>
+                      <div className="max-h-60 overflow-y-auto divide-y divide-gray-800 rounded-lg border border-gray-800">
+                        {(() => {
+                          const q = bulkCloseSearch.trim().toLowerCase()
+                          if (!q) return <p className="p-4 text-center text-gray-500 text-sm">Start typing to search…</p>
+                          const matches = users.filter(u =>
+                            (u.firstName || '').toLowerCase().includes(q) ||
+                            (u.email || '').toLowerCase().includes(q)
+                          ).slice(0, 20)
+                          if (matches.length === 0) return <p className="p-4 text-center text-gray-500 text-sm">No users found</p>
+                          return matches.map(u => (
+                            <button
+                              key={u._id}
+                              onClick={() => setBulkCloseUser(u)}
+                              className="w-full text-left px-3 py-2 hover:bg-dark-700 transition-colors"
+                            >
+                              <div className="text-white text-sm">{u.firstName || 'Unknown'}</div>
+                              <div className="text-gray-500 text-xs">{u.email}</div>
+                            </button>
+                          ))
+                        })()}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="bg-dark-700 rounded-lg p-3 flex items-center justify-between">
+                        <div>
+                          <div className="text-white text-sm">{bulkCloseUser.firstName || 'Unknown'}</div>
+                          <div className="text-gray-500 text-xs">{bulkCloseUser.email}</div>
+                        </div>
+                        <button onClick={() => setBulkCloseUser(null)} className="text-gray-400 hover:text-white text-xs">Change</button>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                        <AlertTriangle size={16} className="text-red-400 mt-0.5 shrink-0" />
+                        <p className="text-red-200 text-xs">
+                          All open positions for this user will be force-closed at the current market price. P&L will be realized to their account balance and follower trades will close too. This cannot be undone in bulk (only individual trades can be reopened by super admin).
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+              {bulkCloseResult && (
+                <div className="space-y-3">
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
+                    <p className="text-green-300 text-sm font-medium">{bulkCloseResult.count} trade(s) closed</p>
+                  </div>
+                  {bulkCloseResult.closed.length > 0 && (
+                    <div className="max-h-40 overflow-y-auto space-y-1">
+                      {bulkCloseResult.closed.map((t, i) => (
+                        <div key={i} className="text-xs flex justify-between text-gray-400">
+                          <span className="font-mono">{t.tradeId} · {t.symbol}</span>
+                          <span className={t.pnl >= 0 ? 'text-green-500' : 'text-red-500'}>
+                            {t.pnl >= 0 ? '+' : ''}${t.pnl.toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {bulkCloseResult.failed.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-yellow-400 text-xs font-medium">{bulkCloseResult.failed.length} skipped:</p>
+                      {bulkCloseResult.failed.map((t, i) => (
+                        <div key={i} className="text-xs text-gray-500">
+                          <span className="font-mono">{t.tradeId}</span> — {t.reason}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="p-5 pt-0 flex gap-2 shrink-0">
+              <button onClick={() => setShowBulkCloseModal(false)} disabled={bulkClosing} className="flex-1 px-4 py-2 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-lg text-sm disabled:opacity-50">
+                {bulkCloseResult ? 'Done' : 'Cancel'}
+              </button>
+              {!bulkCloseResult && (
+                <button
+                  onClick={handleBulkClose}
+                  disabled={bulkClosing || !bulkCloseUser}
+                  className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                >
+                  {bulkClosing ? 'Closing…' : 'Close All Open Trades'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSpreadModal && selectedTrade && (() => {
+        const cur = selectedTrade.spread || 0
+        const next = parseFloat(spreadInput)
+        const validNext = !isNaN(next) && next >= 0
+        const pip = pipFactorFor(selectedTrade.symbol)
+        const delta = validNext ? (next - cur) * pip : 0
+        const newOpenPrice = selectedTrade.side === 'BUY'
+          ? selectedTrade.openPrice + delta
+          : selectedTrade.openPrice - delta
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => !updatingSpread && setShowSpreadModal(false)}>
+            <div className="bg-dark-800 rounded-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+              <div className="p-5 border-b border-gray-800 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sliders size={18} className="text-purple-400" />
+                  <h2 className="text-lg font-bold text-white">Change Spread</h2>
+                </div>
+                <button onClick={() => !updatingSpread && setShowSpreadModal(false)} className="text-gray-400 hover:text-white">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="text-sm text-gray-400">
+                  <span className="text-white font-medium">{selectedTrade.symbol}</span>
+                  <span className="mx-1">·</span>
+                  <span className={selectedTrade.side === 'BUY' ? 'text-green-500' : 'text-red-500'}>{selectedTrade.side}</span>
+                  <span className="mx-1">·</span>
+                  <span>{selectedTrade.quantity} lots</span>
+                </div>
+                <div>
+                  <label className="block text-gray-400 text-xs mb-1">Current spread</label>
+                  <div className="text-white text-sm">{cur} pips</div>
+                </div>
+                <div>
+                  <label className="block text-gray-400 text-xs mb-1">New spread (pips)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={spreadInput}
+                    onChange={(e) => setSpreadInput(e.target.value)}
+                    className="w-full bg-dark-700 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div className="bg-dark-700 rounded-lg p-3 text-sm space-y-1">
+                  <div className="flex justify-between text-gray-400">
+                    <span>Current open price</span>
+                    <span className="text-white">${selectedTrade.openPrice?.toFixed(5)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-400">
+                    <span>New open price (preview)</span>
+                    <span className={validNext ? 'text-purple-400' : 'text-gray-600'}>
+                      {validNext ? `$${newOpenPrice.toFixed(5)}` : '—'}
+                    </span>
+                  </div>
+                  {validNext && next !== cur && (
+                    <div className="flex justify-between text-gray-500 text-xs pt-1 border-t border-gray-600">
+                      <span>{selectedTrade.side === 'BUY' ? 'BUY entry = ask + spread' : 'SELL entry = bid − spread'}</span>
+                      <span>Δ {(next - cur).toFixed(1)} pips</span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500">
+                  Spread change recalculates the open price and margin used. Action is logged in the admin audit log.
+                </p>
+              </div>
+              <div className="p-5 pt-0 flex gap-2">
+                <button
+                  onClick={() => setShowSpreadModal(false)}
+                  disabled={updatingSpread}
+                  className="flex-1 px-4 py-2 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-lg text-sm disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpdateSpread}
+                  disabled={updatingSpread || !validNext}
+                  className="flex-1 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                >
+                  {updatingSpread ? 'Saving...' : 'Save Spread'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {showCloseModal && selectedTrade && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-dark-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">

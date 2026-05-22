@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import adminFetch from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
 import ReportDownload from '../components/ReportDownload'
@@ -26,8 +27,30 @@ import { API_URL, API_BASE_URL } from '../config/api'
 const AdminFundManagement = () => {
   const [activeTab, setActiveTab] = useState('transactions')
   const [searchTerm, setSearchTerm] = useState('')
-  const [filterType, setFilterType] = useState('all')
+  const [searchParams] = useSearchParams()
+  // Initialize filter from ?filter=… so dashboard cards can deep-link here.
+  // Accepts 'deposit'/'deposits', 'withdrawal'/'withdrawals', 'pending', 'admin', 'all'.
+  const [filterType, setFilterType] = useState(() => {
+    const raw = (searchParams.get('filter') || 'all').toLowerCase()
+    if (raw === 'deposits' || raw === 'deposit') return 'deposit'
+    if (raw === 'withdrawals' || raw === 'withdrawal') return 'withdrawal'
+    if (['pending', 'admin', 'all'].includes(raw)) return raw
+    return 'all'
+  })
+  const [statsPeriod, setStatsPeriod] = useState('all') // 'all' | 'daily' | 'weekly' | 'monthly'
+
+  // Sync filter if the URL changes while we're already on the page
+  useEffect(() => {
+    const raw = (searchParams.get('filter') || '').toLowerCase()
+    if (!raw) return
+    if (raw === 'deposits' || raw === 'deposit') setFilterType('deposit')
+    else if (raw === 'withdrawals' || raw === 'withdrawal') setFilterType('withdrawal')
+    else if (['pending', 'admin', 'all'].includes(raw)) setFilterType(raw)
+    setActiveTab('transactions')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
   const [transactions, setTransactions] = useState([])
+  const [allRealTransactions, setAllRealTransactions] = useState([])
   const [demoTransactions, setDemoTransactions] = useState([])
   const [stats, setStats] = useState({ deposits: 0, withdrawals: 0, pending: 0, net: 0 })
   const [loading, setLoading] = useState(true)
@@ -94,8 +117,11 @@ const AdminFundManagement = () => {
           filteredReal = allReal.filter(t => t.type?.toUpperCase() === 'WITHDRAWAL')
         } else if (filterType === 'admin') {
           filteredReal = allReal.filter(t => t.type === 'Admin_Credit' || t.type === 'Admin_Debit')
+        } else if (filterType === 'pending') {
+          filteredReal = allReal.filter(t => t.status?.toUpperCase() === 'PENDING')
         }
         setTransactions(filteredReal)
+        setAllRealTransactions(allReal)
         setDemoTransactions(allDemo)
 
         const realTxns = allReal
@@ -227,38 +253,123 @@ const AdminFundManagement = () => {
     setUserDetails(null)
   }
 
+  // Deposits / Withdrawals / Net for the selected period — derived from ALL
+  // real transactions so the period figures are independent of the current
+  // type filter applied to the table. "All" returns the lifetime stats so
+  // we don't drift from the existing global values.
+  const periodTotals = (() => {
+    if (statsPeriod === 'all') {
+      return { deposits: stats.deposits, withdrawals: stats.withdrawals, net: stats.net }
+    }
+    const now = Date.now()
+    const windows = { daily: 86400000, weekly: 7 * 86400000, monthly: 30 * 86400000 }
+    const since = now - (windows[statsPeriod] || 0)
+    let deposits = 0, withdrawals = 0
+    for (const t of allRealTransactions) {
+      const ts = new Date(t.createdAt || t.updatedAt || 0).getTime()
+      if (ts < since) continue
+      const status = t.status?.toUpperCase()
+      const type = t.type?.toUpperCase()
+      if (type === 'DEPOSIT' && status === 'APPROVED') deposits += (t.amount || 0)
+      else if (t.type === 'Admin_Credit') deposits += (t.amount || 0)
+      else if (type === 'WITHDRAWAL' && status === 'APPROVED') withdrawals += (t.amount || 0)
+      else if (t.type === 'Admin_Debit') withdrawals += (t.amount || 0)
+    }
+    return { deposits, withdrawals, net: deposits - withdrawals }
+  })()
+  const periodLabel = { all: 'All time', daily: 'Last 24h', weekly: 'Last 7 days', monthly: 'Last 30 days' }[statsPeriod]
+
   return (
     <AdminLayout title="Fund Management" subtitle="Manage deposits and withdrawals">
-      {/* Stats */}
+      {/* Period filter — applies to Deposits, Withdrawals, and Net Balance cards */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+        <p className="text-gray-500 text-sm">
+          Showing <span className="text-gray-300">{periodLabel}</span>
+        </p>
+        <div className="flex gap-1 p-1 bg-dark-700 rounded-lg">
+          {[
+            { k: 'daily',   l: 'Daily' },
+            { k: 'weekly',  l: 'Weekly' },
+            { k: 'monthly', l: 'Monthly' },
+            { k: 'all',     l: 'All time' }
+          ].map(p => (
+            <button
+              key={p.k}
+              onClick={() => setStatsPeriod(p.k)}
+              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                statsPeriod === p.k
+                  ? 'bg-purple-500 text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              {p.l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Stats — clickable cards apply matching filter to the table */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="bg-dark-800 rounded-xl p-5 border border-gray-800">
+        <button
+          onClick={() => { setActiveTab('transactions'); setFilterType('deposit') }}
+          className={`text-left bg-dark-800 rounded-xl p-5 border transition-colors ${
+            filterType === 'deposit' && activeTab === 'transactions'
+              ? 'border-green-500 ring-1 ring-green-500/50'
+              : 'border-gray-800 hover:border-gray-600'
+          }`}
+          title="Show deposits"
+        >
           <div className="flex items-center gap-2 mb-2">
             <ArrowDownRight size={18} className="text-green-500" />
             <p className="text-gray-500 text-sm">Total Deposits</p>
           </div>
-          <p className="text-white text-2xl font-bold">${stats.deposits.toLocaleString()}</p>
-        </div>
-        <div className="bg-dark-800 rounded-xl p-5 border border-gray-800">
+          <p className="text-white text-2xl font-bold">${periodTotals.deposits.toLocaleString()}</p>
+          <p className="text-gray-600 text-xs mt-1">{periodLabel}</p>
+        </button>
+        <button
+          onClick={() => { setActiveTab('transactions'); setFilterType('withdrawal') }}
+          className={`text-left bg-dark-800 rounded-xl p-5 border transition-colors ${
+            filterType === 'withdrawal' && activeTab === 'transactions'
+              ? 'border-red-500 ring-1 ring-red-500/50'
+              : 'border-gray-800 hover:border-gray-600'
+          }`}
+          title="Show withdrawals"
+        >
           <div className="flex items-center gap-2 mb-2">
             <ArrowUpRight size={18} className="text-red-500" />
             <p className="text-gray-500 text-sm">Total Withdrawals</p>
           </div>
-          <p className="text-white text-2xl font-bold">${stats.withdrawals.toLocaleString()}</p>
-        </div>
-        <div className="bg-dark-800 rounded-xl p-5 border border-gray-800">
+          <p className="text-white text-2xl font-bold">${periodTotals.withdrawals.toLocaleString()}</p>
+          <p className="text-gray-600 text-xs mt-1">{periodLabel}</p>
+        </button>
+        <button
+          onClick={() => { setActiveTab('transactions'); setFilterType('pending') }}
+          className={`text-left bg-dark-800 rounded-xl p-5 border transition-colors ${
+            filterType === 'pending' && activeTab === 'transactions'
+              ? 'border-yellow-500 ring-1 ring-yellow-500/50'
+              : 'border-gray-800 hover:border-gray-600'
+          }`}
+          title="Show pending"
+        >
           <div className="flex items-center gap-2 mb-2">
             <Clock size={18} className="text-yellow-500" />
             <p className="text-gray-500 text-sm">Pending Requests</p>
           </div>
           <p className="text-white text-2xl font-bold">{stats.pending}</p>
-        </div>
+          <p className="text-gray-600 text-xs mt-1">All time (count)</p>
+        </button>
         <div className="bg-dark-800 rounded-xl p-5 border border-gray-800">
           <div className="flex items-center gap-2 mb-2">
             <Wallet size={18} className="text-purple-500" />
             <p className="text-gray-500 text-sm">Net Balance</p>
           </div>
-          <p className="text-white text-2xl font-bold">${(stats.net - totalSettled).toLocaleString()}</p>
-          {totalSettled > 0 && <p className="text-gray-500 text-xs mt-1">Settled: ${totalSettled.toLocaleString()}</p>}
+          <p className="text-white text-2xl font-bold">
+            ${(periodTotals.net - (statsPeriod === 'all' ? totalSettled : 0)).toLocaleString()}
+          </p>
+          <p className="text-gray-600 text-xs mt-1">{periodLabel}</p>
+          {statsPeriod === 'all' && totalSettled > 0 && (
+            <p className="text-gray-500 text-xs mt-0.5">Settled: ${totalSettled.toLocaleString()}</p>
+          )}
         </div>
       </div>
 
@@ -340,6 +451,7 @@ const AdminFundManagement = () => {
               <option value="all">All Types</option>
               <option value="deposit">Deposits</option>
               <option value="withdrawal">Withdrawals</option>
+              <option value="pending">Pending</option>
               <option value="admin">Admin Fund</option>
             </select>
           </div>

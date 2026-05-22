@@ -32,6 +32,8 @@ const AdminOverview = () => {
     runningPnlPct: 0,
     pendingKYC: 0,
     pendingWithdrawals: 0,
+    pendingWithdrawalsAmount: 0,
+    runningBalance: 0,
     activeTrades: 0
   })
 
@@ -55,9 +57,11 @@ const AdminOverview = () => {
             netDeposit: data.stats.netDeposit || 0,
             netPnl: data.stats.netPnl || 0,
             runningPnl: data.stats.runningPnl || 0,
-            runningPnlPct: data.stats.runningPnlPct || 0,
+            runningPnlPct: data.stats.runningPnlPct ?? null,
             pendingKYC: data.stats.pendingKYC || 0,
             pendingWithdrawals: data.stats.pendingWithdrawals || 0,
+            pendingWithdrawalsAmount: data.stats.pendingWithdrawalsAmount || 0,
+            runningBalance: data.stats.runningBalance || 0,
             activeTrades: data.stats.activeTrades || 0
           })
         }
@@ -98,15 +102,23 @@ const AdminOverview = () => {
       value: formatCurrency(stats.netDeposit),
       icon: stats.netDeposit >= 0 ? ArrowDownCircle : ArrowUpCircle,
       color: stats.netDeposit >= 0 ? 'purple' : 'red',
-      route: '/admin/transactions',
+      route: '/admin/funds?filter=deposit',
       sub: `$${stats.totalDeposits.toLocaleString()} in / $${stats.totalWithdrawals.toLocaleString()} out`
+    },
+    {
+      title: 'Running Balance',
+      value: formatCurrency(stats.runningBalance),
+      icon: stats.runningBalance >= 0 ? Wallet : TrendingDown,
+      color: stats.runningBalance >= 0 ? 'green' : 'red',
+      route: '/admin/funds',
+      sub: 'Net Dep − Pending W/D − Running P&L'
     },
     {
       title: 'Net P&L',
       value: formatCurrency(stats.netPnl),
       icon: stats.netPnl >= 0 ? TrendingUp : TrendingDown,
       color: stats.netPnl >= 0 ? 'green' : 'red',
-      route: '/admin/trades',
+      route: '/admin/trades?status=closed',
       sub: 'All closed trades'
     },
     {
@@ -119,18 +131,22 @@ const AdminOverview = () => {
     },
     {
       title: 'Running P&L %',
-      value: `${stats.runningPnlPct >= 0 ? '+' : ''}${stats.runningPnlPct.toFixed(2)}%`,
-      icon: stats.runningPnlPct >= 0 ? TrendingUp : TrendingDown,
-      color: stats.runningPnlPct >= 0 ? 'green' : 'red',
-      route: '/admin/trades',
-      sub: 'vs total deposits'
+      value: stats.runningPnlPct === null || stats.runningPnlPct === undefined
+        ? '—'
+        : `${stats.runningPnlPct >= 0 ? '+' : ''}${stats.runningPnlPct.toFixed(2)}%`,
+      icon: (stats.runningPnlPct || 0) >= 0 ? TrendingUp : TrendingDown,
+      color: stats.runningPnlPct === null || stats.runningPnlPct === undefined
+        ? 'gray'
+        : ((stats.runningPnlPct || 0) >= 0 ? 'green' : 'red'),
+      route: '/admin/trades?status=open',
+      sub: 'vs total capital in (deposits + admin credits)'
     },
     {
       title: 'Total Deposits',
       value: formatCurrency(stats.totalDeposits),
       icon: Wallet,
       color: 'purple',
-      route: '/admin/transactions?filter=deposits',
+      route: '/admin/funds?filter=deposit',
       sub: 'Approved deposits'
     },
     {
@@ -138,7 +154,7 @@ const AdminOverview = () => {
       value: formatCurrency(stats.totalWithdrawals),
       icon: CreditCard,
       color: 'orange',
-      route: '/admin/transactions?filter=withdrawals',
+      route: '/admin/funds?filter=withdrawal',
       sub: 'Approved withdrawals'
     },
     {
@@ -146,7 +162,7 @@ const AdminOverview = () => {
       value: stats.pendingWithdrawals.toLocaleString(),
       icon: ArrowUpCircle,
       color: 'yellow',
-      route: '/admin/funds',
+      route: '/admin/funds?filter=pending',
       sub: 'Awaiting approval'
     },
     {
@@ -154,7 +170,7 @@ const AdminOverview = () => {
       value: stats.pendingKYC.toLocaleString(),
       icon: Calendar,
       color: 'yellow',
-      route: '/admin/kyc',
+      route: '/admin/kyc?status=pending',
       sub: 'Awaiting review'
     },
   ]
@@ -222,9 +238,10 @@ const AdminOverview = () => {
           <div className="space-y-3">
             {[
               { label: 'Open Trades', value: stats.activeTrades, icon: Activity, color: 'green', route: '/admin/trades' },
-              { label: 'Pending KYC', value: stats.pendingKYC, icon: Calendar, color: 'yellow', route: '/admin/kyc' },
-              { label: 'Pending Withdrawals', value: stats.pendingWithdrawals, icon: ArrowUpCircle, color: 'orange', route: '/admin/funds' },
+              { label: 'Pending KYC', value: stats.pendingKYC, icon: Calendar, color: 'yellow', route: '/admin/kyc?status=pending' },
+              { label: 'Pending Withdrawals', value: stats.pendingWithdrawals, icon: ArrowUpCircle, color: 'orange', route: '/admin/funds?filter=pending' },
               { label: 'Net P&L (All Time)', value: formatCurrency(stats.netPnl), icon: stats.netPnl >= 0 ? TrendingUp : TrendingDown, color: stats.netPnl >= 0 ? 'green' : 'red', route: '/admin/trades', tone: stats.netPnl >= 0 ? 'green' : 'red' },
+              { label: 'Running Balance', value: formatCurrency(stats.runningBalance), icon: stats.runningBalance >= 0 ? Wallet : TrendingDown, color: stats.runningBalance >= 0 ? 'green' : 'red', route: '/admin/funds', tone: stats.runningBalance >= 0 ? 'green' : 'red' },
               { label: 'Running P&L', value: formatCurrency(stats.runningPnl), icon: stats.runningPnl >= 0 ? TrendingUp : TrendingDown, color: stats.runningPnl >= 0 ? 'green' : 'red', route: '/admin/trades', tone: stats.runningPnl >= 0 ? 'green' : 'red' },
               { label: 'Running P&L %', value: `${stats.runningPnlPct >= 0 ? '+' : ''}${stats.runningPnlPct.toFixed(2)}%`, icon: stats.runningPnlPct >= 0 ? TrendingUp : TrendingDown, color: stats.runningPnlPct >= 0 ? 'green' : 'red', route: '/admin/trades', tone: stats.runningPnlPct >= 0 ? 'green' : 'red' },
             ].map((item, i) => {

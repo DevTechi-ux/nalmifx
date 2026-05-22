@@ -30,6 +30,8 @@ import {
   Key,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   TrendingUp,
   TrendingDown,
   Activity
@@ -68,6 +70,44 @@ const AdminUserManagement = () => {
   const [currentPage, setCurrentPage] = useState(1)
   const usersPerPage = 20
 
+  // Sorting — clicking a column header toggles asc/desc
+  const [sortBy, setSortBy] = useState('createdAt')
+  const [sortDir, setSortDir] = useState('desc')
+  const toggleSort = (key) => {
+    if (sortBy === key) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(key)
+      setSortDir('desc')
+    }
+    setCurrentPage(1)
+  }
+  // Map sort key to the value extractor on a user row
+  const sortValue = (user, key) => {
+    switch (key) {
+      case 'name': return (user.firstName || '').toLowerCase()
+      case 'phone': return user.phone || ''
+      case 'balance': return (user.walletBalance || 0) + (user.tradingBalance || 0)
+      case 'totalPnl': return (user.historicalPnl || 0) + (user.runningPnl || 0)
+      case 'historicalPnl': return user.historicalPnl || 0
+      case 'runningPnl': return user.runningPnl || 0
+      case 'pnlPct': {
+        const dep = user.totalDeposits || 0
+        if (dep <= 0) return -Infinity   // users with no deposits sort to the bottom in desc
+        return ((user.historicalPnl || 0) + (user.runningPnl || 0)) / dep * 100
+      }
+      case 'createdAt': return new Date(user.createdAt || 0).getTime()
+      default: return 0
+    }
+  }
+
+  // Create new user modal
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false)
+  const [createUserForm, setCreateUserForm] = useState({
+    firstName: '', email: '', phone: '', countryCode: '+1', password: '', walletBalance: ''
+  })
+  const [creatingUser, setCreatingUser] = useState(false)
+
   // Trade history modal state
   const [userTrades, setUserTrades] = useState([])
   const [userTradesLoading, setUserTradesLoading] = useState(false)
@@ -102,6 +142,44 @@ const AdminUserManagement = () => {
       console.error('Error fetching users:', error)
     }
     setLoading(false)
+  }
+
+  const handleCreateUser = async () => {
+    const { firstName, email, password, phone, countryCode, walletBalance } = createUserForm
+    if (!firstName.trim()) {
+      setMessage({ type: 'error', text: 'First name is required' })
+      return
+    }
+    if (!email.trim()) {
+      setMessage({ type: 'error', text: 'Email is required' })
+      return
+    }
+    if (!password || password.length < 6) {
+      setMessage({ type: 'error', text: 'Password must be at least 6 characters' })
+      return
+    }
+    setCreatingUser(true)
+    try {
+      const body = { firstName: firstName.trim(), email: email.trim(), password, phone: phone.trim(), countryCode }
+      if (walletBalance && parseFloat(walletBalance) > 0) body.walletBalance = parseFloat(walletBalance)
+      const response = await adminFetch(`${API_URL}/admin/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+      const data = await response.json()
+      if (response.ok && data.success) {
+        setMessage({ type: 'success', text: `User ${data.user.firstName} created` })
+        setShowCreateUserModal(false)
+        setCreateUserForm({ firstName: '', email: '', phone: '', countryCode: '+1', password: '', walletBalance: '' })
+        fetchUsers()
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to create user' })
+      }
+    } catch (e) {
+      setMessage({ type: 'error', text: 'Network error creating user' })
+    }
+    setCreatingUser(false)
   }
 
   const fetchPasswordResetRequests = async () => {
@@ -149,11 +227,20 @@ const AdminUserManagement = () => {
     setActionLoading(false)
   }
 
-  const filteredUsers = users.filter(user => 
-    user.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.phone?.includes(searchTerm)
-  )
+  const filteredUsers = users
+    .filter(user =>
+      user.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.phone?.includes(searchTerm)
+    )
+    .slice()
+    .sort((a, b) => {
+      const va = sortValue(a, sortBy)
+      const vb = sortValue(b, sortBy)
+      if (va < vb) return sortDir === 'asc' ? -1 : 1
+      if (va > vb) return sortDir === 'asc' ? 1 : -1
+      return 0
+    })
 
   const totalPages = Math.ceil(filteredUsers.length / usersPerPage)
   const paginatedUsers = filteredUsers.slice((currentPage - 1) * usersPerPage, currentPage * usersPerPage)
@@ -1789,6 +1876,13 @@ const AdminUserManagement = () => {
             <p className="text-gray-500 text-sm">{users.length} total users</p>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <button
+              onClick={() => setShowCreateUserModal(true)}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              <Plus size={16} />
+              Create User
+            </button>
             <ReportDownload endpoint="users" label="Export Users" />
             <div className="relative">
               <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
@@ -1800,7 +1894,7 @@ const AdminUserManagement = () => {
                 className="w-full sm:w-64 bg-dark-700 border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-gray-600"
               />
             </div>
-            <button 
+            <button
               onClick={fetchUsers}
               className="p-2 bg-dark-700 rounded-lg hover:bg-dark-600 transition-colors flex items-center justify-center gap-2"
             >
@@ -1848,11 +1942,14 @@ const AdminUserManagement = () => {
                   </button>
                 </div>
                 
+                {(() => {
+                  const histPnl = user.historicalPnl || 0
+                  const runPnl = user.runningPnl || 0
+                  const totalPnl = histPnl + runPnl
+                  const dep = user.totalDeposits || 0
+                  const pnlPct = dep > 0 ? (totalPnl / dep) * 100 : null
+                  return (
                 <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2 text-gray-400">
-                    <Mail size={14} />
-                    <span className="truncate">{user.email}</span>
-                  </div>
                   <div className="flex items-center gap-2 text-gray-400">
                     <Phone size={14} />
                     <span>{user.phone || 'N/A'}</span>
@@ -1865,11 +1962,26 @@ const AdminUserManagement = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <DollarSign size={14} className="text-gray-400" />
-                    <span className={`text-sm font-medium ${(user.historicalPnl || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      P&L: {(user.historicalPnl || 0) >= 0 ? '+' : ''}${(user.historicalPnl || 0).toFixed(2)}
+                    <span className={`text-sm font-medium ${totalPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      Total P&L: {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}
                     </span>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <Activity size={14} className="text-gray-400" />
+                    <span className={`text-sm font-medium ${runPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      Running P&L: {runPnl >= 0 ? '+' : ''}${runPnl.toFixed(2)}
+                    </span>
+                  </div>
+                  {pnlPct !== null && (
+                    <div className="flex items-center gap-2 text-gray-400">
+                      <span className="text-xs">P&L %</span>
+                      <span className={`text-sm font-medium ${pnlPct >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
+                      </span>
+                    </div>
+                  )}
                 </div>
+                )})()}
 
                 <div className="flex gap-2 mt-4 pt-3 border-t border-gray-600">
                   <button 
@@ -1904,29 +2016,52 @@ const AdminUserManagement = () => {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-700">
-                <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">User</th>
-                <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Email</th>
-                <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Phone</th>
-                <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Balance</th>
-                <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Total P&L</th>
+                {[
+                  { key: 'name', label: 'User' },
+                  { key: 'phone', label: 'Phone' },
+                  { key: 'balance', label: 'Balance' },
+                  { key: 'totalPnl', label: 'Total P&L' },
+                  { key: 'runningPnl', label: 'Running P&L' },
+                  { key: 'pnlPct', label: 'P&L %' },
+                  { key: 'createdAt', label: 'Joined' }
+                ].map(col => (
+                  <th
+                    key={col.key}
+                    onClick={() => toggleSort(col.key)}
+                    className="text-left text-gray-500 text-sm font-medium py-3 px-4 select-none cursor-pointer hover:text-white"
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {col.label}
+                      {sortBy === col.key && (
+                        sortDir === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />
+                      )}
+                    </span>
+                  </th>
+                ))}
                 <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="6" className="text-center py-8">
+                  <td colSpan="8" className="text-center py-8">
                     <RefreshCw size={24} className="text-gray-500 animate-spin mx-auto" />
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="text-center py-8 text-gray-500">
+                  <td colSpan="8" className="text-center py-8 text-gray-500">
                     {searchTerm ? 'No users found matching your search' : 'No users registered yet'}
                   </td>
                 </tr>
               ) : (
-                paginatedUsers.map((user) => (
+                paginatedUsers.map((user) => {
+                  const histPnl = user.historicalPnl || 0
+                  const runPnl = user.runningPnl || 0
+                  const totalPnl = histPnl + runPnl
+                  const dep = user.totalDeposits || 0
+                  const pnlPct = dep > 0 ? (totalPnl / dep) * 100 : null
+                  return (
                   <tr key={user._id} className="border-b border-gray-800 hover:bg-dark-700/50">
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-3">
@@ -1936,12 +2071,6 @@ const AdminUserManagement = () => {
                           </span>
                         </div>
                         <span className="text-white font-medium">{user.firstName || 'Unknown'}</span>
-                      </div>
-                    </td>
-                    <td className="py-4 px-4">
-                      <div className="flex items-center gap-2 text-gray-400">
-                        <Mail size={14} />
-                        <span>{user.email}</span>
                       </div>
                     </td>
                     <td className="py-4 px-4">
@@ -1961,8 +2090,27 @@ const AdminUserManagement = () => {
                       </div>
                     </td>
                     <td className="py-4 px-4">
-                      <span className={`text-sm font-medium ${(user.historicalPnl || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                        {(user.historicalPnl || 0) >= 0 ? '+' : ''}${(user.historicalPnl || 0).toFixed(2)}
+                      <span className={`text-sm font-medium ${totalPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className={`text-sm font-medium ${runPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {runPnl >= 0 ? '+' : ''}${runPnl.toFixed(2)}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4">
+                      {pnlPct === null ? (
+                        <span className="text-gray-500 text-sm">—</span>
+                      ) : (
+                        <span className={`text-sm font-medium ${pnlPct >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className="text-gray-400 text-sm">
+                        {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '—'}
                       </span>
                     </td>
                     <td className="py-4 px-4">
@@ -2007,7 +2155,8 @@ const AdminUserManagement = () => {
                       </div>
                     </td>
                   </tr>
-                ))
+                  )
+                })
               )}
             </tbody>
           </table>
@@ -2074,6 +2223,104 @@ const AdminUserManagement = () => {
 
       {/* Modal */}
       {renderModal()}
+
+      {/* Create User Modal */}
+      {showCreateUserModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => !creatingUser && setShowCreateUserModal(false)}>
+          <div className="bg-dark-800 rounded-2xl w-full max-w-md border border-gray-800 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center">
+                  <Plus size={16} className="text-green-400" />
+                </div>
+                <h3 className="text-white font-semibold">Create New User</h3>
+              </div>
+              <button onClick={() => !creatingUser && setShowCreateUserModal(false)} className="p-1 text-gray-400 hover:text-white">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              <div>
+                <label className="block text-gray-400 text-xs mb-1">First name *</label>
+                <input
+                  type="text"
+                  value={createUserForm.firstName}
+                  onChange={(e) => setCreateUserForm({ ...createUserForm, firstName: e.target.value })}
+                  className="w-full bg-dark-700 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-gray-600"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-gray-400 text-xs mb-1">Email *</label>
+                <input
+                  type="email"
+                  value={createUserForm.email}
+                  onChange={(e) => setCreateUserForm({ ...createUserForm, email: e.target.value })}
+                  className="w-full bg-dark-700 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-gray-600"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-1">
+                  <label className="block text-gray-400 text-xs mb-1">Code</label>
+                  <input
+                    type="text"
+                    value={createUserForm.countryCode}
+                    onChange={(e) => setCreateUserForm({ ...createUserForm, countryCode: e.target.value })}
+                    placeholder="+1"
+                    className="w-full bg-dark-700 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-gray-600"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-gray-400 text-xs mb-1">Phone</label>
+                  <input
+                    type="tel"
+                    value={createUserForm.phone}
+                    onChange={(e) => setCreateUserForm({ ...createUserForm, phone: e.target.value })}
+                    className="w-full bg-dark-700 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-gray-600"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-gray-400 text-xs mb-1">Password * (min 6 chars)</label>
+                <input
+                  type="text"
+                  value={createUserForm.password}
+                  onChange={(e) => setCreateUserForm({ ...createUserForm, password: e.target.value })}
+                  className="w-full bg-dark-700 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-gray-600"
+                />
+              </div>
+              <div>
+                <label className="block text-gray-400 text-xs mb-1">Initial wallet balance (optional)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={createUserForm.walletBalance}
+                  onChange={(e) => setCreateUserForm({ ...createUserForm, walletBalance: e.target.value })}
+                  placeholder="0"
+                  className="w-full bg-dark-700 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-gray-600"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 px-5 pb-5">
+              <button
+                onClick={() => setShowCreateUserModal(false)}
+                disabled={creatingUser}
+                className="flex-1 px-4 py-2 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-lg text-sm font-medium disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateUser}
+                disabled={creatingUser}
+                className="flex-1 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+              >
+                {creatingUser ? 'Creating...' : 'Create User'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   )
 }

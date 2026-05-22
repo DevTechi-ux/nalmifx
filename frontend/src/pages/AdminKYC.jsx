@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import adminFetch from '../utils/adminFetch.js'
 import AdminLayout from '../components/AdminLayout'
 import { 
@@ -17,7 +18,17 @@ import { API_URL, API_BASE_URL } from '../config/api'
 
 const AdminKYC = () => {
   const [searchTerm, setSearchTerm] = useState('')
-  const [filterStatus, setFilterStatus] = useState('all')
+  const [searchParams] = useSearchParams()
+  const [filterStatus, setFilterStatus] = useState(() => {
+    const s = (searchParams.get('status') || 'all').toLowerCase()
+    return ['all', 'pending', 'approved', 'rejected'].includes(s) ? s : 'all'
+  })
+  // Sync if URL changes after mount
+  useEffect(() => {
+    const s = (searchParams.get('status') || '').toLowerCase()
+    if (s && ['all', 'pending', 'approved', 'rejected'].includes(s)) setFilterStatus(s)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
   const [kycRequests, setKycRequests] = useState([])
   const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, rejected: 0 })
   const [loading, setLoading] = useState(true)
