@@ -1867,12 +1867,16 @@ const MobileTradingApp = () => {
                   <span className="text-gray-400 text-sm">Closed By</span>
                   <span className={`text-sm ${
                     historyDetailTrade.closedBy === 'STOP_OUT' ? 'text-red-500' :
+                    historyDetailTrade.closedBy === 'MARGIN_STOP_OUT' ? 'text-red-500' :
                     historyDetailTrade.closedBy === 'SL' ? 'text-red-500' :
-                    historyDetailTrade.closedBy === 'TP' ? 'text-green-500' : 'text-gray-400'
+                    historyDetailTrade.closedBy === 'TP' ? 'text-green-500' :
+                    historyDetailTrade.closedBy === 'ADMIN' ? 'text-yellow-500' : 'text-gray-400'
                   }`}>
                     {historyDetailTrade.closedBy === 'STOP_OUT' ? 'Stop Out (Equity Zero)' :
+                     historyDetailTrade.closedBy === 'MARGIN_STOP_OUT' ? 'Stop Out (Margin Level)' :
                      historyDetailTrade.closedBy === 'SL' ? 'Stop Loss Hit' :
                      historyDetailTrade.closedBy === 'TP' ? 'Take Profit Hit' :
+                     historyDetailTrade.closedBy === 'ADMIN' ? 'Admin Close' :
                      'Manual Close'}
                   </span>
                 </div>

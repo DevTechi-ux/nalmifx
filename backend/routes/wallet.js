@@ -393,14 +393,27 @@ router.get('/admin/transactions', requirePermission('canManageDeposits'), async 
 // PUT /api/wallet/admin/approve/:id - Approve transaction (admin)
 router.put('/admin/approve/:id', requirePermission('canApproveDeposits'), async (req, res) => {
   try {
+    const { payoutTransactionRef, payoutProof } = req.body || {}
     const transaction = await Transaction.findById(req.params.id)
-    
+
     if (!transaction) {
       return res.status(404).json({ message: 'Transaction not found' })
     }
 
     if (transaction.status !== 'Pending') {
       return res.status(400).json({ message: 'Transaction already processed' })
+    }
+
+    // Withdrawals must include the admin's payout proof (screenshot + ref)
+    // before they can be approved. Deposits don't need this — the user
+    // already attached their screenshot at deposit-request time.
+    if (transaction.type === 'Withdrawal') {
+      if (!payoutTransactionRef || !payoutTransactionRef.trim()) {
+        return res.status(400).json({ message: 'Payout transaction reference is required' })
+      }
+      if (!payoutProof || !payoutProof.trim()) {
+        return res.status(400).json({ message: 'Payout screenshot is required' })
+      }
     }
 
     const wallet = await Wallet.findById(transaction.walletId)
@@ -413,6 +426,11 @@ router.put('/admin/approve/:id', requirePermission('canApproveDeposits'), async 
       if (wallet.pendingDeposits) wallet.pendingDeposits -= transaction.amount
     } else {
       if (wallet.pendingWithdrawals) wallet.pendingWithdrawals -= transaction.amount
+      // Record payout proof on the transaction
+      transaction.payoutTransactionRef = payoutTransactionRef.trim()
+      transaction.payoutProof = payoutProof.trim()
+      transaction.payoutProcessedBy = req.admin?._id || null
+      transaction.payoutProcessedAt = new Date()
     }
 
     transaction.status = 'Approved'
@@ -519,15 +537,25 @@ router.put('/admin/reject/:id', requirePermission('canApproveWithdrawals'), asyn
 // PUT /api/wallet/transaction/:id/approve - Approve transaction (admin)
 router.put('/transaction/:id/approve', async (req, res) => {
   try {
-    const { adminRemarks } = req.body
+    const { adminRemarks, payoutTransactionRef, payoutProof } = req.body
     const transaction = await Transaction.findById(req.params.id)
-    
+
     if (!transaction) {
       return res.status(404).json({ message: 'Transaction not found' })
     }
 
     if (transaction.status !== 'Pending') {
       return res.status(400).json({ message: 'Transaction already processed' })
+    }
+
+    // Withdrawals must include the admin's payout proof (screenshot + ref)
+    if (transaction.type === 'Withdrawal') {
+      if (!payoutTransactionRef || !payoutTransactionRef.trim()) {
+        return res.status(400).json({ message: 'Payout transaction reference is required' })
+      }
+      if (!payoutProof || !payoutProof.trim()) {
+        return res.status(400).json({ message: 'Payout screenshot is required' })
+      }
     }
 
     const wallet = await Wallet.findById(transaction.walletId)
@@ -540,6 +568,10 @@ router.put('/transaction/:id/approve', async (req, res) => {
       wallet.pendingDeposits -= transaction.amount
     } else {
       wallet.pendingWithdrawals -= transaction.amount
+      transaction.payoutTransactionRef = payoutTransactionRef.trim()
+      transaction.payoutProof = payoutProof.trim()
+      transaction.payoutProcessedBy = req.admin?._id || null
+      transaction.payoutProcessedAt = new Date()
     }
 
     transaction.status = 'Approved'

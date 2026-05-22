@@ -55,6 +55,13 @@ const AdminFundManagement = () => {
   const [stats, setStats] = useState({ deposits: 0, withdrawals: 0, pending: 0, net: 0 })
   const [loading, setLoading] = useState(true)
   const [selectedTxn, setSelectedTxn] = useState(null)
+
+  // Withdrawal approve flow — admin uploads payout proof + ref before approving
+  const [withdrawalApproveTxn, setWithdrawalApproveTxn] = useState(null)
+  const [payoutRef, setPayoutRef] = useState('')
+  const [payoutFile, setPayoutFile] = useState(null)
+  const [payoutUploading, setPayoutUploading] = useState(false)
+  const [payoutApproving, setPayoutApproving] = useState(false)
   const [userDetails, setUserDetails] = useState(null)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
@@ -149,9 +156,19 @@ const AdminFundManagement = () => {
     setLoading(false)
   }
 
-  const handleApprove = async (txnId) => {
+  // Withdrawals route through the payout-proof modal; deposits keep the
+  // existing one-click approve.
+  const handleApprove = async (txnOrId) => {
+    const txn = typeof txnOrId === 'object'
+      ? txnOrId
+      : (transactions.find(t => t._id === txnOrId) || allRealTransactions.find(t => t._id === txnOrId))
+    if (txn && txn.type?.toUpperCase() === 'WITHDRAWAL') {
+      openWithdrawalApprove(txn)
+      return
+    }
+    const id = typeof txnOrId === 'object' ? txnOrId._id : txnOrId
     try {
-      const res = await adminFetch(`${API_URL}/wallet/transaction/${txnId}/approve`, {
+      const res = await adminFetch(`${API_URL}/wallet/transaction/${id}/approve`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminRemarks: '' })
@@ -167,6 +184,78 @@ const AdminFundManagement = () => {
       console.error('Error approving transaction:', error)
       alert('Error approving transaction')
     }
+  }
+
+  const openWithdrawalApprove = (txn) => {
+    setWithdrawalApproveTxn(txn)
+    setPayoutRef('')
+    setPayoutFile(null)
+  }
+
+  const closeWithdrawalApprove = () => {
+    if (payoutUploading || payoutApproving) return
+    setWithdrawalApproveTxn(null)
+    setPayoutRef('')
+    setPayoutFile(null)
+  }
+
+  const handleWithdrawalApprove = async () => {
+    if (!withdrawalApproveTxn) return
+    if (!payoutRef.trim()) {
+      alert('Transaction reference is required')
+      return
+    }
+    if (!payoutFile) {
+      alert('Payout screenshot is required')
+      return
+    }
+
+    setPayoutUploading(true)
+    let payoutProofUrl = ''
+    try {
+      const formData = new FormData()
+      formData.append('screenshot', payoutFile)
+      const uploadRes = await adminFetch(`${API_URL}/upload/screenshot`, {
+        method: 'POST',
+        body: formData
+      })
+      const uploadData = await uploadRes.json()
+      if (!uploadRes.ok || !uploadData.url) {
+        alert(uploadData.message || 'Failed to upload screenshot')
+        setPayoutUploading(false)
+        return
+      }
+      payoutProofUrl = uploadData.url
+    } catch (e) {
+      alert('Network error uploading screenshot')
+      setPayoutUploading(false)
+      return
+    }
+    setPayoutUploading(false)
+
+    setPayoutApproving(true)
+    try {
+      const res = await adminFetch(`${API_URL}/wallet/transaction/${withdrawalApproveTxn._id}/approve`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminRemarks: '',
+          payoutTransactionRef: payoutRef.trim(),
+          payoutProof: payoutProofUrl
+        })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        alert('Withdrawal approved')
+        closeWithdrawalApprove()
+        fetchTransactions()
+      } else {
+        alert(data.message || 'Error approving withdrawal')
+      }
+    } catch (e) {
+      alert('Network error approving withdrawal')
+    }
+    setPayoutApproving(false)
   }
 
   const handleReject = async (txnId) => {
@@ -828,6 +917,34 @@ const AdminFundManagement = () => {
                 </div>
               )}
 
+              {/* Admin Payout Proof — shown on Approved/Rejected withdrawals */}
+              {selectedTxn.type?.toLowerCase() === 'withdrawal' && selectedTxn.payoutProof && (
+                <div className="border-t border-gray-700 pt-4">
+                  <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
+                    <Check size={16} className="text-green-400" /> Admin Payout Proof
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-gray-500">Payment reference</p>
+                      <p className="text-white font-mono break-all">{selectedTxn.payoutTransactionRef || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Processed at</p>
+                      <p className="text-white">{selectedTxn.payoutProcessedAt ? new Date(selectedTxn.payoutProcessedAt).toLocaleString() : '—'}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 bg-dark-700 rounded-lg p-3">
+                    <img
+                      src={selectedTxn.payoutProof.startsWith('http') ? selectedTxn.payoutProof : `${API_BASE_URL}${selectedTxn.payoutProof}`}
+                      alt="Payout proof"
+                      className="w-full rounded cursor-pointer max-h-80 object-contain"
+                      onClick={() => window.open(selectedTxn.payoutProof.startsWith('http') ? selectedTxn.payoutProof : `${API_BASE_URL}${selectedTxn.payoutProof}`, '_blank')}
+                    />
+                    <p className="text-gray-500 text-xs text-center mt-2">Click to view full image</p>
+                  </div>
+                </div>
+              )}
+
               {/* User Info */}
               <div className="border-t border-gray-700 pt-4">
                 <h3 className="text-white font-semibold mb-3">User Information</h3>
@@ -1003,6 +1120,77 @@ const AdminFundManagement = () => {
           </div>
         </div>
       )}
+      {/* Withdrawal Approve Modal — admin must attach payout screenshot + ref */}
+      {withdrawalApproveTxn && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={closeWithdrawalApprove}>
+          <div className="bg-dark-800 rounded-2xl w-full max-w-md border border-gray-800 overflow-hidden max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700 shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center">
+                  <Check size={16} className="text-green-400" />
+                </div>
+                <div>
+                  <h3 className="text-white font-semibold text-sm">Approve Withdrawal</h3>
+                  <p className="text-gray-500 text-xs">${withdrawalApproveTxn.amount?.toLocaleString()} · {withdrawalApproveTxn.userId?.firstName || withdrawalApproveTxn.userId?.email}</p>
+                </div>
+              </div>
+              <button onClick={closeWithdrawalApprove} className="p-1 text-gray-400 hover:text-white">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-5 space-y-4 overflow-y-auto">
+              <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-2">
+                <Clock size={14} className="text-yellow-400 mt-0.5 shrink-0" />
+                <p className="text-yellow-200 text-xs">
+                  Process the actual payment first (bank transfer / UPI / USDT), then enter the reference number and upload a screenshot of the payment confirmation. Both are required.
+                </p>
+              </div>
+              <div>
+                <label className="block text-gray-400 text-xs mb-1">Payment Reference / Transaction ID *</label>
+                <input
+                  type="text"
+                  value={payoutRef}
+                  onChange={(e) => setPayoutRef(e.target.value)}
+                  placeholder="e.g. UPI Ref / Bank UTR / TX Hash"
+                  className="w-full bg-dark-700 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-gray-400 text-xs mb-1">Payout Screenshot *</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setPayoutFile(e.target.files?.[0] || null)}
+                  className="w-full bg-dark-700 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:bg-dark-600 file:text-white"
+                />
+                {payoutFile && (
+                  <p className="text-gray-500 text-xs mt-1 truncate">Selected: {payoutFile.name}</p>
+                )}
+              </div>
+              <p className="text-gray-500 text-xs">
+                Both fields are stored on the transaction record and visible in fund history for audit.
+              </p>
+            </div>
+            <div className="flex gap-2 px-5 pb-5 shrink-0">
+              <button
+                onClick={closeWithdrawalApprove}
+                disabled={payoutUploading || payoutApproving}
+                className="flex-1 px-4 py-2 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-lg text-sm disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleWithdrawalApprove}
+                disabled={payoutUploading || payoutApproving || !payoutRef.trim() || !payoutFile}
+                className="flex-1 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+              >
+                {payoutUploading ? 'Uploading…' : payoutApproving ? 'Approving…' : 'Approve Withdrawal'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </AdminLayout>
   )
 }

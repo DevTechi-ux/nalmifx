@@ -67,6 +67,26 @@ const transactionSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  // Admin payout proof — captured at withdrawal-approve time so we have a
+  // record of the bank/UPI transfer reference and the screenshot the admin
+  // attached.
+  payoutTransactionRef: {
+    type: String,
+    default: ''
+  },
+  payoutProof: {
+    type: String,
+    default: ''
+  },
+  payoutProcessedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Admin',
+    default: null
+  },
+  payoutProcessedAt: {
+    type: Date,
+    default: null
+  },
   bankAccountId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'UserBankAccount'

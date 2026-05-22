@@ -29,7 +29,7 @@ const AdminOverview = () => {
     netDeposit: 0,
     netPnl: 0,
     runningPnl: 0,
-    runningPnlPct: 0,
+    runningPnlPct: null,
     pendingKYC: 0,
     pendingWithdrawals: 0,
     pendingWithdrawalsAmount: 0,
@@ -243,7 +243,17 @@ const AdminOverview = () => {
               { label: 'Net P&L (All Time)', value: formatCurrency(stats.netPnl), icon: stats.netPnl >= 0 ? TrendingUp : TrendingDown, color: stats.netPnl >= 0 ? 'green' : 'red', route: '/admin/trades', tone: stats.netPnl >= 0 ? 'green' : 'red' },
               { label: 'Running Balance', value: formatCurrency(stats.runningBalance), icon: stats.runningBalance >= 0 ? Wallet : TrendingDown, color: stats.runningBalance >= 0 ? 'green' : 'red', route: '/admin/funds', tone: stats.runningBalance >= 0 ? 'green' : 'red' },
               { label: 'Running P&L', value: formatCurrency(stats.runningPnl), icon: stats.runningPnl >= 0 ? TrendingUp : TrendingDown, color: stats.runningPnl >= 0 ? 'green' : 'red', route: '/admin/trades', tone: stats.runningPnl >= 0 ? 'green' : 'red' },
-              { label: 'Running P&L %', value: `${stats.runningPnlPct >= 0 ? '+' : ''}${stats.runningPnlPct.toFixed(2)}%`, icon: stats.runningPnlPct >= 0 ? TrendingUp : TrendingDown, color: stats.runningPnlPct >= 0 ? 'green' : 'red', route: '/admin/trades', tone: stats.runningPnlPct >= 0 ? 'green' : 'red' },
+              { label: 'Running P&L %',
+                value: stats.runningPnlPct === null || stats.runningPnlPct === undefined
+                  ? '—'
+                  : `${stats.runningPnlPct >= 0 ? '+' : ''}${stats.runningPnlPct.toFixed(2)}%`,
+                icon: (stats.runningPnlPct || 0) >= 0 ? TrendingUp : TrendingDown,
+                color: (stats.runningPnlPct || 0) >= 0 ? 'green' : 'red',
+                route: '/admin/trades',
+                tone: stats.runningPnlPct === null || stats.runningPnlPct === undefined
+                  ? null
+                  : ((stats.runningPnlPct || 0) >= 0 ? 'green' : 'red')
+              },
             ].map((item, i) => {
               const c = colorMap[item.color] || colorMap.blue
               return (

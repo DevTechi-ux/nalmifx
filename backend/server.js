@@ -709,7 +709,7 @@ app.use('/api/admin-mgmt', adminManagementRoutes)
 // Routes — user-only (no admin endpoints inside)
 app.use('/api/trade', authUser, tradeRoutes)
 app.use('/api/wallet-transfer', authUser, walletTransferRoutes)
-app.use('/api/upload', authUser, uploadRoutes)
+app.use('/api/upload', authAny, uploadRoutes)
 
 // Routes — mixed (both user + admin endpoints inside, so use authAny)
 app.use('/api/account-types', authAny, accountTypesRoutes)
