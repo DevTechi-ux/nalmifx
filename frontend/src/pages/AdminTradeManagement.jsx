@@ -760,7 +760,11 @@ const AdminTradeManagement = () => {
                   <div className="grid grid-cols-2 gap-2 text-sm mb-3">
                     <div>
                       <p className="text-gray-500">User</p>
-                      <p className="text-white truncate">{trade.userId?.firstName || trade.userId?.email}</p>
+                      {trade.userId?._deleted ? (
+                        <p className="text-red-400 truncate text-xs">Deleted user</p>
+                      ) : (
+                        <p className="text-white truncate">{trade.userId?.firstName || trade.userId?.email || '—'}</p>
+                      )}
                       <p className="text-gray-500 text-xs font-mono truncate">ID: {trade.userId?._id || 'N/A'}</p>
                     </div>
                     <div>
@@ -866,7 +870,11 @@ const AdminTradeManagement = () => {
                     <tr key={trade._id} className="border-b border-gray-800 hover:bg-dark-700/50">
                       <td className="py-4 px-4 text-white font-mono text-sm">{trade.tradeId}</td>
                       <td className="py-4 px-4">
-                        <p className="text-white">{trade.userId?.firstName || trade.userId?.email}</p>
+                        {trade.userId?._deleted ? (
+                          <p className="text-red-400 text-xs italic">Deleted user</p>
+                        ) : (
+                          <p className="text-white">{trade.userId?.firstName || trade.userId?.email || '—'}</p>
+                        )}
                         <p className="text-gray-500 text-xs font-mono">{trade.userId?._id || 'N/A'}</p>
                       </td>
                       <td className="py-4 px-4 text-white font-medium">{trade.symbol}</td>

@@ -141,12 +141,32 @@ router.get('/all', requirePermission('canManageTrades'), async (req, res) => {
     if (tradeKindFilter) Object.assign(query, tradeKindFilter)
 
     const total = await Trade.countDocuments(query)
-    const trades = await Trade.find(query)
-      .populate('userId', 'firstName lastName email')
+    // Fetch lean so we keep the raw userId — populate would overwrite it
+    // with null when the User doc was deleted, leaving the frontend with
+    // nothing to show. We do a manual lookup below so deleted-user trades
+    // still carry their original ObjectId.
+    const tradeDocs = await Trade.find(query)
       .populate('tradingAccountId', 'accountId balance')
       .sort({ createdAt: -1 })
       .skip(parseInt(offset))
       .limit(parseInt(limit))
+      .lean()
+
+    const userIds = [...new Set(tradeDocs.map(t => t.userId?.toString()).filter(Boolean))]
+    const userDocs = await User.find({ _id: { $in: userIds } }, 'firstName lastName email').lean()
+    const userMap = new Map(userDocs.map(u => [u._id.toString(), u]))
+
+    const trades = tradeDocs.map(t => {
+      if (!t.userId) return { ...t, userId: null }
+      const rawId = t.userId.toString()
+      const u = userMap.get(rawId)
+      return {
+        ...t,
+        userId: u
+          ? { _id: u._id, firstName: u.firstName, lastName: u.lastName, email: u.email }
+          : { _id: t.userId, _deleted: true }
+      }
+    })
 
     res.json({
       success: true,
