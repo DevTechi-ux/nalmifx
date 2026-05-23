@@ -439,6 +439,14 @@ class PropTradingEngine {
     // Update equity tracking
     await account.updateEquity(account.currentEquity)
 
+    // A challenge that's already PASSED / FAILED / EXPIRED must not keep
+    // progressing — only ACTIVE challenge accounts run drawdown + profit
+    // checks. (FUNDED accounts also skip these — they have no profit target.)
+    if (account.status !== 'ACTIVE') {
+      await account.save()
+      return { account, failed: false }
+    }
+
     // Check drawdown breaches
     const drawdownCheck = await this.checkDrawdownBreach(account, rules)
     if (drawdownCheck.breached) {
@@ -561,7 +569,15 @@ class PropTradingEngine {
   // Check profit target for phase progression
   async checkProfitTarget(account, challenge) {
     const rules = challenge.rules
-    
+
+    // Only ACTIVE challenge accounts can progress / pass. Once an account is
+    // PASSED / FUNDED / FAILED / EXPIRED it must never re-trigger funding —
+    // this is what previously caused a second funded account to be created
+    // when another trade closed after the target was already hit.
+    if (account.status !== 'ACTIVE') {
+      return { targetReached: false }
+    }
+
     // Zero step (instant fund) or funded accounts - no profit target
     if (challenge.stepsCount === 0 || account.accountType === 'FUNDED') {
       return { targetReached: false }
@@ -629,6 +645,16 @@ class PropTradingEngine {
 
   // Create funded account after passing challenge
   async createFundedAccount(challengeAccount) {
+    // Idempotency guard — if this challenge account already spawned a funded
+    // account, return the existing one instead of creating a duplicate.
+    if (challengeAccount.fundedAccountId) {
+      const existing = await ChallengeAccount.findById(challengeAccount.fundedAccountId)
+      if (existing) {
+        console.log(`[Funded] Challenge ${challengeAccount.accountId} already has funded account ${existing.accountId} — skipping duplicate creation`)
+        return existing
+      }
+    }
+
     const challenge = await Challenge.findById(challengeAccount.challengeId)
     const accountId = await ChallengeAccount.generateAccountId('FND')
     
@@ -801,6 +827,57 @@ class PropTradingEngine {
     
     await account.save()
     return account
+  }
+
+  // Admin: manually assign (create) a funded account for a challenge account.
+  // Idempotent — if the challenge already has a funded account it returns the
+  // existing one. Marks the source challenge PASSED if it wasn't already.
+  async assignFundedAccount(challengeAccountId, adminId) {
+    const account = await ChallengeAccount.findById(challengeAccountId)
+    if (!account) throw new Error('Challenge account not found')
+    if (account.accountType === 'FUNDED') {
+      throw new Error('This is already a funded account')
+    }
+
+    if (account.status !== 'PASSED') {
+      account.status = 'PASSED'
+      account.passedAt = account.passedAt || new Date()
+      account.violations.push({
+        rule: 'ADMIN_ASSIGN_FUNDED',
+        description: `Funded account manually assigned by admin ${adminId}`,
+        severity: 'WARNING',
+        timestamp: new Date()
+      })
+      await account.save()
+    }
+
+    const fundedAccount = await this.createFundedAccount(account)
+    return { account, fundedAccount }
+  }
+
+  // Admin: delete a funded account. Unlinks it from its source challenge
+  // account so that account no longer points at a dead funded record.
+  async deleteFundedAccount(fundedAccountId, adminId) {
+    const funded = await ChallengeAccount.findById(fundedAccountId)
+    if (!funded) throw new Error('Funded account not found')
+    if (funded.accountType !== 'FUNDED') {
+      throw new Error('This account is not a funded account')
+    }
+
+    // Block deletion if it still has open trades — closing first is required
+    const openCount = await Trade.countDocuments({ tradingAccountId: funded._id, status: 'OPEN' })
+    if (openCount > 0) {
+      throw new Error(`Funded account has ${openCount} open trade(s). Close them before deleting.`)
+    }
+
+    // Unlink from the source challenge account(s) that reference it
+    await ChallengeAccount.updateMany(
+      { fundedAccountId: funded._id },
+      { $set: { fundedAccountId: null } }
+    )
+
+    await funded.deleteOne()
+    return { deletedId: fundedAccountId, accountId: funded.accountId }
   }
 
   // Check and trigger SL/TP for all open challenge trades

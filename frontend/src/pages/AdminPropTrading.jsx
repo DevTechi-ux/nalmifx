@@ -132,6 +132,48 @@ export default function AdminPropTrading() {
     }
   }
 
+  const handleAssignFunded = async (accountId) => {
+    if (!confirm('Manually assign a funded account to this challenge? If one already exists, it will not be duplicated.')) return
+    try {
+      const res = await adminFetch(`${API_URL}/prop/admin/assign-funded/${accountId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      })
+      const data = await res.json()
+      if (data.success) {
+        alert(`Funded account assigned: ${data.fundedAccount?.accountId || ''}`)
+        fetchAccounts()
+        fetchStats()
+      } else {
+        alert(data.message || 'Failed to assign funded account')
+      }
+    } catch (error) {
+      console.error('Error:', error)
+      alert('Error assigning funded account')
+    }
+  }
+
+  const handleDeleteFunded = async (accountId) => {
+    if (!confirm('Delete this funded account permanently? This cannot be undone.')) return
+    try {
+      const res = await adminFetch(`${API_URL}/prop/admin/funded/${accountId}`, {
+        method: 'DELETE'
+      })
+      const data = await res.json()
+      if (data.success) {
+        alert('Funded account deleted')
+        fetchAccounts()
+        fetchStats()
+      } else {
+        alert(data.message || 'Failed to delete funded account')
+      }
+    } catch (error) {
+      console.error('Error:', error)
+      alert('Error deleting funded account')
+    }
+  }
+
   const handleExtendTime = async (accountId) => {
     const days = prompt('Enter number of days to extend:')
     if (!days || isNaN(days)) return
@@ -502,6 +544,26 @@ export default function AdminPropTrading() {
                                   <Clock size={14} />
                                 </button>
                               </>
+                            )}
+                            {/* Assign funded — for non-funded challenge accounts */}
+                            {acc.accountType !== 'FUNDED' && (
+                              <button
+                                onClick={() => handleAssignFunded(acc._id)}
+                                className="p-1.5 hover:bg-purple-500/20 rounded text-gray-400 hover:text-purple-500"
+                                title="Assign Funded Account"
+                              >
+                                <Trophy size={14} />
+                              </button>
+                            )}
+                            {/* Delete funded — only for funded accounts */}
+                            {acc.accountType === 'FUNDED' && (
+                              <button
+                                onClick={() => handleDeleteFunded(acc._id)}
+                                className="p-1.5 hover:bg-red-500/20 rounded text-gray-400 hover:text-red-500"
+                                title="Delete Funded Account"
+                              >
+                                <Trash2 size={14} />
+                              </button>
                             )}
                             <button
                               onClick={() => handleResetChallenge(acc._id)}

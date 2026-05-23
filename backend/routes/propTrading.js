@@ -675,6 +675,36 @@ router.post('/admin/force-pass/:id', authAdmin, async (req, res) => {
   }
 })
 
+// POST /api/prop/admin/assign-funded/:id - Manually assign a funded account
+// to a challenge account (idempotent — won't create a duplicate).
+router.post('/admin/assign-funded/:id', authAdmin, async (req, res) => {
+  try {
+    if (!(await assertChallengeAccountInScope(req, res, req.params.id))) return
+    const adminId = req.admin?._id
+    const result = await propTradingEngine.assignFundedAccount(req.params.id, adminId)
+    res.json({
+      success: true,
+      message: 'Funded account assigned',
+      account: result.account,
+      fundedAccount: result.fundedAccount
+    })
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message })
+  }
+})
+
+// DELETE /api/prop/admin/funded/:id - Delete a funded account
+router.delete('/admin/funded/:id', authAdmin, async (req, res) => {
+  try {
+    if (!(await assertChallengeAccountInScope(req, res, req.params.id))) return
+    const adminId = req.admin?._id
+    const result = await propTradingEngine.deleteFundedAccount(req.params.id, adminId)
+    res.json({ success: true, message: 'Funded account deleted', ...result })
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message })
+  }
+})
+
 // POST /api/prop/admin/force-fail/:id - Force fail a challenge
 router.post('/admin/force-fail/:id', authAdmin, async (req, res) => {
   try {
