@@ -61,10 +61,13 @@ router.get('/challenge/:id', async (req, res) => {
 // POST /api/prop/buy - Buy a challenge
 router.post('/buy', authUser, async (req, res) => {
   try {
-    const { userId, challengeId } = req.body
+    // Always use the authenticated user — never trust a client-supplied userId
+    // (prevents buying a challenge against / charging another user's wallet).
+    const userId = req.userId
+    const { challengeId } = req.body
 
-    if (!userId || !challengeId) {
-      return res.status(400).json({ success: false, message: 'User ID and Challenge ID required' })
+    if (!challengeId) {
+      return res.status(400).json({ success: false, message: 'Challenge ID required' })
     }
 
     const settings = await PropSettings.getSettings()
@@ -84,25 +87,31 @@ router.post('/buy', authUser, async (req, res) => {
 
     const challengeFee = challenge.challengeFee || 0
 
-    // Get user's wallet
+    // Ensure a wallet exists (so a brand-new user gets a $0 wallet to fail the check against)
     let wallet = await Wallet.findOne({ userId })
     if (!wallet) {
       wallet = new Wallet({ userId, balance: 0 })
       await wallet.save()
     }
 
-    // Check if user has enough balance
-    if (wallet.balance < challengeFee) {
-      return res.status(400).json({ 
-        success: false, 
-        message: `Insufficient balance. Required: $${challengeFee}, Available: $${wallet.balance}`,
-        code: 'INSUFFICIENT_BALANCE'
-      })
+    // Atomically deduct the challenge fee — only succeeds if the wallet still
+    // has enough balance. Prevents a double-click / concurrent buy from
+    // charging twice or driving the wallet negative.
+    if (challengeFee > 0) {
+      const updatedWallet = await Wallet.findOneAndUpdate(
+        { userId, balance: { $gte: challengeFee } },
+        { $inc: { balance: -challengeFee } },
+        { new: true }
+      )
+      if (!updatedWallet) {
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient balance. Required: $${challengeFee}, Available: $${wallet.balance}`,
+          code: 'INSUFFICIENT_BALANCE'
+        })
+      }
+      wallet = updatedWallet
     }
-
-    // Deduct challenge fee from wallet
-    wallet.balance -= challengeFee
-    await wallet.save()
 
     // Create transaction record for challenge purchase
     const transaction = new Transaction({
@@ -150,7 +159,9 @@ router.post('/buy', authUser, async (req, res) => {
 // GET /api/prop/my-accounts/:userId - Get user's challenge accounts
 router.get('/my-accounts/:userId', authUser, async (req, res) => {
   try {
-    const { userId } = req.params
+    // Force the authenticated user — ignore the :userId param so one user
+    // can't list another user's challenge accounts.
+    const userId = req.userId
     const { status } = req.query
     const Trade = (await import('../models/Trade.js')).default
 
@@ -246,8 +257,15 @@ router.get('/my-accounts/:userId', authUser, async (req, res) => {
 router.get('/account/:accountId', authUser, async (req, res) => {
   try {
     const { accountId } = req.params
+
+    // Only allow viewing your own challenge account
+    const owned = await ChallengeAccount.findOne({ _id: accountId, userId: req.userId }).select('_id')
+    if (!owned) {
+      return res.status(403).json({ success: false, message: 'Not authorized for this account' })
+    }
+
     const dashboard = await propTradingEngine.getAccountDashboard(accountId)
-    
+
     if (!dashboard) {
       return res.status(404).json({ success: false, message: 'Account not found' })
     }
@@ -310,6 +328,18 @@ router.post('/update-equity', authUser, async (req, res) => {
   try {
     const { challengeAccountId, newEquity } = req.body
 
+    if (!challengeAccountId) {
+      return res.status(400).json({ success: false, message: 'Account ID required' })
+    }
+
+    // Verify the challenge account belongs to the authenticated user before
+    // mutating its equity — prevents one user from pushing a fabricated equity
+    // (and thus a drawdown breach) onto someone else's challenge account.
+    const owned = await ChallengeAccount.findOne({ _id: challengeAccountId, userId: req.userId }).select('_id')
+    if (!owned) {
+      return res.status(403).json({ success: false, message: 'Not authorized for this account' })
+    }
+
     const result = await propTradingEngine.updateRealTimeEquity(challengeAccountId, newEquity)
     
     if (!result) {
@@ -341,10 +371,12 @@ router.post('/update-equity', authUser, async (req, res) => {
 // POST /api/prop/withdraw-profit - Withdraw profit from funded account
 router.post('/withdraw-profit', authUser, async (req, res) => {
   try {
-    const { userId, challengeAccountId, amount } = req.body
+    // Authoritative user from the auth token — ignore any client-supplied userId
+    const userId = req.userId
+    const { challengeAccountId, amount } = req.body
 
-    if (!userId || !challengeAccountId || !amount || amount <= 0) {
-      return res.status(400).json({ success: false, message: 'User ID, account ID, and a positive amount are required' })
+    if (!challengeAccountId || !amount || amount <= 0) {
+      return res.status(400).json({ success: false, message: 'Account ID and a positive amount are required' })
     }
 
     const account = await ChallengeAccount.findById(challengeAccountId)
@@ -394,19 +426,39 @@ router.post('/withdraw-profit', authUser, async (req, res) => {
     // Deduct from funded account balance (full profit amount, not just user share)
     // The amount the user requests is their share, so the total deducted = amount / (profitSplitPercent / 100)
     const totalDeduction = amount / (account.profitSplitPercent / 100)
-    account.currentBalance -= totalDeduction
-    account.currentEquity -= totalDeduction
-    account.totalWithdrawn += amount
-    account.lastWithdrawalDate = new Date()
-    await account.save()
 
-    // Credit user's wallet
-    let wallet = await Wallet.findOne({ userId })
-    if (!wallet) {
-      wallet = new Wallet({ userId, balance: 0 })
+    // Atomically claim the withdrawal: only succeeds if (a) the account still
+    // has enough balance for the full deduction AND (b) no withdrawal has
+    // happened inside the frequency window. This re-checks both conditions at
+    // write time, so two concurrent requests can't both withdraw.
+    const cutoff = new Date(Date.now() - withdrawalFrequencyDays * 24 * 60 * 60 * 1000)
+    const claimedAccount = await ChallengeAccount.findOneAndUpdate(
+      {
+        _id: account._id,
+        accountType: 'FUNDED',
+        status: 'FUNDED',
+        currentBalance: { $gte: account.initialBalance + totalDeduction },
+        $or: [{ lastWithdrawalDate: null }, { lastWithdrawalDate: { $lte: cutoff } }]
+      },
+      {
+        $inc: { currentBalance: -totalDeduction, currentEquity: -totalDeduction, totalWithdrawn: amount },
+        $set: { lastWithdrawalDate: new Date() }
+      },
+      { new: true }
+    )
+    if (!claimedAccount) {
+      return res.status(400).json({
+        success: false,
+        message: 'Withdrawal could not be processed (insufficient profit or a recent withdrawal is already in progress).'
+      })
     }
-    wallet.balance += amount
-    await wallet.save()
+
+    // Atomically credit user's wallet
+    const wallet = await Wallet.findOneAndUpdate(
+      { userId },
+      { $inc: { balance: amount } },
+      { new: true, upsert: true }
+    )
 
     // Create transaction record
     const transaction = new Transaction({
@@ -426,7 +478,7 @@ router.post('/withdraw-profit', authUser, async (req, res) => {
       message: `$${amount.toFixed(2)} profit withdrawn to your wallet`,
       withdrawnAmount: amount,
       platformFee: totalDeduction - amount,
-      newBalance: account.currentBalance,
+      newBalance: claimedAccount.currentBalance,
       walletBalance: wallet.balance
     })
   } catch (error) {
@@ -441,6 +493,11 @@ router.get('/funded-info/:accountId', authUser, async (req, res) => {
       .populate('challengeId')
     if (!account) {
       return res.status(404).json({ success: false, message: 'Account not found' })
+    }
+
+    // Only the owner may view their funded-account withdrawal info
+    if (account.userId.toString() !== req.userId) {
+      return res.status(403).json({ success: false, message: 'Not authorized for this account' })
     }
 
     if (account.accountType !== 'FUNDED') {

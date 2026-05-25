@@ -1352,9 +1352,18 @@ const AdminPropFirm = () => {
                               <td className="py-2 px-3 text-gray-300">{t.quantity}</td>
                               <td className="py-2 px-3 text-gray-300">{t.openPrice?.toFixed(5)}</td>
                               <td className="py-2 px-3 text-gray-300">{t.closePrice ? t.closePrice.toFixed(5) : '-'}</td>
-                              <td className={`py-2 px-3 font-medium ${(t.pnl || t.currentPnl || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                {(t.pnl || t.currentPnl || 0) >= 0 ? '+' : ''}${(t.pnl || t.currentPnl || 0).toFixed(2)}
-                              </td>
+                              {(() => {
+                                // Closed trades carry realizedPnl; open trades carry floatingPnl.
+                                // (Old code read t.pnl / t.currentPnl which don't exist → always $0.00)
+                                const tradePnl = t.status === 'CLOSED'
+                                  ? (t.realizedPnl || 0)
+                                  : (t.floatingPnl || 0)
+                                return (
+                                  <td className={`py-2 px-3 font-medium ${tradePnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                    {tradePnl >= 0 ? '+' : ''}${tradePnl.toFixed(2)}
+                                  </td>
+                                )
+                              })()}
                               <td className="py-2 px-3">
                                 <span className={`px-2 py-0.5 rounded text-xs ${t.status === 'OPEN' ? 'bg-blue-500/20 text-blue-500' : 'bg-gray-500/20 text-gray-400'}`}>
                                   {t.status}

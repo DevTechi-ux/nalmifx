@@ -925,16 +925,23 @@ class PropTradingEngine {
           ? (closePrice - trade.openPrice) * trade.quantity * trade.contractSize
           : (trade.openPrice - closePrice) * trade.quantity * trade.contractSize
 
-        // Update trade (use findByIdAndUpdate since .lean() returns plain objects)
-        const closedTrade = await Trade.findByIdAndUpdate(trade._id, {
-          status: 'CLOSED',
-          closePrice,
-          closedAt: new Date(),
-          realizedPnl: pnl,
-          closedBy: closeReason
-        }, { new: true })
+        // Atomically claim the close — only flip if still OPEN. Prevents
+        // concurrent price ticks from each closing the same trade and applying
+        // the P&L to the challenge balance multiple times.
+        const closedTrade = await Trade.findOneAndUpdate(
+          { _id: trade._id, status: 'OPEN' },
+          {
+            status: 'CLOSED',
+            closePrice,
+            closedAt: new Date(),
+            realizedPnl: pnl,
+            closedBy: closeReason
+          },
+          { new: true }
+        )
+        if (!closedTrade) continue // already closed by another tick — skip
 
-        // Update challenge account
+        // Update challenge account (runs exactly once per trade)
         await this.onTradeClosed(trade.tradingAccountId, closedTrade, pnl)
 
         closedTrades.push({ trade: closedTrade, reason: closeReason, pnl })

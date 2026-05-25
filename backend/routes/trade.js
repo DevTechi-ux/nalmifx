@@ -262,52 +262,62 @@ router.post('/close', async (req, res) => {
     const challengeAccount = await ChallengeAccount.findById(tradeToClose.tradingAccountId)
     
     if (challengeAccount) {
+      // Atomically claim the close — flip OPEN→CLOSED in one operation.
+      // Only the first caller wins; any duplicate/concurrent close request
+      // (double-click, retry, racing SL/TP tick) gets null and bails, so the
+      // P&L is applied to the challenge balance EXACTLY once.
+      const claimed = await Trade.findOneAndUpdate(
+        { _id: tradeToClose._id, status: 'OPEN' },
+        { status: 'CLOSED', closedAt: new Date(), closeReason: 'USER' },
+        { new: true }
+      )
+      if (!claimed) {
+        return res.status(400).json({ success: false, message: 'Trade is not open' })
+      }
+
       // Close trade for challenge account
-      const closePrice = tradeToClose.side === 'BUY' ? parseFloat(bid) : parseFloat(ask)
-      const usdConversionRate = tradeEngine.getUsdConversionRate(tradeToClose.symbol, priceCache)
-      const rawPnl = tradeToClose.side === 'BUY'
-        ? (closePrice - tradeToClose.openPrice) * tradeToClose.quantity * tradeToClose.contractSize * usdConversionRate
-        : (tradeToClose.openPrice - closePrice) * tradeToClose.quantity * tradeToClose.contractSize * usdConversionRate
-      
+      const closePrice = claimed.side === 'BUY' ? parseFloat(bid) : parseFloat(ask)
+      const usdConversionRate = tradeEngine.getUsdConversionRate(claimed.symbol, priceCache)
+      const rawPnl = claimed.side === 'BUY'
+        ? (closePrice - claimed.openPrice) * claimed.quantity * claimed.contractSize * usdConversionRate
+        : (claimed.openPrice - closePrice) * claimed.quantity * claimed.contractSize * usdConversionRate
+
       // Get charges for commission on close
       const charges = await Charges.getChargesForTrade(
-        tradeToClose.userId, 
-        tradeToClose.symbol, 
-        tradeToClose.segment, 
+        claimed.userId,
+        claimed.symbol,
+        claimed.segment,
         null
       )
-      
+
       // Calculate commission on close if enabled
       let closeCommission = 0
       if (charges.commissionOnClose && charges.commissionValue > 0) {
         if (charges.commissionType === 'FIXED') {
           closeCommission = charges.commissionValue
         } else if (charges.commissionType === 'PER_LOT') {
-          closeCommission = tradeToClose.quantity * charges.commissionValue
+          closeCommission = claimed.quantity * charges.commissionValue
         } else if (charges.commissionType === 'PERCENTAGE') {
-          const tradeValue = tradeToClose.quantity * tradeToClose.contractSize * closePrice
+          const tradeValue = claimed.quantity * claimed.contractSize * closePrice
           closeCommission = tradeValue * (charges.commissionValue / 100)
         }
       }
-      
+
       // Calculate final PnL (subtract swap and close commission)
-      const pnl = rawPnl - (tradeToClose.swap || 0) - closeCommission
-      
-      // Update trade
-      tradeToClose.status = 'CLOSED'
-      tradeToClose.closePrice = closePrice
-      tradeToClose.closedAt = new Date()
-      tradeToClose.realizedPnl = pnl
-      tradeToClose.closeReason = 'USER'
-      await tradeToClose.save()
-      
-      // Update challenge account
-      await propTradingEngine.onTradeClosed(challengeAccount._id, tradeToClose, pnl)
-      
+      const pnl = rawPnl - (claimed.swap || 0) - closeCommission
+
+      // Persist close price + realized PnL on the trade we already claimed
+      claimed.closePrice = closePrice
+      claimed.realizedPnl = pnl
+      await claimed.save()
+
+      // Update challenge account (runs exactly once thanks to the atomic claim)
+      await propTradingEngine.onTradeClosed(challengeAccount._id, claimed, pnl)
+
       return res.json({
         success: true,
         message: 'Challenge trade closed successfully',
-        trade: tradeToClose,
+        trade: claimed,
         realizedPnl: pnl,
         isChallengeAccount: true
       })

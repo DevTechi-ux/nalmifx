@@ -429,9 +429,20 @@ class TradeEngine {
 
   // Close a trade
   async closeTrade(tradeId, currentBid, currentAsk, closedBy = 'USER', adminId = null, priceCache = null) {
-    const trade = await Trade.findById(tradeId).populate({ path: 'tradingAccountId', populate: { path: 'accountTypeId' } })
-    if (!trade) throw new Error('Trade not found')
-    if (trade.status !== 'OPEN') throw new Error('Trade is not open')
+    // Atomically claim the close — flip OPEN→CLOSED in a single operation so a
+    // concurrent/duplicate close (double-click, retry, SL/TP tick racing a
+    // manual close) can't apply the realized P&L to the balance twice. Only
+    // the caller that wins this update proceeds; the rest get null → throw.
+    const trade = await Trade.findOneAndUpdate(
+      { _id: tradeId, status: 'OPEN' },
+      { status: 'CLOSED', closedBy, closedAt: new Date() },
+      { new: true }
+    ).populate({ path: 'tradingAccountId', populate: { path: 'accountTypeId' } })
+    if (!trade) {
+      // Either the trade doesn't exist or it was already closed by another call
+      const exists = await Trade.exists({ _id: tradeId })
+      throw new Error(exists ? 'Trade is not open' : 'Trade not found')
+    }
 
     const closePrice = trade.side === 'BUY' ? currentBid : currentAsk
     
@@ -712,8 +723,15 @@ class TradeEngine {
       if (trigger) {
         const fillPrice = trade.side === 'BUY' ? bid : ask
         console.log(`[Regular SL/TP] TRIGGERED! Trade ${trade.tradeId}: ${trigger} | SL=${sl || 'none'} TP=${tp || 'none'} | Market fill: ${fillPrice} (bid=${bid}, ask=${ask})`)
-        const result = await this.closeTrade(trade._id, bid, ask, trigger, null, priceCache)
-        triggeredTrades.push({ trade: result.trade, trigger, pnl: result.realizedPnl })
+        try {
+          const result = await this.closeTrade(trade._id, bid, ask, trigger, null, priceCache)
+          triggeredTrades.push({ trade: result.trade, trigger, pnl: result.realizedPnl })
+        } catch (err) {
+          // Trade may have been closed by a concurrent call (manual close /
+          // another tick) — the atomic claim in closeTrade lost the race.
+          // Skip it; don't abort the rest of the SL/TP sweep.
+          console.log(`[Regular SL/TP] Skipped ${trade.tradeId}: ${err.message}`)
+        }
       }
     }
 
