@@ -258,18 +258,37 @@ const MobileTradingApp = () => {
     try {
       const res = await userFetch(`${API_URL}/trading-accounts/user/${userId}`)
       const data = await res.json()
-      setAccounts(data.accounts || [])
-      if (data.accounts?.length > 0) {
-        // If account ID is passed in URL, select that account
+      let allAccounts = [...(data.accounts || [])]
+
+      // Also load prop-firm challenge / funded accounts so they can be
+      // selected and traded from the mobile view (URL ?account=<challengeId>).
+      try {
+        const propRes = await userFetch(`${API_URL}/prop/my-accounts/${userId}`)
+        const propData = await propRes.json()
+        if (propData.success && Array.isArray(propData.accounts)) {
+          const challengeAccounts = propData.accounts
+            // only tradable accounts (active challenge or funded)
+            .filter(a => a.status === 'ACTIVE' || a.status === 'FUNDED' || a.status === 'PASSED')
+            .map(a => ({
+              ...a,
+              // normalize the display label the mobile UI reads
+              accountType: a.accountType === 'FUNDED' ? 'Funded' : 'Challenge',
+              isChallengeAccount: true
+            }))
+          allAccounts = [...allAccounts, ...challengeAccounts]
+        }
+      } catch (propErr) {
+        // prop accounts are optional — don't block regular accounts
+      }
+
+      setAccounts(allAccounts)
+      if (allAccounts.length > 0) {
+        // If an account ID is passed in the URL, select it (regular OR challenge)
         if (accountIdFromUrl) {
-          const accountFromUrl = data.accounts.find(acc => acc._id === accountIdFromUrl)
-          if (accountFromUrl) {
-            setSelectedAccount(accountFromUrl)
-          } else {
-            setSelectedAccount(data.accounts[0])
-          }
+          const accountFromUrl = allAccounts.find(acc => acc._id === accountIdFromUrl)
+          setSelectedAccount(accountFromUrl || allAccounts[0])
         } else {
-          setSelectedAccount(data.accounts[0])
+          setSelectedAccount(allAccounts[0])
         }
       }
     } catch (e) {}
