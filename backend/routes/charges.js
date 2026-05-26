@@ -311,4 +311,19 @@ router.delete('/:id', requireSuperAdmin, async (req, res) => {
   }
 })
 
+// POST /api/charges/bulk-delete - Delete multiple charges at once (super admin)
+router.post('/bulk-delete', requireSuperAdmin, async (req, res) => {
+  try {
+    const { ids } = req.body
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: 'No charge IDs provided' })
+    }
+    const result = await Charges.deleteMany({ _id: { $in: ids } })
+    res.json({ success: true, message: `${result.deletedCount} charge(s) deleted`, deletedCount: result.deletedCount })
+  } catch (error) {
+    console.error('Error bulk-deleting charges:', error)
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
 export default router

@@ -50,6 +50,59 @@ const AdminForexCharges = () => {
   const [bulkSpread, setBulkSpread] = useState({ value: 1, type: 'FIXED' })
   const [bulkApplying, setBulkApplying] = useState(false)
 
+  // Multi-select for bulk delete (shared across all three sections, keyed by charge _id)
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+  // Select / deselect every row currently shown in a section
+  const toggleSelectAll = (rows) => {
+    const ids = rows.map(c => c._id)
+    const allSelected = ids.length > 0 && ids.every(id => selectedIds.has(id))
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (allSelected) ids.forEach(id => next.delete(id))
+      else ids.forEach(id => next.add(id))
+      return next
+    })
+  }
+  const allSelected = (rows) => rows.length > 0 && rows.every(c => selectedIds.has(c._id))
+  const selectedCountIn = (rows) => rows.filter(c => selectedIds.has(c._id)).length
+
+  const handleBulkDelete = async (rows) => {
+    const idsToDelete = rows.filter(c => selectedIds.has(c._id)).map(c => c._id)
+    if (idsToDelete.length === 0) return
+    if (!confirm(`Delete ${idsToDelete.length} selected charge(s)? This cannot be undone.`)) return
+    setBulkDeleting(true)
+    try {
+      const res = await adminFetch(`${API_URL}/charges/bulk-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: idsToDelete })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setSelectedIds(prev => {
+          const next = new Set(prev)
+          idsToDelete.forEach(id => next.delete(id))
+          return next
+        })
+        fetchCharges()
+      } else {
+        alert(data.message || 'Failed to delete')
+      }
+    } catch (e) {
+      alert('Error deleting charges')
+    }
+    setBulkDeleting(false)
+  }
+
   useEffect(() => {
     fetchCharges()
     fetchUsers()
@@ -151,7 +204,7 @@ const AdminForexCharges = () => {
         : `${API_URL}/charges`
       const method = editingCharge ? 'PUT' : 'POST'
 
-      const res = await fetch(url, {
+      const res = await adminFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
@@ -276,10 +329,11 @@ const AdminForexCharges = () => {
       <div className="space-y-6">
         
         {/* COMMISSION SECTION */}
+        {(() => { const rows = charges.filter(c => c.commissionValue > 0); return (
         <div className="bg-dark-800 rounded-xl border border-gray-800">
-          <div className="flex items-center justify-between p-4 border-b border-gray-700">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-b border-gray-700">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gray-700 rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-gray-700 rounded-lg flex items-center justify-center shrink-0">
                 <DollarSign size={20} className="text-white" />
               </div>
               <div>
@@ -287,30 +341,46 @@ const AdminForexCharges = () => {
                 <p className="text-gray-500 text-sm">Trading fees per lot/trade</p>
               </div>
             </div>
-            <button 
-              onClick={() => { resetForm(); setEditingCharge(null); setModalType('commission') }}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
-            >
-              <Plus size={16} />
-              <span>Add Commission</span>
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {selectedCountIn(rows) > 0 && (
+                <button
+                  onClick={() => handleBulkDelete(rows)}
+                  disabled={bulkDeleting}
+                  className="flex items-center gap-2 px-3 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/30 transition-colors text-sm disabled:opacity-50"
+                >
+                  <Trash2 size={15} /> Delete ({selectedCountIn(rows)})
+                </button>
+              )}
+              <button
+                onClick={() => { resetForm(); setEditingCharge(null); setModalType('commission') }}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
+              >
+                <Plus size={16} />
+                <span>Add Commission</span>
+              </button>
+            </div>
           </div>
           <div className="p-4">
             {loading ? (
               <p className="text-gray-500 text-center py-4">Loading...</p>
-            ) : charges.filter(c => c.commissionValue > 0).length === 0 ? (
+            ) : rows.length === 0 ? (
               <p className="text-gray-500 text-center py-4">No commission charges configured</p>
             ) : (
               <div className="space-y-2">
-                {charges.filter(c => c.commissionValue > 0).map((charge) => (
-                  <div key={charge._id} className="flex items-center justify-between p-3 bg-dark-700 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <span className="px-2 py-0.5 bg-gray-600 text-gray-300 text-xs rounded">{charge.level}</span>
-                      <span className="text-white">{getLevelLabel(charge)}</span>
+                <label className="flex items-center gap-2 px-3 text-xs text-gray-400 cursor-pointer select-none">
+                  <input type="checkbox" checked={allSelected(rows)} onChange={() => toggleSelectAll(rows)} className="accent-purple-500" />
+                  Select all
+                </label>
+                {rows.map((charge) => (
+                  <div key={charge._id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-dark-700 rounded-lg">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <input type="checkbox" checked={selectedIds.has(charge._id)} onChange={() => toggleSelect(charge._id)} className="accent-purple-500 shrink-0" />
+                      <span className="px-2 py-0.5 bg-gray-600 text-gray-300 text-xs rounded shrink-0">{charge.level}</span>
+                      <span className="text-white truncate">{getLevelLabel(charge)}</span>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center justify-between sm:justify-end gap-4 pl-7 sm:pl-0">
                       <span className="text-white font-medium">${charge.commissionValue} <span className="text-gray-500 text-sm">({charge.commissionType})</span></span>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 shrink-0">
                         <button onClick={() => openEditModal(charge, 'commission')} className="p-1.5 hover:bg-dark-600 rounded text-gray-400 hover:text-white"><Edit size={14} /></button>
                         <button onClick={() => handleDelete(charge._id)} className="p-1.5 hover:bg-dark-600 rounded text-gray-400 hover:text-red-400"><Trash2 size={14} /></button>
                       </div>
@@ -321,12 +391,14 @@ const AdminForexCharges = () => {
             )}
           </div>
         </div>
+        )})()}
 
         {/* SPREAD SECTION */}
+        {(() => { const rows = charges.filter(c => c.spreadValue > 0); return (
         <div className="bg-dark-800 rounded-xl border border-gray-800">
-          <div className="flex items-center justify-between p-4 border-b border-gray-700">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-b border-gray-700">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gray-700 rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-gray-700 rounded-lg flex items-center justify-center shrink-0">
                 <TrendingUp size={20} className="text-white" />
               </div>
               <div>
@@ -334,10 +406,19 @@ const AdminForexCharges = () => {
                 <p className="text-gray-500 text-sm">Bid/Ask price difference</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {selectedCountIn(rows) > 0 && (
+                <button
+                  onClick={() => handleBulkDelete(rows)}
+                  disabled={bulkDeleting}
+                  className="flex items-center gap-2 px-3 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/30 transition-colors text-sm disabled:opacity-50"
+                >
+                  <Trash2 size={15} /> Delete ({selectedCountIn(rows)})
+                </button>
+              )}
               <button
                 onClick={() => setShowBulkSpreadModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-500 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-500 transition-colors text-sm"
                 title="Apply one spread value to every symbol in one click"
               >
                 <TrendingUp size={16} />
@@ -345,7 +426,7 @@ const AdminForexCharges = () => {
               </button>
               <button
                 onClick={() => { resetForm(); setEditingCharge(null); setModalType('spread') }}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
               >
                 <Plus size={16} />
                 <span>Add Spread</span>
@@ -355,25 +436,30 @@ const AdminForexCharges = () => {
           <div className="p-4">
             {loading ? (
               <p className="text-gray-500 text-center py-4">Loading...</p>
-            ) : charges.filter(c => c.spreadValue > 0).length === 0 ? (
+            ) : rows.length === 0 ? (
               <p className="text-gray-500 text-center py-4">No spread charges configured</p>
             ) : (
               <div className="space-y-2">
-                {charges.filter(c => c.spreadValue > 0).map((charge) => {
+                <label className="flex items-center gap-2 px-3 text-xs text-gray-400 cursor-pointer select-none">
+                  <input type="checkbox" checked={allSelected(rows)} onChange={() => toggleSelectAll(rows)} className="accent-purple-500" />
+                  Select all
+                </label>
+                {rows.map((charge) => {
                   const usd = spreadToUsd(charge)
                   const inr = usd * inrRate
                   return (
-                    <div key={charge._id} className="flex items-center justify-between p-3 bg-dark-700 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <span className="px-2 py-0.5 bg-gray-600 text-gray-300 text-xs rounded">{charge.level}</span>
-                        <span className="text-white">{getLevelLabel(charge)}</span>
+                    <div key={charge._id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-dark-700 rounded-lg">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <input type="checkbox" checked={selectedIds.has(charge._id)} onChange={() => toggleSelect(charge._id)} className="accent-purple-500 shrink-0" />
+                        <span className="px-2 py-0.5 bg-gray-600 text-gray-300 text-xs rounded shrink-0">{charge.level}</span>
+                        <span className="text-white truncate">{getLevelLabel(charge)}</span>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
+                      <div className="flex items-center justify-between sm:justify-end gap-4 pl-7 sm:pl-0">
+                        <div className="text-left sm:text-right">
                           <div className="text-white font-medium">{charge.spreadValue} <span className="text-gray-500 text-sm">({charge.spreadType})</span></div>
                           <div className="text-xs text-gray-400">≈ ${usd.toFixed(2)} USD · ₹{inr.toFixed(2)} INR <span className="text-gray-600">per lot</span></div>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 shrink-0">
                           <button onClick={() => openEditModal(charge, 'spread')} className="p-1.5 hover:bg-dark-600 rounded text-gray-400 hover:text-white"><Edit size={14} /></button>
                           <button onClick={() => handleDelete(charge._id)} className="p-1.5 hover:bg-dark-600 rounded text-gray-400 hover:text-red-400"><Trash2 size={14} /></button>
                         </div>
@@ -385,12 +471,14 @@ const AdminForexCharges = () => {
             )}
           </div>
         </div>
+        )})()}
 
         {/* SWAP SECTION */}
+        {(() => { const rows = charges.filter(c => c.swapLong !== 0 || c.swapShort !== 0); return (
         <div className="bg-dark-800 rounded-xl border border-gray-800">
-          <div className="flex items-center justify-between p-4 border-b border-gray-700">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-b border-gray-700">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gray-700 rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-gray-700 rounded-lg flex items-center justify-center shrink-0">
                 <Moon size={20} className="text-white" />
               </div>
               <div>
@@ -398,30 +486,46 @@ const AdminForexCharges = () => {
                 <p className="text-gray-500 text-sm">Overnight holding fees</p>
               </div>
             </div>
-            <button 
-              onClick={() => { resetForm(); setEditingCharge(null); setModalType('swap') }}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
-            >
-              <Plus size={16} />
-              <span>Add Swap</span>
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {selectedCountIn(rows) > 0 && (
+                <button
+                  onClick={() => handleBulkDelete(rows)}
+                  disabled={bulkDeleting}
+                  className="flex items-center gap-2 px-3 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/30 transition-colors text-sm disabled:opacity-50"
+                >
+                  <Trash2 size={15} /> Delete ({selectedCountIn(rows)})
+                </button>
+              )}
+              <button
+                onClick={() => { resetForm(); setEditingCharge(null); setModalType('swap') }}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
+              >
+                <Plus size={16} />
+                <span>Add Swap</span>
+              </button>
+            </div>
           </div>
           <div className="p-4">
             {loading ? (
               <p className="text-gray-500 text-center py-4">Loading...</p>
-            ) : charges.filter(c => c.swapLong !== 0 || c.swapShort !== 0).length === 0 ? (
+            ) : rows.length === 0 ? (
               <p className="text-gray-500 text-center py-4">No swap charges configured</p>
             ) : (
               <div className="space-y-2">
-                {charges.filter(c => c.swapLong !== 0 || c.swapShort !== 0).map((charge) => (
-                  <div key={charge._id} className="flex items-center justify-between p-3 bg-dark-700 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <span className="px-2 py-0.5 bg-gray-600 text-gray-300 text-xs rounded">{charge.level}</span>
-                      <span className="text-white">{getLevelLabel(charge)}</span>
+                <label className="flex items-center gap-2 px-3 text-xs text-gray-400 cursor-pointer select-none">
+                  <input type="checkbox" checked={allSelected(rows)} onChange={() => toggleSelectAll(rows)} className="accent-purple-500" />
+                  Select all
+                </label>
+                {rows.map((charge) => (
+                  <div key={charge._id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-dark-700 rounded-lg">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <input type="checkbox" checked={selectedIds.has(charge._id)} onChange={() => toggleSelect(charge._id)} className="accent-purple-500 shrink-0" />
+                      <span className="px-2 py-0.5 bg-gray-600 text-gray-300 text-xs rounded shrink-0">{charge.level}</span>
+                      <span className="text-white truncate">{getLevelLabel(charge)}</span>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center justify-between sm:justify-end gap-4 pl-7 sm:pl-0">
                       <span className="text-white font-medium">Long: {charge.swapLong} | Short: {charge.swapShort}</span>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 shrink-0">
                         <button onClick={() => openEditModal(charge, 'swap')} className="p-1.5 hover:bg-dark-600 rounded text-gray-400 hover:text-white"><Edit size={14} /></button>
                         <button onClick={() => handleDelete(charge._id)} className="p-1.5 hover:bg-dark-600 rounded text-gray-400 hover:text-red-400"><Trash2 size={14} /></button>
                       </div>
@@ -432,6 +536,7 @@ const AdminForexCharges = () => {
             )}
           </div>
         </div>
+        )})()}
       </div>
 
       {/* COMMISSION MODAL - Cascading Hierarchy */}
@@ -562,7 +667,7 @@ const AdminForexCharges = () => {
               </div>
               
               {/* Commission Settings */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-gray-400 text-xs mb-1">Commission Type</label>
                   <select value={form.commissionType} onChange={(e) => setForm({ ...form, commissionType: e.target.value })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm">
@@ -731,7 +836,7 @@ const AdminForexCharges = () => {
               </div>
               
               {/* Spread Settings */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-gray-400 text-xs mb-1">Spread Type</label>
                   <select value={form.spreadType} onChange={(e) => setForm({ ...form, spreadType: e.target.value })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm">
@@ -882,7 +987,7 @@ const AdminForexCharges = () => {
               </div>
               
               {/* Swap Settings */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-gray-400 text-xs mb-1">Swap Long (points)</label>
                   <input type="number" step="0.01" value={form.swapLong} onChange={(e) => setForm({ ...form, swapLong: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm" placeholder="0" />
@@ -914,7 +1019,7 @@ const AdminForexCharges = () => {
             </div>
             <p className="text-gray-400 text-sm mb-4">Sets the same INSTRUMENT-level spread on every symbol in the catalog. Existing per-symbol entries are updated; missing ones are created.</p>
 
-            <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
               <div>
                 <label className="block text-gray-400 text-xs mb-1">Spread Value</label>
                 <input

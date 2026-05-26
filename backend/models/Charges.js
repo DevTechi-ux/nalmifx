@@ -91,12 +91,29 @@ const chargesSchema = new mongoose.Schema({
   }
 }, { timestamps: true })
 
+// Short-lived in-memory cache of the active charges list. The charges table is
+// tiny and changes rarely (admin edits), but getChargesForTrade runs on every
+// trade open AND close — a full collection read each time added avoidable
+// latency to order execution. Cache the DB read for a few seconds; admin
+// changes call clearChargesCache() to invalidate immediately.
+let _chargesCache = null
+let _chargesCacheAt = 0
+const CHARGES_CACHE_TTL_MS = 15000
+
+chargesSchema.statics.clearChargesCache = function () {
+  _chargesCache = null
+  _chargesCacheAt = 0
+}
+
 // Merges charges from multiple levels - most specific wins for each field
 chargesSchema.statics.getChargesForTrade = async function(userId, symbol, segment, accountTypeId) {
-  console.log(`Getting charges for: userId=${userId}, symbol=${symbol}, segment=${segment}, accountTypeId=${accountTypeId}`)
-  
-  // Build query to find all potentially applicable charges
-  const allCharges = await this.find({ isActive: true }).sort({ createdAt: -1 })
+  // Build query to find all potentially applicable charges (cached briefly)
+  let allCharges = _chargesCache
+  if (!allCharges || (Date.now() - _chargesCacheAt) > CHARGES_CACHE_TTL_MS) {
+    allCharges = await this.find({ isActive: true }).sort({ createdAt: -1 })
+    _chargesCache = allCharges
+    _chargesCacheAt = Date.now()
+  }
   
   // Filter charges that apply to this trade
   let applicableCharges = allCharges.filter(charge => {
@@ -214,9 +231,20 @@ chargesSchema.statics.getChargesForTrade = async function(userId, symbol, segmen
     }
   }
   
-  console.log(`Final charges: spread=${result.spreadValue}, commission=${result.commissionValue}, swapLong=${result.swapLong}, swapShort=${result.swapShort}`)
-  
   return result
 }
+
+// Invalidate the cache on any write so admin edits to spread/commission/swap
+// take effect immediately instead of waiting for the TTL to expire.
+function invalidateChargesCache() {
+  _chargesCache = null
+  _chargesCacheAt = 0
+}
+chargesSchema.post('save', invalidateChargesCache)
+chargesSchema.post('findOneAndUpdate', invalidateChargesCache)
+chargesSchema.post('findOneAndDelete', invalidateChargesCache)
+chargesSchema.post('deleteOne', invalidateChargesCache)
+chargesSchema.post('updateOne', invalidateChargesCache)
+chargesSchema.post('insertMany', invalidateChargesCache)
 
 export default mongoose.model('Charges', chargesSchema)

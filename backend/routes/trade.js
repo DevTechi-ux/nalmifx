@@ -182,31 +182,29 @@ router.post('/open', async (req, res) => {
       parsedPendingPrice
     )
 
-    // Check if this is a master trader and copy to followers
-    const master = await MasterTrader.findOne({ 
-      tradingAccountId, 
-      status: 'ACTIVE' 
-    })
-    
-    let copyResults = []
-    if (master) {
-      try {
-        // Attach server-side bid/ask so followers get proper spread
-        trade.bid = bid
-        trade.ask = ask
-        copyResults = await copyTradingEngine.copyTradeToFollowers(trade, master._id)
-        console.log(`Copied trade to ${copyResults.filter(r => r.status === 'SUCCESS').length} followers`)
-      } catch (copyError) {
-        console.error('Error copying trade to followers:', copyError)
-      }
-    }
-
+    // Respond immediately — the user's trade is already persisted. Copy-trade
+    // propagation to followers runs in the background so it doesn't add latency
+    // to the order placement (matters most for the native app, which awaits).
     res.json({
       success: true,
       message: 'Trade opened successfully',
-      trade,
-      copyResults: copyResults.length > 0 ? copyResults : undefined
+      trade
     })
+
+    // ---- Background: copy this trade to followers if the account is a master ----
+    ;(async () => {
+      try {
+        const master = await MasterTrader.findOne({ tradingAccountId, status: 'ACTIVE' })
+        if (master) {
+          trade.bid = bid
+          trade.ask = ask
+          const copyResults = await copyTradingEngine.copyTradeToFollowers(trade, master._id)
+          console.log(`Copied trade to ${copyResults.filter(r => r.status === 'SUCCESS').length} followers`)
+        }
+      } catch (copyError) {
+        console.error('Error copying trade to followers:', copyError)
+      }
+    })()
   } catch (error) {
     console.error('Error opening trade:', error)
     res.status(400).json({ 
@@ -333,44 +331,43 @@ router.post('/close', async (req, res) => {
       priceCache
     )
 
-    // Check if this was a master trade and close follower trades
-    if (tradeToClose) {
-      console.log(`[CopyTrade] Checking if trade ${tradeId} belongs to a master. TradingAccountId: ${tradeToClose.tradingAccountId}`)
-      const master = await MasterTrader.findOne({ 
-        tradingAccountId: tradeToClose.tradingAccountId, 
-        status: 'ACTIVE' 
-      })
-      
-      console.log(`[CopyTrade] Master found: ${master ? master._id : 'NO MASTER FOUND'}`)
-      
-      if (master) {
-        try {
-          const closePrice = tradeToClose.side === 'BUY' ? bid : ask
-          console.log(`[CopyTrade] Calling closeFollowerTrades for master trade ${tradeId} at price ${closePrice}`)
-          const copyResults = await copyTradingEngine.closeFollowerTrades(tradeId, closePrice, bid, ask)
-          console.log(`[CopyTrade] Closed ${copyResults.length} follower trades for master trade ${tradeId}`)
-        } catch (copyError) {
-          console.error('[CopyTrade] Error closing follower trades:', copyError)
-        }
-      }
-    }
-
-    // Process IB commission for the closed trade
-    try {
-      const ibResult = await ibEngine.processTradeCommission(result.trade)
-      if (ibResult.processed) {
-        console.log(`IB commission processed for trade ${result.trade._id}: ${ibResult.commissions?.length || 0} IBs credited`)
-      }
-    } catch (ibError) {
-      console.error('Error processing IB commission:', ibError)
-    }
-
+    // Respond as soon as the trade is closed + balance updated. The user
+    // doesn't need to wait for copy-trade propagation or IB commission
+    // distribution — those run in the background below. This keeps close
+    // latency low (especially for the native app, which awaits the response).
     res.json({
       success: true,
       message: 'Trade closed successfully',
       trade: result.trade,
       realizedPnl: result.realizedPnl
     })
+
+    // ---- Background post-close side-effects (do not block the response) ----
+    const closeAccountId = tradeToClose.tradingAccountId
+    const closeSide = tradeToClose.side
+    ;(async () => {
+      // Close follower trades if this was a master trade
+      try {
+        const master = await MasterTrader.findOne({ tradingAccountId: closeAccountId, status: 'ACTIVE' })
+        if (master) {
+          const closePrice = closeSide === 'BUY' ? bid : ask
+          const copyResults = await copyTradingEngine.closeFollowerTrades(tradeId, closePrice, bid, ask)
+          console.log(`[CopyTrade] Closed ${copyResults.length} follower trades for master trade ${tradeId}`)
+        }
+      } catch (copyError) {
+        console.error('[CopyTrade] Error closing follower trades:', copyError)
+      }
+
+      // Distribute IB commission for the closed trade
+      try {
+        const ibResult = await ibEngine.processTradeCommission(result.trade)
+        if (ibResult.processed) {
+          console.log(`IB commission processed for trade ${result.trade._id}: ${ibResult.commissions?.length || 0} IBs credited`)
+        }
+      } catch (ibError) {
+        console.error('Error processing IB commission:', ibError)
+      }
+    })()
   } catch (error) {
     console.error('Error closing trade:', error)
     res.status(400).json({ 
