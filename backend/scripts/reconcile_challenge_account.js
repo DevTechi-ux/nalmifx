@@ -22,11 +22,21 @@
 
 import mongoose from 'mongoose'
 import dotenv from 'dotenv'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import ChallengeAccount from '../models/ChallengeAccount.js'
 import Challenge from '../models/Challenge.js'
 import Trade from '../models/Trade.js'
 
-dotenv.config()
+// Load backend/.env regardless of the cwd the script is invoked from. The
+// rest of the backend uses MONGODB_URI exclusively.
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+dotenv.config({ path: path.resolve(__dirname, '../.env') })
+
+if (!process.env.MONGODB_URI) {
+  console.error('MONGODB_URI is missing — expected in backend/.env')
+  process.exit(1)
+}
 
 const [, , accountIdArg, ...flags] = process.argv
 const APPLY = flags.includes('--apply')
@@ -37,7 +47,7 @@ if (!accountIdArg) {
 }
 
 async function main () {
-  await mongoose.connect(process.env.MONGO_URI || process.env.MONGODB_URI)
+  await mongoose.connect(process.env.MONGODB_URI)
   console.log(`\n[Reconcile] Mode: ${APPLY ? 'APPLY (will write)' : 'DRY-RUN'}`)
   console.log(`[Reconcile] Target accountId: ${accountIdArg}\n`)
 
