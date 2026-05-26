@@ -44,13 +44,18 @@ class PropTradingEngine {
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + (challenge.rules.challengeExpiryDays || 30))
 
+    // Use the challenge's declared stepsCount as totalPhases verbatim. A
+    // silent `|| 2` fallback let CH196289 end up with totalPhases=2 while
+    // the challenge it pointed at had stepsCount=0/null — checkProfitTarget
+    // then refused to advance.
+    const stepsCount = Number.isFinite(challenge.stepsCount) ? challenge.stepsCount : 2
     const account = await ChallengeAccount.create({
       userId,
       challengeId,
       accountId,
       accountType: 'CHALLENGE',
       currentPhase: 1,
-      totalPhases: challenge.stepsCount || 2,
+      totalPhases: stepsCount,
       status: 'ACTIVE',
       initialBalance: challenge.fundSize,
       currentBalance: challenge.fundSize,
@@ -673,8 +678,14 @@ class PropTradingEngine {
       return { targetReached: false }
     }
 
-    // Zero step (instant fund) or funded accounts - no profit target
-    if (challenge.stepsCount === 0 || account.accountType === 'FUNDED') {
+    // Zero-phase (instant fund) or funded accounts have no profit target.
+    // IMPORTANT: read this from the account (totalPhases), not from the
+    // parent challenge (stepsCount). The challenge config can drift after
+    // an account is opened, but the account's own totalPhases is what its
+    // lifecycle was set up with. Reading challenge.stepsCount caused 2-step
+    // accounts to silently never progress when the challenge config was
+    // misconfigured (CH196289 cleared phase 1 at +20% but stayed on phase 1).
+    if ((account.totalPhases || 0) === 0 || account.accountType === 'FUNDED') {
       return { targetReached: false }
     }
 
@@ -682,6 +693,9 @@ class PropTradingEngine {
     if (account.currentPhase === 1) {
       targetPercent = rules.profitTargetPhase1Percent || 8
     } else if (account.currentPhase === 2) {
+      targetPercent = rules.profitTargetPhase2Percent || 5
+    } else {
+      // Higher phases (rare, defensive). Fall back to phase-2 target.
       targetPercent = rules.profitTargetPhase2Percent || 5
     }
 
@@ -1192,17 +1206,27 @@ class PropTradingEngine {
     const initialBalance = account.initialBalance || account.phaseStartBalance
     const dayStartEquity = account.dayStartEquity || initialBalance
     
-    // Daily DD = (dayStartEquity - currentEquity) / dayStartEquity * 100
+    // Daily DD = (dayStartEquity - currentEquity) / dayStartEquity * 100.
+    // Capped at 100% — drawdown can't physically be more than total wipe-out,
+    // and a value above that means stale data (the very bug that left CH601682
+    // showing 152.83%).
     const dailyLoss = dayStartEquity - realTimeEquity
-    const realTimeDailyDD = dailyLoss > 0 ? (dailyLoss / dayStartEquity) * 100 : 0
-    
+    const realTimeDailyDD = dailyLoss > 0
+      ? Math.min(100, (dailyLoss / dayStartEquity) * 100)
+      : 0
+
     // Overall DD = (initialBalance - lowestEquity) / initialBalance * 100
     const lowestEquity = Math.min(account.lowestEquityOverall || initialBalance, realTimeEquity)
     const overallLoss = initialBalance - lowestEquity
-    const realTimeOverallDD = overallLoss > 0 ? (overallLoss / initialBalance) * 100 : 0
-    
-    // Profit = (currentEquity - initialBalance) / initialBalance * 100
-    const realTimeProfit = ((realTimeEquity - initialBalance) / initialBalance) * 100
+    const realTimeOverallDD = overallLoss > 0
+      ? Math.min(100, (overallLoss / initialBalance) * 100)
+      : 0
+
+    // "Profit" here is progress toward the profit target. An account at a
+    // loss has not progressed toward the target — show 0%, not a negative.
+    // (The dollar P&L is still surfaced via balance.profitLoss below.)
+    const rawProfit = ((realTimeEquity - initialBalance) / initialBalance) * 100
+    const realTimeProfit = Math.max(0, rawProfit)
 
     // Calculate target progress
     let targetPercent = 0
