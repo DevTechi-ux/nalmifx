@@ -422,72 +422,167 @@ class PropTradingEngine {
   }
 
   // Called after trade closes - CRITICAL for rule enforcement
-  async onTradeClosed(challengeAccountId, trade, closePnL) {
+  async onTradeClosed(challengeAccountId, trade, closePnL, priceCache = null) {
     const account = await ChallengeAccount.findById(challengeAccountId)
       .populate('challengeId')
-    
+
     if (!account) return null
 
     const challenge = account.challengeId
     const rules = challenge.rules
 
-    // Update balance and equity
-    account.currentBalance += closePnL
+    // Apply P&L. Clamp the persisted balance at zero — a challenge account's
+    // balance must never go negative. The equity-zero stop below catches any
+    // close that drives the balance to (or past) zero.
+    const newBalance = account.currentBalance + closePnL
+    const balanceWouldGoNegative = newBalance < 0
+    account.currentBalance = Math.max(0, newBalance)
     account.currentEquity = account.currentBalance
     account.openTradesCount = Math.max(0, account.openTradesCount - 1)
 
-    // Update equity tracking
+    // Update equity tracking (drawdown / profit % / lowest-equity)
     await account.updateEquity(account.currentEquity)
 
-    // A challenge that's already PASSED / FAILED / EXPIRED must not keep
-    // progressing — only ACTIVE challenge accounts run drawdown + profit
-    // checks. (FUNDED accounts also skip these — they have no profit target.)
-    if (account.status !== 'ACTIVE') {
+    // PASSED / FAILED / EXPIRED accounts skip further risk checks. ACTIVE
+    // *and* FUNDED accounts must still enforce drawdown — funded accounts
+    // especially, since they're trading the firm's money.
+    if (account.status !== 'ACTIVE' && account.status !== 'FUNDED') {
       await account.save()
       return { account, failed: false }
     }
 
-    // Check drawdown breaches
+    // ---- Equity-zero stop-out ----
+    // If this close just brought equity to zero (or the loss would have
+    // driven it below zero), fail the account and force-close any remaining
+    // open positions so they can't accumulate further losses.
+    if (account.currentEquity <= 0 || balanceWouldGoNegative) {
+      account.status = 'FAILED'
+      account.failedAt = new Date()
+      account.failReason = 'Equity reached zero (stop-out)'
+      account.violations.push({
+        rule: 'EQUITY_ZERO_STOP_OUT',
+        description: 'Account equity reached zero — all open positions force-closed',
+        severity: 'FAIL',
+        timestamp: new Date()
+      })
+      await account.save()
+      await this.forceCloseAllOpenTrades(account, priceCache, 'STOP_OUT')
+      return { account, failed: true, reason: 'Equity reached zero' }
+    }
+
+    // ---- Drawdown breach ----
+    // Runs for both ACTIVE challenges and FUNDED accounts. When breached,
+    // checkDrawdownBreach sets status='FAILED'; we also force-close opens.
     const drawdownCheck = await this.checkDrawdownBreach(account, rules)
     if (drawdownCheck.breached) {
+      await this.forceCloseAllOpenTrades(account, priceCache, 'DRAWDOWN_BREACH')
       return { account, failed: true, reason: drawdownCheck.reason }
     }
 
-    // Check profit target (for phase progression)
-    const profitCheck = await this.checkProfitTarget(account, challenge)
-    if (profitCheck.targetReached) {
-      return { account, phaseCompleted: true, nextPhase: profitCheck.nextPhase }
+    // ---- Profit target / phase progression — only for ACTIVE challenges ----
+    if (account.status === 'ACTIVE') {
+      const profitCheck = await this.checkProfitTarget(account, challenge)
+      if (profitCheck.targetReached) {
+        return { account, phaseCompleted: true, nextPhase: profitCheck.nextPhase }
+      }
     }
 
     await account.save()
     return { account, failed: false }
   }
 
-  // Real-time equity update (called on price changes)
-  async updateRealTimeEquity(challengeAccountId, newEquity) {
+  // Force-close every open trade on a challenge/funded account. Called when
+  // the account has just been failed (equity-zero or drawdown breach) so the
+  // remaining positions don't continue to bleed.
+  //   priceLookup: a Map-like with .get(symbol) → {bid, ask} OR an object map.
+  async forceCloseAllOpenTrades(account, priceLookup = null, reason = 'STOP_OUT') {
+    const openTrades = await Trade.find({ tradingAccountId: account._id, status: 'OPEN' })
+    if (openTrades.length === 0) return []
+
+    const getPx = (symbol) => {
+      if (!priceLookup) return null
+      if (typeof priceLookup.get === 'function') return priceLookup.get(symbol)
+      return priceLookup[symbol] || null
+    }
+
+    const closed = []
+    for (const trade of openTrades) {
+      const px = getPx(trade.symbol)
+      // If no live price, fall back to openPrice (zero raw P&L on this leg)
+      const closePrice = trade.side === 'BUY'
+        ? (px?.bid ?? trade.openPrice)
+        : (px?.ask ?? trade.openPrice)
+      const rawPnl = trade.side === 'BUY'
+        ? (closePrice - trade.openPrice) * trade.quantity * trade.contractSize
+        : (trade.openPrice - closePrice) * trade.quantity * trade.contractSize
+      const realizedPnl = rawPnl - (trade.commission || 0) - (trade.swap || 0)
+
+      // Atomic claim so a concurrent close can't double-apply the P&L
+      const claimed = await Trade.findOneAndUpdate(
+        { _id: trade._id, status: 'OPEN' },
+        { status: 'CLOSED', closePrice, closedAt: new Date(), closedBy: reason, realizedPnl },
+        { new: true }
+      )
+      if (!claimed) continue
+
+      // Apply to account balance, clamped at zero
+      account.currentBalance = Math.max(0, account.currentBalance + realizedPnl)
+      account.currentEquity = account.currentBalance
+      account.openTradesCount = Math.max(0, account.openTradesCount - 1)
+      closed.push(claimed)
+    }
+    await account.save()
+    return closed
+  }
+
+  // Real-time equity update (called on price changes). When floating-equity
+  // alone breaches drawdown (no close has happened yet), we still need to
+  // fail the account *and* force-close every open trade — otherwise the
+  // floating loss keeps growing and the persisted balance never reflects it.
+  async updateRealTimeEquity(challengeAccountId, newEquity, priceCache = null) {
     const account = await ChallengeAccount.findById(challengeAccountId)
       .populate('challengeId')
-    
+
     if (!account || (account.status !== 'ACTIVE' && account.status !== 'FUNDED')) return null
 
     const rules = account.challengeId.rules
 
-    // Update equity
+    // Update equity tracking from the live (floating) equity
     await account.updateEquity(newEquity)
 
-    // Check for immediate drawdown breach
+    // Equity-zero stop-out from live floating equity. Force-close every open
+    // trade at the current market so the persisted balance is finalised at
+    // zero and no further losses can accumulate.
+    if (newEquity <= 0) {
+      account.status = 'FAILED'
+      account.failedAt = new Date()
+      account.failReason = 'Equity reached zero (stop-out)'
+      account.violations.push({
+        rule: 'EQUITY_ZERO_STOP_OUT',
+        description: 'Account equity reached zero — all open positions force-closed',
+        severity: 'FAIL',
+        timestamp: new Date()
+      })
+      await account.save()
+      await this.forceCloseAllOpenTrades(account, priceCache, 'STOP_OUT')
+      return { account, breached: true, reason: 'Equity reached zero', code: 'EQUITY_ZERO_STOP_OUT' }
+    }
+
+    // Check for immediate drawdown breach (sets status='FAILED' inside)
     const drawdownCheck = await this.checkDrawdownBreach(account, rules)
     if (drawdownCheck.breached) {
-      return { 
-        account, 
-        breached: true, 
+      // Force-close opens so the realised balance lines up with the breach
+      await this.forceCloseAllOpenTrades(account, priceCache, 'DRAWDOWN_BREACH')
+      return {
+        account,
+        breached: true,
         reason: drawdownCheck.reason,
         code: drawdownCheck.code
       }
     }
 
-    return { 
-      account, 
+    return {
+      account,
       breached: false,
       dailyDrawdown: account.currentDailyDrawdownPercent,
       overallDrawdown: account.currentOverallDrawdownPercent,
@@ -941,8 +1036,10 @@ class PropTradingEngine {
         )
         if (!closedTrade) continue // already closed by another tick — skip
 
-        // Update challenge account (runs exactly once per trade)
-        await this.onTradeClosed(trade.tradingAccountId, closedTrade, pnl)
+        // Update challenge account (runs exactly once per trade). Pass the
+        // current price map so a cascading stop-out can force-close remaining
+        // open trades at live prices rather than falling back to openPrice.
+        await this.onTradeClosed(trade.tradingAccountId, closedTrade, pnl, prices)
 
         closedTrades.push({ trade: closedTrade, reason: closeReason, pnl })
         console.log(`Challenge trade closed with PnL: $${pnl.toFixed(2)}`)

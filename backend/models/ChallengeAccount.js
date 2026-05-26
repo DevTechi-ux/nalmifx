@@ -62,13 +62,19 @@ const challengeAccountSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  // currentBalance / currentEquity must never go negative. A challenge or
+  // funded account that hits zero has stopped out — the engine flips the
+  // status to FAILED and force-closes opens. These validators are the last
+  // line of defence if any code path forgets to clamp.
   currentBalance: {
     type: Number,
-    required: true
+    required: true,
+    min: 0
   },
   currentEquity: {
     type: Number,
-    required: true
+    required: true,
+    min: 0
   },
   
   // Phase start values (for drawdown calculation)
@@ -207,6 +213,20 @@ const challengeAccountSchema = new mongoose.Schema({
   }
 })
 
+// Defensive pre-save clamp. Even with the min:0 validator above, any code
+// that ignores the resulting validation error would still try to write a
+// negative balance. Clamping here keeps the document writeable but never
+// negative — matched with the FAILED-status flip in the prop engine.
+challengeAccountSchema.pre('save', function (next) {
+  if (typeof this.currentBalance === 'number' && this.currentBalance < 0) {
+    this.currentBalance = 0
+  }
+  if (typeof this.currentEquity === 'number' && this.currentEquity < 0) {
+    this.currentEquity = 0
+  }
+  next()
+})
+
 // Generate unique account ID
 challengeAccountSchema.statics.generateAccountId = async function(type = 'CH') {
   const prefix = type === 'FUNDED' ? 'FND' : 'CH'
@@ -224,22 +244,27 @@ challengeAccountSchema.statics.generateAccountId = async function(type = 'CH') {
 challengeAccountSchema.methods.updateEquity = async function(newEquity) {
   const Challenge = mongoose.model('Challenge')
   const challenge = await Challenge.findById(this.challengeId)
-  
-  this.currentEquity = newEquity
-  
+
+  // Floor at zero — a challenge/funded account's equity is bounded below by
+  // zero (stop-out). Equity going negative is what the engine is supposed
+  // to prevent; clamping here makes the document persistable and matches
+  // the min:0 schema validator.
+  const flooredEquity = Math.max(0, newEquity)
+  this.currentEquity = flooredEquity
+
   // Track lowest equity today
-  if (this.lowestEquityToday === null || newEquity < this.lowestEquityToday) {
-    this.lowestEquityToday = newEquity
+  if (this.lowestEquityToday === null || flooredEquity < this.lowestEquityToday) {
+    this.lowestEquityToday = flooredEquity
   }
-  
+
   // Track lowest equity overall
-  if (this.lowestEquityOverall === null || newEquity < this.lowestEquityOverall) {
-    this.lowestEquityOverall = newEquity
+  if (this.lowestEquityOverall === null || flooredEquity < this.lowestEquityOverall) {
+    this.lowestEquityOverall = flooredEquity
   }
   
   // Track highest equity
-  if (this.highestEquity === null || newEquity > this.highestEquity) {
-    this.highestEquity = newEquity
+  if (this.highestEquity === null || flooredEquity > this.highestEquity) {
+    this.highestEquity = flooredEquity
   }
   
   // Calculate daily drawdown
@@ -259,8 +284,8 @@ challengeAccountSchema.methods.updateEquity = async function(newEquity) {
   }
   
   // Calculate profit
-  this.currentProfitPercent = ((newEquity - this.phaseStartBalance) / this.phaseStartBalance) * 100
-  this.totalProfitLoss = newEquity - this.initialBalance
+  this.currentProfitPercent = ((flooredEquity - this.phaseStartBalance) / this.phaseStartBalance) * 100
+  this.totalProfitLoss = flooredEquity - this.initialBalance
   
   this.updatedAt = new Date()
   await this.save()

@@ -309,8 +309,11 @@ router.post('/close', async (req, res) => {
       claimed.realizedPnl = pnl
       await claimed.save()
 
-      // Update challenge account (runs exactly once thanks to the atomic claim)
-      await propTradingEngine.onTradeClosed(challengeAccount._id, claimed, pnl)
+      // Update challenge account (runs exactly once thanks to the atomic
+      // claim). Pass the live priceCache — if this close triggers a stop-out
+      // or drawdown breach, the engine force-closes the remaining open trades
+      // at current market prices instead of falling back to openPrice.
+      await propTradingEngine.onTradeClosed(challengeAccount._id, claimed, pnl, priceCache)
 
       return res.json({
         success: true,

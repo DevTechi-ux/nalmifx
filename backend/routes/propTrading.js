@@ -340,7 +340,10 @@ router.post('/update-equity', authUser, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Not authorized for this account' })
     }
 
-    const result = await propTradingEngine.updateRealTimeEquity(challengeAccountId, newEquity)
+    // Pass the live priceCache so a breach can force-close any remaining
+    // open trades at current market prices rather than at the open price.
+    const priceCache = req.app.get('priceCache')
+    const result = await propTradingEngine.updateRealTimeEquity(challengeAccountId, newEquity, priceCache)
     
     if (!result) {
       return res.status(404).json({ success: false, message: 'Account not found or not active' })
