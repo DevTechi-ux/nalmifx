@@ -1222,10 +1222,19 @@ class PropTradingEngine {
       ? Math.min(100, (overallLoss / initialBalance) * 100)
       : 0
 
-    // "Profit" here is progress toward the profit target. An account at a
-    // loss has not progressed toward the target — show 0%, not a negative.
-    // (The dollar P&L is still surfaced via balance.profitLoss below.)
-    const rawProfit = ((realTimeEquity - initialBalance) / initialBalance) * 100
+    // "Profit" here is progress toward the *current phase's* profit target,
+    // measured from the balance the phase started at (phaseStartBalance) — NOT
+    // the account's initial balance. When a phase is cleared the engine resets
+    // phaseStartBalance to the equity at that moment (see checkProfitTarget),
+    // so a single big trade that just cleared phase 1 must read 0% toward
+    // phase 2, not its cumulative gain. Reading initialBalance here made phase
+    // 2 falsely display as already complete (e.g. 24.40% / 5%) while the engine
+    // — which uses phaseStartBalance — correctly refused to fund.
+    // An account at a loss has not progressed toward the target — show 0%, not
+    // a negative. (The cumulative dollar P&L is still surfaced via
+    // balance.profitLoss below.)
+    const phaseStartBalance = account.phaseStartBalance || initialBalance
+    const rawProfit = ((realTimeEquity - phaseStartBalance) / phaseStartBalance) * 100
     const realTimeProfit = Math.max(0, rawProfit)
 
     // Calculate target progress
@@ -1235,7 +1244,9 @@ class PropTradingEngine {
     } else if (account.currentPhase === 2) {
       targetPercent = rules.profitTargetPhase2Percent || 5
     }
-    const targetProgress = Math.min(100, (realTimeProfit / targetPercent) * 100)
+    const targetProgress = targetPercent > 0
+      ? Math.min(100, (realTimeProfit / targetPercent) * 100)
+      : 0
 
     return {
       account: {
@@ -1265,7 +1276,9 @@ class PropTradingEngine {
         currentPercent: realTimeProfit,
         targetPercent,
         targetProgress,
-        amountToTarget: (targetPercent / 100) * account.phaseStartBalance - (account.totalProfitLoss + floatingPnl)
+        // Dollars still needed to hit the current phase's target, measured from
+        // this phase's starting balance (consistent with realTimeProfit above).
+        amountToTarget: Math.max(0, (targetPercent / 100) * phaseStartBalance - (realTimeEquity - phaseStartBalance))
       },
       trades: {
         today: account.tradesToday,
