@@ -53,6 +53,11 @@ const AdminForexCharges = () => {
   // Multi-select for bulk delete (shared across all three sections, keyed by charge _id)
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  // Live instrument catalogue from the Instruments collection — replaces the
+  // previously hardcoded 10-pair dropdown so exotics like USDTHB / USDRUB /
+  // USOIL / NGAS / COPPER (which exist on the trading screen) are reachable
+  // from the charges modals.
+  const [instruments, setInstruments] = useState([])
 
   const toggleSelect = (id) => {
     setSelectedIds(prev => {
@@ -108,7 +113,54 @@ const AdminForexCharges = () => {
     fetchUsers()
     fetchAccountTypes()
     fetchInrRate()
+    fetchInstruments()
   }, [])
+
+  // Build the <optgroup>/<option> tree for the Instrument selects from the
+  // live Instrument collection, grouped by segment in a stable order.
+  // Filters by `filterSegment` when one is set on the form. This replaces
+  // the previously hardcoded 10-pair Forex list, so exotics like USDTHB /
+  // USDRUB / USOIL / NGAS / COPPER are now reachable from every modal.
+  const renderInstrumentOptions = (filterSegment) => {
+    const SEGMENT_ORDER = ['Forex', 'Metals', 'Crypto', 'Indices', 'Stocks', 'Commodities', 'Energy']
+    const grouped = instruments.reduce((acc, inst) => {
+      const seg = inst.segment || 'Other'
+      if (!acc[seg]) acc[seg] = []
+      acc[seg].push(inst)
+      return acc
+    }, {})
+    const segs = [
+      ...SEGMENT_ORDER.filter(s => grouped[s]),
+      ...Object.keys(grouped).filter(s => !SEGMENT_ORDER.includes(s)).sort()
+    ]
+    return segs
+      .filter(seg => !filterSegment || seg === filterSegment)
+      .map(seg => (
+        <optgroup key={seg} label={seg}>
+          {grouped[seg]
+            .slice()
+            .sort((a, b) => (a.symbol || '').localeCompare(b.symbol || ''))
+            .map(inst => (
+              <option key={inst.symbol} value={inst.symbol}>
+                {inst.symbol}{inst.name && inst.name !== inst.symbol ? ` (${inst.name})` : ''}
+              </option>
+            ))}
+        </optgroup>
+      ))
+  }
+
+  const fetchInstruments = async () => {
+    try {
+      // Same Instrument collection AdminInstruments manages. Auth required
+      // (route is behind authAny) so we use adminFetch.
+      const res = await adminFetch(`${API_URL}/instruments`)
+      const data = await res.json()
+      const list = Array.isArray(data) ? data : (data.instruments || [])
+      setInstruments(list)
+    } catch (error) {
+      console.error('Error fetching instruments:', error)
+    }
+  }
 
   const fetchInrRate = async () => {
     try {
@@ -199,15 +251,31 @@ const AdminForexCharges = () => {
 
   const handleSave = async () => {
     try {
-      const url = editingCharge 
+      const url = editingCharge
         ? `${API_URL}/charges/${editingCharge._id}`
         : `${API_URL}/charges`
       const method = editingCharge ? 'PUT' : 'POST'
 
+      // Coerce numeric form fields here, not on every keystroke. Doing it
+      // mid-typing snapped the field back to 0 whenever the user typed a
+      // partial decimal ("1.") or cleared it, leaving arrow keys as the
+      // only way to change the value.
+      const toNum = (v) => {
+        const n = parseFloat(v)
+        return Number.isFinite(n) ? n : 0
+      }
+      const payload = {
+        ...form,
+        commissionValue: toNum(form.commissionValue),
+        spreadValue: toNum(form.spreadValue),
+        swapLong: toNum(form.swapLong),
+        swapShort: toNum(form.swapShort)
+      }
+
       const res = await adminFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify(payload)
       })
       const data = await res.json()
       if (data.success) {
@@ -574,41 +642,7 @@ const AdminForexCharges = () => {
                 <label className="block text-gray-400 text-xs mb-1">3. Instrument <span className="text-gray-600">(optional{form.segment ? ` - showing ${form.segment} only` : ''})</span></label>
                 <select value={form.instrumentSymbol} onChange={(e) => setForm({ ...form, instrumentSymbol: e.target.value, level: e.target.value ? 'INSTRUMENT' : (form.accountTypeId ? 'ACCOUNT_TYPE' : (form.segment ? 'SEGMENT' : 'GLOBAL')) })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm">
                   <option value="">All Instruments</option>
-                  {(!form.segment || form.segment === 'Forex') && (
-                    <optgroup label="Forex">
-                      <option value="EURUSD">EURUSD</option>
-                      <option value="GBPUSD">GBPUSD</option>
-                      <option value="USDJPY">USDJPY</option>
-                      <option value="USDCHF">USDCHF</option>
-                      <option value="AUDUSD">AUDUSD</option>
-                      <option value="NZDUSD">NZDUSD</option>
-                      <option value="USDCAD">USDCAD</option>
-                      <option value="EURGBP">EURGBP</option>
-                      <option value="EURJPY">EURJPY</option>
-                      <option value="GBPJPY">GBPJPY</option>
-                    </optgroup>
-                  )}
-                  {(!form.segment || form.segment === 'Metals') && (
-                    <optgroup label="Metals">
-                      <option value="XAUUSD">XAUUSD (Gold)</option>
-                      <option value="XAGUSD">XAGUSD (Silver)</option>
-                    </optgroup>
-                  )}
-                  {(!form.segment || form.segment === 'Crypto') && (
-                    <optgroup label="Crypto">
-                      <option value="BTCUSD">BTCUSD</option>
-                      <option value="ETHUSD">ETHUSD</option>
-                      <option value="LTCUSD">LTCUSD</option>
-                      <option value="XRPUSD">XRPUSD</option>
-                    </optgroup>
-                  )}
-                  {(!form.segment || form.segment === 'Indices') && (
-                    <optgroup label="Indices">
-                      <option value="US30">US30 (Dow Jones)</option>
-                      <option value="US500">US500 (S&P 500)</option>
-                      <option value="NAS100">NAS100 (Nasdaq)</option>
-                    </optgroup>
-                  )}
+                  {renderInstrumentOptions(form.segment)}
                 </select>
               </div>
 
@@ -678,7 +712,7 @@ const AdminForexCharges = () => {
                 </div>
                 <div>
                   <label className="block text-gray-400 text-xs mb-1">Value</label>
-                  <input type="number" step="0.01" value={form.commissionValue} onChange={(e) => setForm({ ...form, commissionValue: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm" placeholder="0" />
+                  <input type="number" step="0.01" value={form.commissionValue} onChange={(e) => setForm({ ...form, commissionValue: e.target.value })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm" placeholder="0" />
                 </div>
               </div>
               
@@ -745,41 +779,7 @@ const AdminForexCharges = () => {
                 <label className="block text-gray-400 text-xs mb-1">3. Instrument <span className="text-gray-600">(optional{form.segment ? ` - showing ${form.segment} only` : ''})</span></label>
                 <select value={form.instrumentSymbol} onChange={(e) => setForm({ ...form, instrumentSymbol: e.target.value, level: e.target.value ? 'INSTRUMENT' : (form.accountTypeId ? 'ACCOUNT_TYPE' : (form.segment ? 'SEGMENT' : 'GLOBAL')) })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm">
                   <option value="">All Instruments</option>
-                  {(!form.segment || form.segment === 'Forex') && (
-                    <optgroup label="Forex">
-                      <option value="EURUSD">EURUSD</option>
-                      <option value="GBPUSD">GBPUSD</option>
-                      <option value="USDJPY">USDJPY</option>
-                      <option value="USDCHF">USDCHF</option>
-                      <option value="AUDUSD">AUDUSD</option>
-                      <option value="NZDUSD">NZDUSD</option>
-                      <option value="USDCAD">USDCAD</option>
-                      <option value="EURGBP">EURGBP</option>
-                      <option value="EURJPY">EURJPY</option>
-                      <option value="GBPJPY">GBPJPY</option>
-                    </optgroup>
-                  )}
-                  {(!form.segment || form.segment === 'Metals') && (
-                    <optgroup label="Metals">
-                      <option value="XAUUSD">XAUUSD (Gold)</option>
-                      <option value="XAGUSD">XAGUSD (Silver)</option>
-                    </optgroup>
-                  )}
-                  {(!form.segment || form.segment === 'Crypto') && (
-                    <optgroup label="Crypto">
-                      <option value="BTCUSD">BTCUSD</option>
-                      <option value="ETHUSD">ETHUSD</option>
-                      <option value="LTCUSD">LTCUSD</option>
-                      <option value="XRPUSD">XRPUSD</option>
-                    </optgroup>
-                  )}
-                  {(!form.segment || form.segment === 'Indices') && (
-                    <optgroup label="Indices">
-                      <option value="US30">US30 (Dow Jones)</option>
-                      <option value="US500">US500 (S&P 500)</option>
-                      <option value="NAS100">NAS100 (Nasdaq)</option>
-                    </optgroup>
-                  )}
+                  {renderInstrumentOptions(form.segment)}
                 </select>
               </div>
 
@@ -846,7 +846,7 @@ const AdminForexCharges = () => {
                 </div>
                 <div>
                   <label className="block text-gray-400 text-xs mb-1">Spread Value</label>
-                  <input type="number" step="0.01" value={form.spreadValue} onChange={(e) => setForm({ ...form, spreadValue: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm" placeholder="0" />
+                  <input type="number" step="0.01" value={form.spreadValue} onChange={(e) => setForm({ ...form, spreadValue: e.target.value })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm" placeholder="0" />
                 </div>
               </div>
               
@@ -896,41 +896,7 @@ const AdminForexCharges = () => {
                 <label className="block text-gray-400 text-xs mb-1">3. Instrument <span className="text-gray-600">(optional{form.segment ? ` - showing ${form.segment} only` : ''})</span></label>
                 <select value={form.instrumentSymbol} onChange={(e) => setForm({ ...form, instrumentSymbol: e.target.value, level: e.target.value ? 'INSTRUMENT' : (form.accountTypeId ? 'ACCOUNT_TYPE' : (form.segment ? 'SEGMENT' : 'GLOBAL')) })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm">
                   <option value="">All Instruments</option>
-                  {(!form.segment || form.segment === 'Forex') && (
-                    <optgroup label="Forex">
-                      <option value="EURUSD">EURUSD</option>
-                      <option value="GBPUSD">GBPUSD</option>
-                      <option value="USDJPY">USDJPY</option>
-                      <option value="USDCHF">USDCHF</option>
-                      <option value="AUDUSD">AUDUSD</option>
-                      <option value="NZDUSD">NZDUSD</option>
-                      <option value="USDCAD">USDCAD</option>
-                      <option value="EURGBP">EURGBP</option>
-                      <option value="EURJPY">EURJPY</option>
-                      <option value="GBPJPY">GBPJPY</option>
-                    </optgroup>
-                  )}
-                  {(!form.segment || form.segment === 'Metals') && (
-                    <optgroup label="Metals">
-                      <option value="XAUUSD">XAUUSD (Gold)</option>
-                      <option value="XAGUSD">XAGUSD (Silver)</option>
-                    </optgroup>
-                  )}
-                  {(!form.segment || form.segment === 'Crypto') && (
-                    <optgroup label="Crypto">
-                      <option value="BTCUSD">BTCUSD</option>
-                      <option value="ETHUSD">ETHUSD</option>
-                      <option value="LTCUSD">LTCUSD</option>
-                      <option value="XRPUSD">XRPUSD</option>
-                    </optgroup>
-                  )}
-                  {(!form.segment || form.segment === 'Indices') && (
-                    <optgroup label="Indices">
-                      <option value="US30">US30 (Dow Jones)</option>
-                      <option value="US500">US500 (S&P 500)</option>
-                      <option value="NAS100">NAS100 (Nasdaq)</option>
-                    </optgroup>
-                  )}
+                  {renderInstrumentOptions(form.segment)}
                 </select>
               </div>
 
@@ -990,11 +956,11 @@ const AdminForexCharges = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-gray-400 text-xs mb-1">Swap Long (points)</label>
-                  <input type="number" step="0.01" value={form.swapLong} onChange={(e) => setForm({ ...form, swapLong: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm" placeholder="0" />
+                  <input type="number" step="0.01" value={form.swapLong} onChange={(e) => setForm({ ...form, swapLong: e.target.value })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm" placeholder="0" />
                 </div>
                 <div>
                   <label className="block text-gray-400 text-xs mb-1">Swap Short (points)</label>
-                  <input type="number" step="0.01" value={form.swapShort} onChange={(e) => setForm({ ...form, swapShort: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm" placeholder="0" />
+                  <input type="number" step="0.01" value={form.swapShort} onChange={(e) => setForm({ ...form, swapShort: e.target.value })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm" placeholder="0" />
                 </div>
               </div>
               
@@ -1027,7 +993,7 @@ const AdminForexCharges = () => {
                   step="0.01"
                   min="0"
                   value={bulkSpread.value}
-                  onChange={(e) => setBulkSpread({ ...bulkSpread, value: parseFloat(e.target.value) || 0 })}
+                  onChange={(e) => setBulkSpread({ ...bulkSpread, value: e.target.value })}
                   className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm"
                 />
               </div>
