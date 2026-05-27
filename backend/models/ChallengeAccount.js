@@ -283,8 +283,14 @@ challengeAccountSchema.methods.updateEquity = async function(newEquity) {
     this.maxOverallDrawdownHit = overallDD
   }
   
-  // Calculate profit
-  this.currentProfitPercent = ((flooredEquity - this.phaseStartBalance) / this.phaseStartBalance) * 100
+  // Calculate profit toward the current phase's target.
+  // The GAIN is measured from where the phase started (phaseStartBalance, which
+  // moves up after each cleared phase), but it is expressed as a percentage of
+  // the ORIGINAL account size (initialBalance). This makes every phase's target
+  // a fixed dollar amount — e.g. phase 2's 5% target is always 5% of $5,000
+  // ($250), never 5% of the carried-forward balance. Phase 1 is unaffected
+  // because for phase 1 phaseStartBalance === initialBalance.
+  this.currentProfitPercent = ((flooredEquity - this.phaseStartBalance) / this.initialBalance) * 100
   this.totalProfitLoss = flooredEquity - this.initialBalance
   
   this.updatedAt = new Date()

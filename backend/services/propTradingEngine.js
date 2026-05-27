@@ -1233,8 +1233,13 @@ class PropTradingEngine {
     // An account at a loss has not progressed toward the target — show 0%, not
     // a negative. (The cumulative dollar P&L is still surfaced via
     // balance.profitLoss below.)
+    // Gain is measured from where the current phase started (phaseStartBalance),
+    // but expressed as a percentage of the ORIGINAL account size (initialBalance)
+    // so every phase's target is a fixed dollar amount — phase 2's 5% is always
+    // 5% of $5,000 ($250), not 5% of the carried-forward $6,220. Mirrors
+    // ChallengeAccount.updateEquity so display and engine agree.
     const phaseStartBalance = account.phaseStartBalance || initialBalance
-    const rawProfit = ((realTimeEquity - phaseStartBalance) / phaseStartBalance) * 100
+    const rawProfit = ((realTimeEquity - phaseStartBalance) / initialBalance) * 100
     const realTimeProfit = Math.max(0, rawProfit)
 
     // Calculate target progress
@@ -1276,9 +1281,13 @@ class PropTradingEngine {
         currentPercent: realTimeProfit,
         targetPercent,
         targetProgress,
-        // Dollars still needed to hit the current phase's target, measured from
-        // this phase's starting balance (consistent with realTimeProfit above).
-        amountToTarget: Math.max(0, (targetPercent / 100) * phaseStartBalance - (realTimeEquity - phaseStartBalance))
+        // Target gain for the current phase, in dollars — always a percentage
+        // of the ORIGINAL account size (e.g. 5% of $5,000 = $250), never of the
+        // carried-forward balance.
+        targetAmount: (targetPercent / 100) * initialBalance,
+        // Dollars still needed to hit the current phase's target: the fixed
+        // target amount minus the gain made since this phase started.
+        amountToTarget: Math.max(0, (targetPercent / 100) * initialBalance - (realTimeEquity - phaseStartBalance))
       },
       trades: {
         today: account.tradesToday,

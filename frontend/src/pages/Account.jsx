@@ -788,18 +788,51 @@ const Account = () => {
                           <p className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>${(account.currentBalance || 0).toLocaleString()}</p>
                           <p className="text-gray-500 text-sm">Balance</p>
                         </div>
-                        <div className="grid grid-cols-2 gap-3 text-sm">
-                          <div className={`rounded-lg p-2 text-center ${isDarkMode ? 'bg-dark-700' : 'bg-gray-100'}`}>
-                            <p className="text-gray-400 text-xs">Profit</p>
-                            <p className={`font-medium ${account.currentProfitPercent >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                              {account.currentProfitPercent >= 0 ? '+' : ''}{(account.currentProfitPercent || 0).toFixed(2)}%
-                            </p>
-                          </div>
-                          <div className={`rounded-lg p-2 text-center ${isDarkMode ? 'bg-dark-700' : 'bg-gray-100'}`}>
-                            <p className="text-gray-400 text-xs">Daily DD</p>
-                            <p className="text-red-500 font-medium">{(account.currentDailyDrawdownPercent || 0).toFixed(2)}%</p>
-                          </div>
-                        </div>
+                        {(() => {
+                          const targetPct = account.targetPercent || (account.currentPhase === 1 ? 8 : 5)
+                          const profitPct = Math.max(0, account.currentProfitPercent || 0)
+                          const dailyMax = account.challengeId?.rules?.maxDailyDrawdownPercent || 5
+                          const overallMax = account.challengeId?.rules?.maxOverallDrawdownPercent || 10
+                          const dailyDD = account.currentDailyDrawdownPercent || 0
+                          const overallDD = account.currentOverallDrawdownPercent || 0
+                          const trackClass = isDarkMode ? 'bg-dark-700' : 'bg-gray-200'
+                          const labelClass = isDarkMode ? 'text-white' : 'text-gray-900'
+                          const ddColor = (used, max) => used >= max * 0.8 ? 'bg-red-500' : used >= max * 0.5 ? 'bg-yellow-500' : 'bg-green-500'
+                          return (
+                            <div className="space-y-3">
+                              {/* Profit target */}
+                              <div>
+                                <div className="flex justify-between text-xs mb-1">
+                                  <span className="text-gray-400">Profit Target</span>
+                                  <span className={labelClass}>{profitPct.toFixed(2)}% / {targetPct}%</span>
+                                </div>
+                                <div className={`h-2 rounded-full overflow-hidden ${trackClass}`}>
+                                  <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${targetPct > 0 ? Math.min(100, (profitPct / targetPct) * 100) : 0}%` }} />
+                                </div>
+                              </div>
+                              {/* Daily drawdown */}
+                              <div>
+                                <div className="flex justify-between text-xs mb-1">
+                                  <span className="text-gray-400">Daily Drawdown</span>
+                                  <span className={labelClass}>{dailyDD.toFixed(2)}% / {dailyMax}%</span>
+                                </div>
+                                <div className={`h-2 rounded-full overflow-hidden ${trackClass}`}>
+                                  <div className={`h-full rounded-full transition-all ${ddColor(dailyDD, dailyMax)}`} style={{ width: `${dailyMax > 0 ? Math.min(100, (dailyDD / dailyMax) * 100) : 0}%` }} />
+                                </div>
+                              </div>
+                              {/* Total (overall) drawdown */}
+                              <div>
+                                <div className="flex justify-between text-xs mb-1">
+                                  <span className="text-gray-400">Total Drawdown</span>
+                                  <span className={labelClass}>{overallDD.toFixed(2)}% / {overallMax}%</span>
+                                </div>
+                                <div className={`h-2 rounded-full overflow-hidden ${trackClass}`}>
+                                  <div className={`h-full rounded-full transition-all ${ddColor(overallDD, overallMax)}`} style={{ width: `${overallMax > 0 ? Math.min(100, (overallDD / overallMax) * 100) : 0}%` }} />
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })()}
                       </div>
 
                       {/* Card Footer - Actions */}

@@ -411,7 +411,7 @@ export default function ChallengeDashboardPage() {
                     <div className="mt-4 p-3 bg-dark-700 rounded-lg">
                       <p className="text-gray-400 text-sm">Target Amount</p>
                       <p className="text-xl font-bold text-green-500">
-                        ${((dashboard.profit.targetPercent / 100) * dashboard.balance.initial).toLocaleString()}
+                        ${(dashboard.profit.targetAmount ?? (dashboard.profit.targetPercent / 100) * dashboard.balance.initial).toLocaleString()}
                       </p>
                     </div>
                   </>

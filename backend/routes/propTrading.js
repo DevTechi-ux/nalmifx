@@ -234,15 +234,28 @@ router.get('/my-accounts/:userId', authUser, async (req, res) => {
       const overallLoss = initialBalance - lowestEquity
       const realTimeOverallDD = overallLoss > 0 ? (overallLoss / initialBalance) * 100 : 0
       
-      // Profit = (currentEquity - initialBalance) / initialBalance * 100
-      const realTimeProfit = ((realTimeEquity - initialBalance) / initialBalance) * 100
-      
+      // Profit toward the current phase's target: the gain made since this
+      // phase started (phaseStartBalance, which moves up after each cleared
+      // phase) expressed as a % of the ORIGINAL account size. This keeps the
+      // card consistent with the engine — a single trade that cleared phase 1
+      // reads 0% toward phase 2, and each phase target stays a fixed % of the
+      // initial balance (e.g. phase 2's 5% = 5% of $5,000).
+      const phaseStartBalance = account.phaseStartBalance || initialBalance
+      const realTimeProfit = ((realTimeEquity - phaseStartBalance) / initialBalance) * 100
+
+      // The current phase's profit-target percentage (phase 1 vs phase 2).
+      const rules = account.challengeId?.rules || {}
+      const targetPercent = account.currentPhase === 1
+        ? (rules.profitTargetPhase1Percent || 8)
+        : (rules.profitTargetPhase2Percent || 5)
+
       return {
         ...accountObj,
         currentEquity: realTimeEquity,
         currentDailyDrawdownPercent: Math.round(realTimeDailyDD * 100) / 100,
         currentOverallDrawdownPercent: Math.round(realTimeOverallDD * 100) / 100,
         currentProfitPercent: Math.round(realTimeProfit * 100) / 100,
+        targetPercent,
         floatingPnl: Math.round(floatingPnl * 100) / 100
       }
     }))
