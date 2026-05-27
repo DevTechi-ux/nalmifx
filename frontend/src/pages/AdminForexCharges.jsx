@@ -58,6 +58,11 @@ const AdminForexCharges = () => {
   // USOIL / NGAS / COPPER (which exist on the trading screen) are reachable
   // from the charges modals.
   const [instruments, setInstruments] = useState([])
+  // Search-driven instrument picker (used by the Spread modal — replaces
+  // the long native <select> so admins can type "usdthb" instead of
+  // scrolling through 60+ symbols).
+  const [instrumentSearch, setInstrumentSearch] = useState('')
+  const [showInstrumentDropdown, setShowInstrumentDropdown] = useState(false)
 
   const toggleSelect = (id) => {
     setSelectedIds(prev => {
@@ -361,6 +366,8 @@ const AdminForexCharges = () => {
     setSelectedUser(null)
     setSelectedAccountType(null)
     setUserSearch('')
+    setInstrumentSearch('')
+    setShowInstrumentDropdown(false)
   }
 
   const selectUser = (user) => {
@@ -774,13 +781,88 @@ const AdminForexCharges = () => {
                 </select>
               </div>
 
-              {/* Step 3: Instrument - Filtered by Segment */}
+              {/* Step 3: Instrument — searchable picker (replaces native select
+                  so admins can type "usdthb" instead of scrolling 60+ symbols). */}
               <div>
                 <label className="block text-gray-400 text-xs mb-1">3. Instrument <span className="text-gray-600">(optional{form.segment ? ` - showing ${form.segment} only` : ''})</span></label>
-                <select value={form.instrumentSymbol} onChange={(e) => setForm({ ...form, instrumentSymbol: e.target.value, level: e.target.value ? 'INSTRUMENT' : (form.accountTypeId ? 'ACCOUNT_TYPE' : (form.segment ? 'SEGMENT' : 'GLOBAL')) })} className="w-full px-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm">
-                  <option value="">All Instruments</option>
-                  {renderInstrumentOptions(form.segment)}
-                </select>
+                {form.instrumentSymbol ? (
+                  <div className="flex items-center justify-between p-2 bg-dark-700 border border-gray-600 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">{form.instrumentSymbol.slice(0, 3)}</div>
+                      <div>
+                        <p className="text-white text-sm font-medium">{form.instrumentSymbol}</p>
+                        {(() => {
+                          const inst = instruments.find(i => i.symbol === form.instrumentSymbol)
+                          return inst ? <p className="text-gray-500 text-xs">{inst.segment}{inst.name && inst.name !== inst.symbol ? ` · ${inst.name}` : ''}</p> : null
+                        })()}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setForm({ ...form, instrumentSymbol: '', level: form.userId ? 'USER' : form.accountTypeId ? 'ACCOUNT_TYPE' : form.segment ? 'SEGMENT' : 'GLOBAL' })
+                        setInstrumentSearch('')
+                      }}
+                      className="text-gray-400 hover:text-white"
+                    ><X size={16} /></button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                    <input
+                      type="text"
+                      placeholder="Search instrument (e.g. USDTHB, XAUUSD, USOIL)…"
+                      value={instrumentSearch}
+                      onChange={(e) => { setInstrumentSearch(e.target.value); setShowInstrumentDropdown(true) }}
+                      onFocus={() => setShowInstrumentDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowInstrumentDropdown(false), 150)}
+                      className="w-full pl-9 pr-3 py-2 bg-dark-700 border border-gray-600 rounded-lg text-white text-sm"
+                    />
+                    {showInstrumentDropdown && (() => {
+                      const q = instrumentSearch.trim().toLowerCase()
+                      // Honor the segment filter chosen in step 2, then narrow
+                      // by case-insensitive substring on symbol OR name.
+                      const matches = instruments
+                        .filter(inst => !form.segment || inst.segment === form.segment)
+                        .filter(inst => !q
+                          || inst.symbol?.toLowerCase().includes(q)
+                          || inst.name?.toLowerCase().includes(q))
+                        .slice()
+                        .sort((a, b) => (a.symbol || '').localeCompare(b.symbol || ''))
+                      return (
+                        <div className="absolute z-10 w-full mt-1 bg-dark-700 border border-gray-600 rounded-lg max-h-60 overflow-y-auto">
+                          {matches.length === 0 ? (
+                            <p className="p-3 text-gray-500 text-sm">
+                              {instruments.length === 0
+                                ? 'No instruments loaded. Add some in Admin → Instruments.'
+                                : `No instrument matches "${instrumentSearch}".`}
+                            </p>
+                          ) : (
+                            matches.slice(0, 50).map(inst => (
+                              <button
+                                key={inst.symbol}
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => {
+                                  setForm({ ...form, instrumentSymbol: inst.symbol, level: 'INSTRUMENT' })
+                                  setInstrumentSearch('')
+                                  setShowInstrumentDropdown(false)
+                                }}
+                                className="w-full flex items-center justify-between gap-2 p-2 hover:bg-dark-600 text-left border-b border-gray-700/50 last:border-b-0"
+                              >
+                                <div className="flex flex-col">
+                                  <span className="text-white text-sm font-medium">{inst.symbol}</span>
+                                  {inst.name && inst.name !== inst.symbol && (
+                                    <span className="text-gray-500 text-xs">{inst.name}</span>
+                                  )}
+                                </div>
+                                <span className="text-gray-500 text-xs px-2 py-0.5 bg-dark-600 rounded">{inst.segment}</span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )
+                    })()}
+                  </div>
+                )}
               </div>
 
               {/* Step 4: User Override (Optional) */}
