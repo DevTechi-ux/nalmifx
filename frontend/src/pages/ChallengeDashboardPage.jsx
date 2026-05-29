@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Trophy, Target, TrendingUp, TrendingDown, Clock, AlertTriangle,
   ChevronRight, Activity, BarChart3, Shield, Calendar, XCircle,
-  CheckCircle, AlertCircle, RefreshCw, Wallet, DollarSign, Lock
+  CheckCircle, AlertCircle, RefreshCw, Wallet, DollarSign, Lock, ArrowLeft
 } from 'lucide-react'
 import { API_URL } from '../config/api'
 
@@ -164,17 +164,26 @@ export default function ChallengeDashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-dark-900 p-4 lg:p-8">
+    <div className="min-h-screen bg-dark-900 p-3 sm:p-4 lg:p-8">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-white">Challenge Dashboard</h1>
-            <p className="text-gray-400">Monitor your prop trading progress</p>
+        <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <button
+              onClick={() => navigate('/account')}
+              aria-label="Back to accounts"
+              className="flex items-center justify-center w-9 h-9 rounded-lg bg-dark-800 hover:bg-dark-700 text-gray-400 hover:text-white transition-colors shrink-0"
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold text-white truncate">Challenge Dashboard</h1>
+              <p className="text-gray-400 text-xs sm:text-sm truncate">Monitor your prop trading progress</p>
+            </div>
           </div>
           <button
             onClick={() => navigate('/buy-challenge')}
-            className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
+            className="px-3 sm:px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-lg transition-colors flex items-center gap-2 text-sm sm:text-base"
           >
             <Trophy size={18} />
             New Challenge
@@ -230,16 +239,16 @@ export default function ChallengeDashboardPage() {
             )}
 
             {dashboard.account.status === 'FUNDED' && fundedInfo && (
-              <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-5 mb-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <Trophy size={24} className="text-purple-500" />
-                    <div>
+              <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4 sm:p-5 mb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Trophy size={24} className="text-purple-500 shrink-0" />
+                    <div className="min-w-0">
                       <p className="text-purple-500 font-bold text-lg">Funded Account</p>
-                      <p className="text-gray-400 text-sm">Trade with real capital. Withdraw your profits anytime.</p>
+                      <p className="text-gray-400 text-xs sm:text-sm">Trade with real capital. Withdraw your profits anytime.</p>
                     </div>
                   </div>
-                  <span className="px-3 py-1 bg-purple-500/20 text-purple-500 rounded-full text-sm font-medium">
+                  <span className="self-start sm:self-auto px-3 py-1 bg-purple-500/20 text-purple-500 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap">
                     {fundedInfo.profitSplitPercent}% Profit Split
                   </span>
                 </div>
@@ -275,7 +284,7 @@ export default function ChallengeDashboardPage() {
                     <p className="text-white font-bold">${(fundedInfo.totalWithdrawn || 0).toFixed(2)}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <button
                     onClick={() => { setWithdrawAmount(''); setShowWithdrawModal(true) }}
                     disabled={!fundedInfo.canWithdraw || fundedInfo.withdrawableAmount <= 0}
@@ -532,7 +541,7 @@ export default function ChallengeDashboardPage() {
             {(dashboard.account.status === 'ACTIVE' || dashboard.account.status === 'FUNDED') && (
               <div className="mt-6">
                 <button
-                  onClick={() => navigate('/trading')}
+                  onClick={() => navigate(`/trade/${dashboard.account._id}?type=challenge`)}
                   className="w-full py-4 bg-primary-500 hover:bg-primary-600 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
                 >
                   <TrendingUp size={20} />

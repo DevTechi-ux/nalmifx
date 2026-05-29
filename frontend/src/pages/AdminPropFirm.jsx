@@ -234,7 +234,10 @@ const AdminPropFirm = () => {
         : `${API_URL}/prop/admin/challenges`
       const method = editingChallenge ? 'PUT' : 'POST'
       
-      const res = await fetch(url, {
+      // Must be adminFetch, NOT plain fetch — adminFetch attaches the admin
+      // Authorization header that the /admin/challenges PUT|POST handler
+      // requires. Using plain fetch sent no token and the backend returned 401.
+      const res = await adminFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(challengeForm)
