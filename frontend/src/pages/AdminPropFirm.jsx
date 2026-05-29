@@ -857,7 +857,23 @@ const AdminPropFirm = () => {
                     <label className="block text-gray-400 text-sm mb-2">Challenge Type</label>
                     <select
                       value={challengeForm.stepsCount}
-                      onChange={(e) => setChallengeForm({...challengeForm, stepsCount: parseInt(e.target.value)})}
+                      onChange={(e) => {
+                        const newStepsCount = parseInt(e.target.value)
+                        // Clear targets that no longer apply so persisted data
+                        // doesn't carry stale phase numbers — otherwise a 1-step
+                        // challenge with a leftover Phase 2 Target value can
+                        // surface that value on funded-account cards via the
+                        // /my-accounts fallback.
+                        setChallengeForm(prev => ({
+                          ...prev,
+                          stepsCount: newStepsCount,
+                          rules: {
+                            ...prev.rules,
+                            profitTargetPhase1Percent: newStepsCount >= 1 ? prev.rules.profitTargetPhase1Percent : 0,
+                            profitTargetPhase2Percent: newStepsCount >= 2 ? prev.rules.profitTargetPhase2Percent : 0,
+                          }
+                        }))
+                      }}
                       className="w-full bg-dark-600 border border-gray-600 rounded-lg px-4 py-3 text-white"
                     >
                       <option value={0}>Instant Fund (0-Step)</option>
@@ -908,25 +924,28 @@ const AdminPropFirm = () => {
                       className="w-full bg-dark-600 border border-gray-600 rounded-lg px-4 py-3 text-white"
                     />
                   </div>
-                  <div>
-                    <label className="block text-gray-400 text-sm mb-2">Phase 1 Target %</label>
-                    <input
-                      type="number"
-                      value={challengeForm.rules.profitTargetPhase1Percent}
-                      onChange={(e) => updateFormRules('profitTargetPhase1Percent', parseFloat(e.target.value) || 0)}
-                      className="w-full bg-dark-600 border border-gray-600 rounded-lg px-4 py-3 text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-gray-400 text-sm mb-2">Phase 2 Target %</label>
-                    <input
-                      type="number"
-                      value={challengeForm.rules.profitTargetPhase2Percent}
-                      onChange={(e) => updateFormRules('profitTargetPhase2Percent', parseFloat(e.target.value) || 0)}
-                      className="w-full bg-dark-600 border border-gray-600 rounded-lg px-4 py-3 text-white"
-                      disabled={challengeForm.stepsCount < 2}
-                    />
-                  </div>
+                  {challengeForm.stepsCount >= 1 && (
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-2">Phase 1 Target %</label>
+                      <input
+                        type="number"
+                        value={challengeForm.rules.profitTargetPhase1Percent}
+                        onChange={(e) => updateFormRules('profitTargetPhase1Percent', parseFloat(e.target.value) || 0)}
+                        className="w-full bg-dark-600 border border-gray-600 rounded-lg px-4 py-3 text-white"
+                      />
+                    </div>
+                  )}
+                  {challengeForm.stepsCount >= 2 && (
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-2">Phase 2 Target %</label>
+                      <input
+                        type="number"
+                        value={challengeForm.rules.profitTargetPhase2Percent}
+                        onChange={(e) => updateFormRules('profitTargetPhase2Percent', parseFloat(e.target.value) || 0)}
+                        className="w-full bg-dark-600 border border-gray-600 rounded-lg px-4 py-3 text-white"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 

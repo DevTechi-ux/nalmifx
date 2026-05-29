@@ -789,7 +789,11 @@ const Account = () => {
                           <p className="text-gray-500 text-sm">Balance</p>
                         </div>
                         {(() => {
-                          const targetPct = account.targetPercent || (account.currentPhase === 1 ? 8 : 5)
+                          // targetPercent comes from the backend; it is 0 for
+                          // FUNDED/PASSED/FAILED accounts and for phases that
+                          // don't exist on this challenge (e.g. phase 2 on a
+                          // 1-step). When 0, the Profit Target bar is hidden.
+                          const targetPct = account.targetPercent || 0
                           const profitPct = Math.max(0, account.currentProfitPercent || 0)
                           const dailyMax = account.challengeId?.rules?.maxDailyDrawdownPercent || 5
                           const overallMax = account.challengeId?.rules?.maxOverallDrawdownPercent || 10
@@ -800,16 +804,18 @@ const Account = () => {
                           const ddColor = (used, max) => used >= max * 0.8 ? 'bg-red-500' : used >= max * 0.5 ? 'bg-yellow-500' : 'bg-green-500'
                           return (
                             <div className="space-y-3">
-                              {/* Profit target */}
-                              <div>
-                                <div className="flex justify-between text-xs mb-1">
-                                  <span className="text-gray-400">Profit Target</span>
-                                  <span className={labelClass}>{profitPct.toFixed(2)}% / {targetPct}%</span>
+                              {/* Profit target — only shown for active challenge phases */}
+                              {targetPct > 0 && (
+                                <div>
+                                  <div className="flex justify-between text-xs mb-1">
+                                    <span className="text-gray-400">Profit Target</span>
+                                    <span className={labelClass}>{profitPct.toFixed(2)}% / {targetPct}%</span>
+                                  </div>
+                                  <div className={`h-2 rounded-full overflow-hidden ${trackClass}`}>
+                                    <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${Math.min(100, (profitPct / targetPct) * 100)}%` }} />
+                                  </div>
                                 </div>
-                                <div className={`h-2 rounded-full overflow-hidden ${trackClass}`}>
-                                  <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${targetPct > 0 ? Math.min(100, (profitPct / targetPct) * 100) : 0}%` }} />
-                                </div>
-                              </div>
+                              )}
                               {/* Daily drawdown */}
                               <div>
                                 <div className="flex justify-between text-xs mb-1">

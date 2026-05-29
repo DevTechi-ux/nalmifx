@@ -243,11 +243,20 @@ router.get('/my-accounts/:userId', authUser, async (req, res) => {
       const phaseStartBalance = account.phaseStartBalance || initialBalance
       const realTimeProfit = ((realTimeEquity - phaseStartBalance) / initialBalance) * 100
 
-      // The current phase's profit-target percentage (phase 1 vs phase 2).
+      // The current phase's profit-target percentage. Only set for ACTIVE
+      // challenge accounts on a valid phase — funded/passed/failed accounts
+      // have no target to chase, and a 1-step challenge has no phase 2 even if
+      // a stale profitTargetPhase2Percent is sitting in the rules. The card
+      // hides the profit bar when this is 0.
       const rules = account.challengeId?.rules || {}
-      const targetPercent = account.currentPhase === 1
-        ? (rules.profitTargetPhase1Percent || 8)
-        : (rules.profitTargetPhase2Percent || 5)
+      let targetPercent = 0
+      if (account.status === 'ACTIVE') {
+        if (account.currentPhase === 1) {
+          targetPercent = rules.profitTargetPhase1Percent || 8
+        } else if (account.currentPhase === 2 && account.totalPhases >= 2) {
+          targetPercent = rules.profitTargetPhase2Percent || 5
+        }
+      }
 
       return {
         ...accountObj,
