@@ -844,15 +844,25 @@ const Account = () => {
                       {/* Card Footer - Actions */}
                       <div className={`flex border-t ${isDarkMode ? 'border-gray-800' : 'border-gray-200'}`}>
                         {account.status === 'ACTIVE' || account.status === 'FUNDED' ? (
-                          <button
-                            onClick={() => {
-                              setSelectedChallengeAccount(account)
-                              setShowRulesModal(true)
-                            }}
-                            className="flex-1 flex items-center justify-center gap-2 py-3 bg-yellow-500 text-black font-medium hover:bg-yellow-400 transition-colors"
-                          >
-                            <ArrowRight size={16} /> Start Trading
-                          </button>
+                          <>
+                            <button
+                              onClick={() => {
+                                setSelectedChallengeAccount(account)
+                                setShowRulesModal(true)
+                              }}
+                              className="flex-1 flex items-center justify-center gap-2 py-3 bg-yellow-500 text-black font-medium hover:bg-yellow-400 transition-colors"
+                            >
+                              <ArrowRight size={16} /> Start Trading
+                            </button>
+                            {account.status === 'FUNDED' && (
+                              <button
+                                onClick={() => navigate(`/challenge-dashboard?accountId=${account._id}`)}
+                                className={`flex-1 flex items-center justify-center gap-2 py-3 bg-green-500 text-white font-medium hover:bg-green-600 transition-colors border-l ${isDarkMode ? 'border-gray-800' : 'border-gray-200'}`}
+                              >
+                                <ArrowDownLeft size={16} /> Withdraw Profit
+                              </button>
+                            )}
+                          </>
                         ) : (
                           <div className={`flex-1 flex items-center justify-center gap-2 py-3 text-gray-500 ${isDarkMode ? 'bg-dark-700' : 'bg-gray-100'}`}>
                             {account.status === 'PASSED' ? 'Awaiting Funded Account' : account.status}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import userFetch from '../utils/userFetch.js'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Trophy, Target, TrendingUp, TrendingDown, Clock, AlertTriangle,
   ChevronRight, Activity, BarChart3, Shield, Calendar, XCircle,
@@ -10,6 +10,7 @@ import { API_URL } from '../config/api'
 
 export default function ChallengeDashboardPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [accounts, setAccounts] = useState([])
   const [selectedAccount, setSelectedAccount] = useState(null)
   const [dashboard, setDashboard] = useState(null)
@@ -38,7 +39,11 @@ export default function ChallengeDashboardPage() {
       const data = await res.json()
       if (data.success && data.accounts.length > 0) {
         setAccounts(data.accounts)
-        setSelectedAccount(data.accounts[0])
+        // Preselect from ?accountId= so the Account-page "Withdraw Profit"
+        // button lands directly on the right funded account.
+        const wantedId = searchParams.get('accountId')
+        const wanted = wantedId ? data.accounts.find(a => a._id === wantedId) : null
+        setSelectedAccount(wanted || data.accounts[0])
       }
     } catch (error) {
       console.error('Error fetching accounts:', error)

@@ -485,14 +485,20 @@ router.post('/withdraw-profit', authUser, async (req, res) => {
       { new: true, upsert: true }
     )
 
-    // Create transaction record
+    // Create transaction record.
+    // paymentMethod must be one of the Transaction schema enum values — using
+    // anything else (e.g. 'Funded Account') made save() throw ValidationError
+    // *after* the funded balance had already been debited and the wallet
+    // credited, leaving the user with the money but no audit record and a
+    // 500 response. 'Wallet' is the right channel: the funds land in the
+    // user's wallet, not a bank/UPI/USDT rail.
     const transaction = new Transaction({
       userId,
       walletId: wallet._id,
       type: 'Funded_Profit_Withdrawal',
       amount,
       status: 'Approved',
-      paymentMethod: 'Funded Account',
+      paymentMethod: 'Wallet',
       description: `Profit withdrawal from funded account ${account.accountId} (${account.profitSplitPercent}% of $${profit.toFixed(2)} profit)`,
       processedAt: new Date()
     })
