@@ -6,6 +6,7 @@ import Wallet from '../models/Wallet.js'
 import Transaction from '../models/Transaction.js'
 import propTradingEngine from '../services/propTradingEngine.js'
 import { authUser, authAdmin, getScopedUserIds } from '../middleware/auth.js'
+import { resolvePhaseTargetPercent } from '../utils/propDefaults.js'
 
 const router = express.Router()
 
@@ -249,13 +250,12 @@ router.get('/my-accounts/:userId', authUser, async (req, res) => {
       // a stale profitTargetPhase2Percent is sitting in the rules. The card
       // hides the profit bar when this is 0.
       const rules = account.challengeId?.rules || {}
+      // Only ACTIVE accounts on a phase that actually exists chase a target — a
+      // 1-step challenge has no phase 2 even if stale phase-2 rules linger.
       let targetPercent = 0
-      if (account.status === 'ACTIVE') {
-        if (account.currentPhase === 1) {
-          targetPercent = rules.profitTargetPhase1Percent || 8
-        } else if (account.currentPhase === 2 && account.totalPhases >= 2) {
-          targetPercent = rules.profitTargetPhase2Percent || 5
-        }
+      if (account.status === 'ACTIVE' &&
+          (account.currentPhase === 1 || (account.currentPhase === 2 && account.totalPhases >= 2))) {
+        targetPercent = resolvePhaseTargetPercent(rules, account.currentPhase)
       }
 
       return {
@@ -452,6 +452,10 @@ router.post('/withdraw-profit', authUser, async (req, res) => {
     // The amount the user requests is their share, so the total deducted = amount / (profitSplitPercent / 100)
     const totalDeduction = amount / (account.profitSplitPercent / 100)
 
+    // Remember the prior withdrawal date so we can restore it if the wallet
+    // credit / audit record fails and we have to undo the claim below.
+    const previousLastWithdrawalDate = account.lastWithdrawalDate || null
+
     // Atomically claim the withdrawal: only succeeds if (a) the account still
     // has enough balance for the full deduction AND (b) no withdrawal has
     // happened inside the frequency window. This re-checks both conditions at
@@ -478,31 +482,58 @@ router.post('/withdraw-profit', authUser, async (req, res) => {
       })
     }
 
-    // Atomically credit user's wallet
-    const wallet = await Wallet.findOneAndUpdate(
-      { userId },
-      { $inc: { balance: amount } },
-      { new: true, upsert: true }
-    )
+    // The funded account is now debited. Crediting the wallet and writing the
+    // audit record are separate writes — this app also runs on a standalone
+    // mongod (local dev), where multi-document transactions aren't available,
+    // so we can't wrap all three in one ACID transaction. Instead, if either
+    // follow-up write fails we compensate by undoing the debit, so the user
+    // never ends up with funds removed from the funded account and nothing
+    // credited in return (or vice versa).
+    let wallet
+    try {
+      // Credit user's wallet
+      wallet = await Wallet.findOneAndUpdate(
+        { userId },
+        { $inc: { balance: amount } },
+        { new: true, upsert: true }
+      )
 
-    // Create transaction record.
-    // paymentMethod must be one of the Transaction schema enum values — using
-    // anything else (e.g. 'Funded Account') made save() throw ValidationError
-    // *after* the funded balance had already been debited and the wallet
-    // credited, leaving the user with the money but no audit record and a
-    // 500 response. 'Wallet' is the right channel: the funds land in the
-    // user's wallet, not a bank/UPI/USDT rail.
-    const transaction = new Transaction({
-      userId,
-      walletId: wallet._id,
-      type: 'Funded_Profit_Withdrawal',
-      amount,
-      status: 'Approved',
-      paymentMethod: 'Wallet',
-      description: `Profit withdrawal from funded account ${account.accountId} (${account.profitSplitPercent}% of $${profit.toFixed(2)} profit)`,
-      processedAt: new Date()
-    })
-    await transaction.save()
+      // Create transaction record.
+      // paymentMethod must be one of the Transaction schema enum values — using
+      // anything else (e.g. 'Funded Account') made save() throw ValidationError
+      // *after* the funded balance had already been debited and the wallet
+      // credited, leaving the user with the money but no audit record and a
+      // 500 response. 'Wallet' is the right channel: the funds land in the
+      // user's wallet, not a bank/UPI/USDT rail.
+      const transaction = new Transaction({
+        userId,
+        walletId: wallet._id,
+        challengeAccountId: account._id,
+        type: 'Funded_Profit_Withdrawal',
+        amount,
+        status: 'Approved',
+        paymentMethod: 'Wallet',
+        description: `Profit withdrawal from funded account ${account.accountId} (${account.profitSplitPercent}% of $${profit.toFixed(2)} profit)`,
+        processedAt: new Date()
+      })
+      await transaction.save()
+    } catch (creditError) {
+      // Compensate: reverse the funded-account debit and restore the previous
+      // withdrawal date so the frequency window isn't wrongly consumed.
+      await ChallengeAccount.updateOne(
+        { _id: account._id },
+        {
+          $inc: { currentBalance: totalDeduction, currentEquity: totalDeduction, totalWithdrawn: -amount },
+          $set: { lastWithdrawalDate: previousLastWithdrawalDate }
+        }
+      )
+      // If the wallet was already credited but the audit record failed, reverse
+      // the credit too — funds must never exist without a matching record.
+      if (wallet) {
+        await Wallet.updateOne({ userId }, { $inc: { balance: -amount } })
+      }
+      throw creditError
+    }
 
     res.json({
       success: true,

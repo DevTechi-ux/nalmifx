@@ -5,6 +5,7 @@ import Trade from '../models/Trade.js'
 import User from '../models/User.js'
 import Charges from '../models/Charges.js'
 import { sendTemplateEmail } from '../services/emailService.js'
+import { resolvePhaseTargetPercent } from '../utils/propDefaults.js'
 
 class PropTradingEngine {
   constructor() {
@@ -689,15 +690,7 @@ class PropTradingEngine {
       return { targetReached: false }
     }
 
-    let targetPercent = 0
-    if (account.currentPhase === 1) {
-      targetPercent = rules.profitTargetPhase1Percent || 8
-    } else if (account.currentPhase === 2) {
-      targetPercent = rules.profitTargetPhase2Percent || 5
-    } else {
-      // Higher phases (rare, defensive). Fall back to phase-2 target.
-      targetPercent = rules.profitTargetPhase2Percent || 5
-    }
+    const targetPercent = resolvePhaseTargetPercent(rules, account.currentPhase)
 
     if (account.currentProfitPercent >= targetPercent) {
       // Check if any violations
@@ -1063,6 +1056,98 @@ class PropTradingEngine {
     return closedTrades
   }
 
+  // Server-authoritative drawdown sweep.
+  //
+  // Reactive breach checks (onTradeClosed on a realized close, and the
+  // client-driven /api/prop/update-equity while a user sits on the trading
+  // page) leave gaps: an account can end up in a breached state and stay
+  // ACTIVE — e.g. a realized loss whose breach check didn't fire, or a
+  // FLOATING loss on open positions while no browser is pushing equity. The
+  // admin/account view recomputes drawdown live and shows the breach, giving
+  // the "9.56% / 5% but still ACTIVE" discrepancy.
+  //
+  // This runs on the server (see the background interval in server.js) over
+  // EVERY ACTIVE/FUNDED challenge account — including ones with no open trades,
+  // since a realized breach lives entirely in the balance. It is read-only for
+  // healthy accounts (no writes), and only when an account is actually in
+  // breach does it invoke the authoritative updateRealTimeEquity path to fail
+  // it and force-close any open positions. `prices` is a { symbol: {bid, ask} }
+  // map.
+  async checkAllAccountsDrawdown(prices = {}, priceCache = null) {
+    const accounts = await ChallengeAccount.find({
+      status: { $in: ['ACTIVE', 'FUNDED'] }
+    })
+      .populate('challengeId', 'rules')
+      .select('currentBalance initialBalance phaseStartBalance dayStartEquity lowestEquityToday lowestEquityOverall challengeId')
+      .lean()
+    if (accounts.length === 0) return []
+
+    const breached = []
+    for (const acc of accounts) {
+      try {
+        const rules = acc.challengeId?.rules
+        if (!rules) continue
+        const maxDaily = rules.maxDailyDrawdownPercent || 0
+        const maxOverall = rules.maxOverallDrawdownPercent || 0
+        if (maxDaily <= 0 && maxOverall <= 0) continue
+
+        // Sum live floating P&L across this account's open trades (0 if none),
+        // using the same realized-value formula as forceCloseAllOpenTrades so
+        // the equity we breach on matches the balance after a force-close.
+        const openTrades = await Trade.find({
+          tradingAccountId: acc._id,
+          status: 'OPEN'
+        }).lean()
+
+        let floatingPnl = 0
+        for (const trade of openTrades) {
+          const priceData = prices[trade.symbol]
+          if (!priceData) {
+            // No live price for this leg — fall back to its last stored
+            // floating P&L rather than treating it as flat.
+            floatingPnl += trade.floatingPnl || 0
+            continue
+          }
+          const bid = priceData.bid
+          const ask = priceData.ask || priceData.bid
+          const closePrice = trade.side === 'BUY' ? bid : ask
+          const rawPnl = trade.side === 'BUY'
+            ? (closePrice - trade.openPrice) * trade.quantity * trade.contractSize
+            : (trade.openPrice - closePrice) * trade.quantity * trade.contractSize
+          floatingPnl += rawPnl - (trade.commission || 0) - (trade.swap || 0)
+        }
+
+        const equity = acc.currentBalance + floatingPnl
+
+        // Recompute drawdown read-only, mirroring ChallengeAccount.updateEquity
+        // (daily measured from the day's starting equity, overall from the
+        // account's initial balance; both against the lowest equity seen).
+        const initialBalance = acc.initialBalance || acc.phaseStartBalance || equity
+        const dayStart = acc.dayStartEquity || initialBalance
+        const lowestToday = Math.min(acc.lowestEquityToday ?? equity, equity)
+        const lowestOverall = Math.min(acc.lowestEquityOverall ?? initialBalance, equity)
+
+        const dailyDD = dayStart > 0 ? ((dayStart - lowestToday) / dayStart) * 100 : 0
+        const overallDD = initialBalance > 0 ? ((initialBalance - lowestOverall) / initialBalance) * 100 : 0
+
+        const dailyBreach = maxDaily > 0 && dailyDD >= maxDaily
+        const overallBreach = maxOverall > 0 && overallDD >= maxOverall
+        if (!dailyBreach && !overallBreach) continue // healthy — no write
+
+        // Breached: hand off to the authoritative path, which re-validates,
+        // sets status='FAILED', records the violation, and force-closes opens.
+        const result = await this.updateRealTimeEquity(acc._id, equity, priceCache)
+        if (result?.breached) {
+          console.log(`[Prop DD Sweep] Account ${acc._id} failed: ${result.reason}`)
+          breached.push({ accountId: acc._id, reason: result.reason, code: result.code })
+        }
+      } catch (err) {
+        console.error(`[Prop DD Sweep] Error checking account ${acc._id}:`, err.message)
+      }
+    }
+    return breached
+  }
+
   // Track rule violation and fail account if repeated
   async trackRuleViolation(challengeAccountId, ruleCode, description) {
     const account = await ChallengeAccount.findById(challengeAccountId)
@@ -1243,12 +1328,7 @@ class PropTradingEngine {
     const realTimeProfit = Math.max(0, rawProfit)
 
     // Calculate target progress
-    let targetPercent = 0
-    if (account.currentPhase === 1) {
-      targetPercent = rules.profitTargetPhase1Percent || 8
-    } else if (account.currentPhase === 2) {
-      targetPercent = rules.profitTargetPhase2Percent || 5
-    }
+    const targetPercent = resolvePhaseTargetPercent(rules, account.currentPhase)
     const targetProgress = targetPercent > 0
       ? Math.min(100, (realTimeProfit / targetPercent) * 100)
       : 0

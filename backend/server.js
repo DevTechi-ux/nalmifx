@@ -568,6 +568,17 @@ setInterval(async () => {
     if (result.stopOuts && result.stopOuts.length > 0) {
       console.log(`[STOP-OUT] ${result.stopOuts.length} accounts stopped out`)
     }
+
+    // Server-authoritative prop drawdown enforcement. Reactive checks (on trade
+    // close, or the client's /update-equity while on the trading page) leave
+    // gaps, so an account can sit ACTIVE while the admin view shows it breaching
+    // (e.g. 9.56% / 5%). This sweeps EVERY ACTIVE/FUNDED challenge account —
+    // including ones with no open trades (realized breach) — and fails +
+    // force-closes any that have breached. Read-only for healthy accounts.
+    const ddBreached = await propTradingEngine.checkAllAccountsDrawdown(currentPrices, priceCache)
+    if (ddBreached.length > 0) {
+      console.log(`[Prop DD AUTO] ${ddBreached.length} challenge account(s) failed on drawdown breach`)
+    }
   } catch (error) {
     // Silent fail - don't spam logs
   }
