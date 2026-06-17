@@ -551,6 +551,33 @@ fetchInfowayPricesHTTP().then(() => {
 // Start price streaming interval (10ms for near real-time updates)
 setInterval(streamPrices, 10)
 
+// Low-latency prop drawdown enforcement (every 200ms, off the in-memory price
+// cache). The instant an OPEN challenge/funded trade's live floating loss takes
+// the account to its daily or overall drawdown limit, every open position is
+// force-closed and the account is failed — so the breach is enforced right at
+// the limit rather than only on manual close or a slower poll. Guarded so only
+// one pass runs at a time (a slow DB cycle won't pile up).
+let _ddFastBusy = false
+setInterval(async () => {
+  if (_ddFastBusy) return
+  if (mongoose.connection.readyState !== 1 || priceCache.size === 0) return
+  _ddFastBusy = true
+  try {
+    const currentPrices = {}
+    priceCache.forEach((data, symbol) => {
+      currentPrices[symbol] = { bid: data.bid, ask: data.ask }
+    })
+    const breached = await propTradingEngine.checkOpenTradeDrawdown(currentPrices)
+    if (breached.length > 0) {
+      console.log(`[Prop DD Fast] ${breached.length} account(s) failed + force-closed on drawdown breach`)
+    }
+  } catch (error) {
+    // Silent — the 5s full sweep is the backstop.
+  } finally {
+    _ddFastBusy = false
+  }
+}, 200)
+
 // Background stop-out check every 5 seconds
 // This ensures trades are closed even if user closes browser
 setInterval(async () => {
@@ -569,15 +596,23 @@ setInterval(async () => {
       console.log(`[STOP-OUT] ${result.stopOuts.length} accounts stopped out`)
     }
 
-    // Server-authoritative prop drawdown enforcement. Reactive checks (on trade
-    // close, or the client's /update-equity while on the trading page) leave
-    // gaps, so an account can sit ACTIVE while the admin view shows it breaching
-    // (e.g. 9.56% / 5%). This sweeps EVERY ACTIVE/FUNDED challenge account —
-    // including ones with no open trades (realized breach) — and fails +
-    // force-closes any that have breached. Read-only for healthy accounts.
+    // Full drawdown safety net. The fast 200ms loop (checkOpenTradeDrawdown)
+    // handles accounts with open positions near-instantly; this slower full
+    // sweep covers every ACTIVE/FUNDED account — including ones with NO open
+    // trades whose realized balance already breaches (e.g. losses booked over
+    // several days). Read-only for healthy accounts.
     const ddBreached = await propTradingEngine.checkAllAccountsDrawdown(currentPrices, priceCache)
     if (ddBreached.length > 0) {
       console.log(`[Prop DD AUTO] ${ddBreached.length} challenge account(s) failed on drawdown breach`)
+    }
+
+    // Server-authoritative profit-target enforcement. checkProfitTarget only
+    // runs on trade close, so an account that reached its target but didn't
+    // progress (e.g. legacy bad totalPhases) would sit ACTIVE. This passes /
+    // advances any ACTIVE challenge account that has met its target.
+    const passed = await propTradingEngine.enforceProfitTargets()
+    if (passed.length > 0) {
+      console.log(`[Prop Target AUTO] ${passed.length} challenge account(s) progressed/funded`)
     }
   } catch (error) {
     // Silent fail - don't spam logs

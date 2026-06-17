@@ -45,11 +45,13 @@ class PropTradingEngine {
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + (challenge.rules.challengeExpiryDays || 30))
 
-    // Use the challenge's declared stepsCount as totalPhases verbatim. A
-    // silent `|| 2` fallback let CH196289 end up with totalPhases=2 while
-    // the challenge it pointed at had stepsCount=0/null — checkProfitTarget
-    // then refused to advance.
-    const stepsCount = Number.isFinite(challenge.stepsCount) ? challenge.stepsCount : 2
+    // Every purchasable challenge is an evaluation with AT LEAST one phase, so
+    // floor totalPhases at 1. A stepsCount of 0 / null / non-finite is a
+    // misconfiguration (it previously created an ACTIVE account with
+    // totalPhases=0 that checkProfitTarget refused to ever pass — e.g. CH140960
+    // sat ACTIVE at 11.40% against a 10% target and never funded). We still use
+    // a declared 2/3 verbatim; we just never drop below 1.
+    const stepsCount = Math.max(1, Number.isFinite(challenge.stepsCount) ? challenge.stepsCount : 1)
     const account = await ChallengeAccount.create({
       userId,
       challengeId,
@@ -541,6 +543,35 @@ class PropTradingEngine {
     return closed
   }
 
+  // Snap a just-failed account's equity to the EXACT drawdown limit.
+  //
+  // Drawdown is monitored on a ~200ms tick, so by the time a floating breach is
+  // detected and the position force-closed at market, equity is a hair past the
+  // limit (e.g. 4.29% on a 4% cap). For a fixed-limit prop rule the trader must
+  // never lose more than the limit, so we snap the account's final equity back
+  // to the limit floor and recompute the stored drawdown to read exactly the
+  // limit. The tightest active limit (highest floor) is the one hit first, so
+  // we cap there. Only ever raises equity (caps the loss) — never lowers it.
+  async _capLossToDrawdownLimit(account, rules) {
+    const initialBalance = account.initialBalance || account.phaseStartBalance
+    const dayStart = account.dayStartEquity || initialBalance
+    const floors = []
+    if (rules.maxDailyDrawdownPercent > 0) floors.push(dayStart * (1 - rules.maxDailyDrawdownPercent / 100))
+    if (rules.maxOverallDrawdownPercent > 0) floors.push(initialBalance * (1 - rules.maxOverallDrawdownPercent / 100))
+    if (floors.length === 0) { await account.save(); return }
+
+    const floor = Math.round(Math.max(...floors) * 100) / 100
+    if (account.currentBalance >= floor) { await account.save(); return } // no overshoot
+
+    account.currentBalance = floor
+    account.currentEquity = floor
+    if (account.lowestEquityToday == null || account.lowestEquityToday < floor) account.lowestEquityToday = floor
+    if (account.lowestEquityOverall == null || account.lowestEquityOverall < floor) account.lowestEquityOverall = floor
+    account.currentDailyDrawdownPercent = dayStart > 0 ? ((dayStart - floor) / dayStart) * 100 : 0
+    account.currentOverallDrawdownPercent = initialBalance > 0 ? ((initialBalance - floor) / initialBalance) * 100 : 0
+    await account.save()
+  }
+
   // Real-time equity update (called on price changes). When floating-equity
   // alone breaches drawdown (no close has happened yet), we still need to
   // fail the account *and* force-close every open trade — otherwise the
@@ -577,8 +608,11 @@ class PropTradingEngine {
     // Check for immediate drawdown breach (sets status='FAILED' inside)
     const drawdownCheck = await this.checkDrawdownBreach(account, rules)
     if (drawdownCheck.breached) {
-      // Force-close opens so the realised balance lines up with the breach
+      // Force-close opens so the realised balance lines up with the breach,
+      // then snap the loss to the exact limit (undo the ~200ms monitoring
+      // overshoot) so the account fails at exactly the limit, e.g. 4.00%.
       await this.forceCloseAllOpenTrades(account, priceCache, 'DRAWDOWN_BREACH')
+      await this._capLossToDrawdownLimit(account, rules)
       return {
         account,
         breached: true,
@@ -1148,6 +1182,120 @@ class PropTradingEngine {
     return breached
   }
 
+  // Low-latency drawdown enforcement for accounts that currently hold open
+  // positions. This is the fast path (run every ~200ms off the in-memory price
+  // cache): the instant an open trade's LIVE floating loss takes the account to
+  // its daily or overall drawdown limit, it force-closes every open trade and
+  // fails the account — so the breach is acted on as close to the limit as the
+  // tick cadence allows, not seconds later. Only touches accounts that have
+  // open challenge trades (the only ones that can move between ticks); the
+  // broader checkAllAccountsDrawdown stays on a slower loop for realized /
+  // no-open-trade breaches. `prices` is a { symbol: {bid, ask} } map.
+  async checkOpenTradeDrawdown(prices = {}) {
+    const openTrades = await Trade.find({
+      isChallengeAccount: true,
+      status: 'OPEN'
+    }).lean()
+    if (openTrades.length === 0) return []
+
+    // Group open trades by account.
+    const byAccount = new Map()
+    for (const t of openTrades) {
+      const key = String(t.tradingAccountId)
+      if (!byAccount.has(key)) byAccount.set(key, [])
+      byAccount.get(key).push(t)
+    }
+
+    const accounts = await ChallengeAccount.find({
+      _id: { $in: [...byAccount.keys()] },
+      status: { $in: ['ACTIVE', 'FUNDED'] }
+    }).populate('challengeId', 'rules')
+
+    const breached = []
+    for (const account of accounts) {
+      try {
+        const rules = account.challengeId?.rules
+        if (!rules) continue
+        const maxDaily = rules.maxDailyDrawdownPercent || 0
+        const maxOverall = rules.maxOverallDrawdownPercent || 0
+        if (maxDaily <= 0 && maxOverall <= 0) continue
+
+        // Live floating equity from current market prices.
+        let floatingPnl = 0
+        for (const trade of byAccount.get(String(account._id)) || []) {
+          const pd = prices[trade.symbol]
+          if (!pd) { floatingPnl += trade.floatingPnl || 0; continue }
+          const bid = pd.bid
+          const ask = pd.ask || pd.bid
+          const closePrice = trade.side === 'BUY' ? bid : ask
+          const rawPnl = trade.side === 'BUY'
+            ? (closePrice - trade.openPrice) * trade.quantity * trade.contractSize
+            : (trade.openPrice - closePrice) * trade.quantity * trade.contractSize
+          floatingPnl += rawPnl - (trade.commission || 0) - (trade.swap || 0)
+        }
+
+        const equity = account.currentBalance + floatingPnl
+        const initialBalance = account.initialBalance || account.phaseStartBalance || equity
+        const dayStart = account.dayStartEquity || initialBalance
+
+        // Enforce on CURRENT live equity (not the day's lowest) so we close the
+        // moment the limit is touched.
+        const dailyDD = dayStart > 0 ? ((dayStart - equity) / dayStart) * 100 : 0
+        const lowestOverall = Math.min(account.lowestEquityOverall ?? initialBalance, equity)
+        const overallDD = initialBalance > 0 ? ((initialBalance - lowestOverall) / initialBalance) * 100 : 0
+
+        if ((maxDaily > 0 && dailyDD >= maxDaily) || (maxOverall > 0 && overallDD >= maxOverall)) {
+          // Authoritative path: fails the account + force-closes opens at market.
+          const result = await this.updateRealTimeEquity(account._id, equity, prices)
+          if (result?.breached) {
+            console.log(`[Prop DD Fast] ${account.accountId} failed + force-closed: ${result.reason}`)
+            breached.push({ accountId: account.accountId, reason: result.reason })
+          }
+        }
+      } catch (err) {
+        console.error(`[Prop DD Fast] Error on ${account._id}:`, err.message)
+      }
+    }
+    return breached
+  }
+
+  // Server-authoritative profit-target sweep.
+  //
+  // checkProfitTarget normally only runs on a trade close (onTradeClosed). That
+  // leaves an ACTIVE account stranded if it reached its target but didn't get
+  // progressed — e.g. a legacy account created with the wrong totalPhases, or a
+  // close path that missed the check. This sweep re-evaluates every ACTIVE
+  // challenge account that is currently in profit and hands each to the
+  // authoritative checkProfitTarget, which only acts when the target is truly
+  // met (it re-checks status, phase, FAIL violations and currentProfitPercent),
+  // advancing the phase or creating the funded account exactly as a live pass
+  // would. createFundedAccount is idempotent, so re-running is safe.
+  async enforceProfitTargets() {
+    const candidates = await ChallengeAccount.find({
+      status: 'ACTIVE',
+      accountType: 'CHALLENGE',
+      totalPhases: { $gte: 1 },
+      currentProfitPercent: { $gt: 0 } // only accounts in profit can pass
+    }).populate('challengeId')
+    if (candidates.length === 0) return []
+
+    const progressed = []
+    for (const account of candidates) {
+      try {
+        const challenge = account.challengeId
+        if (!challenge) continue
+        const result = await this.checkProfitTarget(account, challenge)
+        if (result.targetReached) {
+          console.log(`[Prop Target Sweep] Account ${account.accountId} ${result.funded ? 'PASSED → funded' : 'advanced to phase ' + result.nextPhase}`)
+          progressed.push({ accountId: account.accountId, funded: !!result.funded, nextPhase: result.nextPhase })
+        }
+      } catch (err) {
+        console.error(`[Prop Target Sweep] Error on ${account._id}:`, err.message)
+      }
+    }
+    return progressed
+  }
+
   // Track rule violation and fail account if repeated
   async trackRuleViolation(challengeAccountId, ruleCode, description) {
     const account = await ChallengeAccount.findById(challengeAccountId)
@@ -1391,6 +1539,17 @@ class PropTradingEngine {
         expiresAt: account.expiresAt,
         remainingDays,
         createdAt: account.createdAt
+      },
+      // Baselines so the client can recompute daily/overall DD and profit %
+      // LIVE from its own floating equity (balance + open-trade floating P&L)
+      // on every price tick, instead of only showing this server snapshot.
+      // Mirrors the formulas above.
+      baselines: {
+        initialBalance,
+        currentBalance: account.currentBalance,
+        dayStartEquity,
+        phaseStartBalance,
+        lowestEquityOverall: account.lowestEquityOverall || initialBalance
       },
       violations: account.violations,
       warningsCount: account.warningsCount,

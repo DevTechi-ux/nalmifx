@@ -1261,7 +1261,41 @@ const TradingPage = () => {
         )}
 
         {/* Challenge Account Banner */}
-        {accountType === 'challenge' && challengeAccount && (
+        {accountType === 'challenge' && challengeAccount && (() => {
+          // Recompute daily/overall DD and profit % LIVE from the account's own
+          // floating equity (updates every price tick) so the bar tracks the
+          // open trade in real time — a floating loss raises the drawdown, a
+          // floating gain raises the profit %. Falls back to the server
+          // snapshot if baselines or live equity aren't available yet.
+          const b = challengeAccount.baselines
+          const liveEquity = accountSummary?.equity
+          const useLive = b && Number.isFinite(liveEquity)
+
+          const dailyMax = challengeAccount.drawdown?.dailyMax || 5
+          const overallMax = challengeAccount.drawdown?.overallMax || 10
+          const targetPercent = challengeAccount.profit?.targetPercent || 8
+
+          let dailyUsed, overallUsed, profitPct
+          if (useLive) {
+            dailyUsed = b.dayStartEquity > 0
+              ? Math.min(100, Math.max(0, ((b.dayStartEquity - liveEquity) / b.dayStartEquity) * 100))
+              : 0
+            const lowestOverall = Math.min(b.lowestEquityOverall ?? b.initialBalance, liveEquity)
+            overallUsed = b.initialBalance > 0
+              ? Math.min(100, Math.max(0, ((b.initialBalance - lowestOverall) / b.initialBalance) * 100))
+              : 0
+            profitPct = b.initialBalance > 0
+              ? Math.max(0, ((liveEquity - b.phaseStartBalance) / b.initialBalance) * 100)
+              : 0
+          } else {
+            dailyUsed = challengeAccount.drawdown?.dailyUsed || 0
+            overallUsed = challengeAccount.drawdown?.overallUsed || 0
+            profitPct = challengeAccount.profit?.currentPercent || 0
+          }
+
+          const ddColor = (used, max) => used >= max * 0.8 ? 'text-red-500' : used >= max * 0.5 ? 'text-yellow-500' : 'text-green-500'
+
+          return (
           <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-b border-yellow-500/30 px-3 py-2 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
               <Trophy size={18} className="text-yellow-500" />
@@ -1270,15 +1304,15 @@ const TradingPage = () => {
               </span>
               <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>|</span>
               <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                Daily DD: <span className={challengeAccount.drawdown?.dailyUsed > 3 ? 'text-red-500' : 'text-green-500'}>{challengeAccount.drawdown?.dailyUsed?.toFixed(2) || 0}%</span> / {challengeAccount.drawdown?.dailyMax || 5}%
+                Daily DD: <span className={ddColor(dailyUsed, dailyMax)}>{dailyUsed.toFixed(2)}%</span> / {dailyMax}%
               </span>
               <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>|</span>
               <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                Overall DD: <span className={challengeAccount.drawdown?.overallUsed > 6 ? 'text-red-500' : 'text-green-500'}>{challengeAccount.drawdown?.overallUsed?.toFixed(2) || 0}%</span> / {challengeAccount.drawdown?.overallMax || 10}%
+                Overall DD: <span className={ddColor(overallUsed, overallMax)}>{overallUsed.toFixed(2)}%</span> / {overallMax}%
               </span>
               <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>|</span>
               <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                Profit: <span className="text-green-500">{challengeAccount.profit?.currentPercent?.toFixed(2) || 0}%</span> / {challengeAccount.profit?.targetPercent || 8}%
+                Profit: <span className="text-green-500">{profitPct.toFixed(2)}%</span> / {targetPercent}%
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -1290,7 +1324,8 @@ const TradingPage = () => {
               )}
             </div>
           </div>
-        )}
+          )
+        })()}
         
         {/* Top Header */}
         <header className={`h-10 sm:h-8 border-b flex items-center px-2 sm:px-3 shrink-0 ${isDarkMode ? 'bg-black border-gray-800' : 'bg-white border-gray-200'}`}>
